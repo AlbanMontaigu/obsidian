@@ -29,7 +29,8 @@ What it does, in order:
 3. Starts Obsidian with `--user-data-dir=<temp profile>` (so it sees only that vault; your settings, vault list and
    running Obsidian are untouched) and `--remote-debugging-port=9334` (`--port` to change).
 4. Over the Chrome DevTools Protocol: waits for `app.workspace.layoutReady`, turns Restricted mode off and enables
-   the plugin (`app.plugins.setEnable(true)`, `enablePluginAndSave(id)`), closes the "trust this vault" dialog.
+   the plugin (`app.plugins.setEnable(true)`, `enablePluginAndSave(id)`), closes the "trust this vault" dialog
+   (found by its class `.mod-trust-folder`, since the UI follows the OS language; also closed if it opens late).
 5. Runs `tests/smoke.js` inside the page, then screenshots to `dist/<id>-smoke.png`.
 6. Prints every check, every console warning/error and exception. **PASS** = plugin loaded, every `check()` true,
    no unexpected console error or exception.

@@ -143,12 +143,20 @@ try {
   const info = enable.value;
   console.log(`  Obsidian ${info.obsidian ?? "?"}, plugin ${plugin.manifest.id} ${info.version ?? "?"}: ${info.loaded ? "loaded" : "NOT loaded"}`);
   if (!info.loaded) throw new Error("plugin did not load (see errors below)");
-  // The "Do you trust the author of this vault?" dialog opens (a little later) because the vault ships a
-  // plugin. Plugins are already enabled through the API, so close it once it shows up.
+  // The "Do you trust the author of this vault?" dialog (`.modal.mod-trust-folder`) opens, sometimes seconds later,
+  // because the vault ships a plugin. Plugins are already enabled through the API, so close it. While it is
+  // pending no other modal opens, not even the plugin's own. Match its class, not its text: the UI follows the OS
+  // language ("Faire confiance à l'auteur de ce coffre ?" in French). An observer also closes it if it shows up
+  // after smoke.js has started.
   await page.evaluate(`(async () => {
-    for (let i = 0; i < 20; i++) {
-      const trust = [...document.querySelectorAll(".modal-container")].find((m) => /trust/i.test(m.textContent));
-      if (trust) { trust.querySelector(".modal-close-button")?.click(); return true; }
+    const closeTrust = () => {
+      const m = document.querySelector(".modal.mod-trust-folder");
+      if (m) (m.closest(".modal-container") ?? m).querySelector(".modal-close-button, .modal-header-button")?.click(); // 1.15: .modal-header-button
+      return !!m;
+    };
+    new MutationObserver(closeTrust).observe(document.body, { childList: true });
+    for (let i = 0; i < 40; i++) {
+      if (closeTrust()) return true;
       await new Promise((r) => setTimeout(r, 250));
     }
     return false;
