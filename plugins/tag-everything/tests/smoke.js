@@ -333,6 +333,7 @@ groupEl("Formula").querySelector(".tag-everything-group-header").dispatchEvent(n
 await sleep(200);
 const formulaItem = [...document.querySelectorAll(".menu .menu-item")].find((m) => /formula/i.test(m.textContent));
 check("formula: group menu offers it", !!formulaItem, [...document.querySelectorAll(".menu .menu-item")].map((m) => m.textContent).join(" | "));
+check("groups: the group menu starts with Search with this group", /^Search with this group/.test(document.querySelector(".menu .menu-item")?.textContent ?? ""));
 formulaItem?.click();
 await sleep(300);
 const fModal = document.querySelector(".tag-everything-formula-modal");
@@ -380,6 +381,35 @@ check("formula: a dropped tag is added with AND", fGroup().formula === "shared A
 groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-chip-remove")[1].click(); // final
 await sleep(200);
 check("formula: × takes the tag out of the formula", fGroup().formula === "shared AND IMAC", fGroup().formula);
+const groupChipEl = (group, tag) => [...groupEl(group).querySelectorAll(".tag-everything-group-tags .tag-everything-chip")].find((c) => c.firstChild.textContent === tag);
+groupChipEl("Formula", "IMAC").querySelector(".tag-everything-chip-not").click();
+await sleep(200);
+check("NOT: the chip's NOT button negates it in the formula", fGroup().formula === "shared AND NOT IMAC" && groupChipEl("Formula", "IMAC").classList.contains("is-negated"), fGroup().formula);
+groupChipEl("Formula", "IMAC").querySelector(".tag-everything-chip-not").click();
+await sleep(200);
+check("NOT: and back", fGroup().formula === "shared AND IMAC", fGroup().formula);
+groupChipEl("Shared docs", "final").querySelector(".tag-everything-chip-not").click();
+await sleep(200);
+const sharedDocs = plugin.settings.groups.find((g) => g.name === "Shared docs");
+check("NOT: a group without formula gets one", sharedDocs.formula === "shared AND NOT final" && sharedDocs.tags.join() === "shared,final", JSON.stringify(sharedDocs));
+
+// NOT in a plain search: right-click a tag of the cloud → Exclude; + then saves the search as a group
+panel().querySelector(".tag-everything-view-clear")?.click();
+await sleep(100);
+cloudChip("shared").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await sleep(200);
+[...document.querySelectorAll(".menu .menu-item")].find((m) => /Exclude this tag/.test(m.textContent))?.click();
+await sleep(200);
+const withoutShared = plugin.index.paths().filter((p) => !plugin.index.hasTag(p, "shared")).length;
+const notOps = [...panel().querySelectorAll(".tag-everything-view-selected .tag-everything-op")].map((o) => o.textContent).join();
+check("NOT: excluding a cloud tag lists the items without it", withoutShared > 0 && results() === withoutShared && notOps === "NOT" && !!panel().querySelector(".tag-everything-view-selected .tag-everything-chip.is-negated") && !cloudChip("shared"), `${results()} vs ${withoutShared}`);
+check("NOT: excluded tags are in the panel's saved state", view.getState().excluded?.join() === "shared");
+panel().querySelector(".tag-everything-group-add").click();
+await sleep(300);
+document.querySelector(".tag-everything-group-modal input").value = "Not shared";
+document.querySelector(".tag-everything-group-modal .mod-cta").click();
+await sleep(300);
+check("NOT: + saves the search as a group formula", plugin.settings.groups.find((g) => g.name === "Not shared")?.formula === "NOT shared", JSON.stringify(plugin.settings.groups.at(-1)));
 
 // ---- panel usability: filter + Enter, keyboard, saved state, group search button, results
 panel().querySelector(".tag-everything-view-clear")?.click();
@@ -406,15 +436,17 @@ await sleep(200);
 check("panel: tags work from the keyboard", keyChip.tabIndex === 0 && view.getState().selected?.join() === "client");
 panel().querySelector(".tag-everything-view-clear").click();
 await sleep(100);
+const searchLabel = () => groupEl("Formula").querySelector(".tag-everything-group-search-label")?.textContent;
+check("groups: the search button is labelled", searchLabel() === "Search", searchLabel());
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
-check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group"));
+check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group") && searchLabel() === "Stop");
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
 check("groups: and clears it", !panel().querySelector(".tag-everything-group.is-active"));
 
-// left for the screenshot: a formula group search with one tag switched off
-await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC)");
+// left for the screenshot: a formula group search with a NOT and one tag switched off
+await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC) AND NOT IMAC");
 view.selectGroup(formulaId);
 await sleep(100);
 barChip("final").click();

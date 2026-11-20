@@ -359,13 +359,29 @@
   padding: 2px 6px 6px;
 }
 
-/* the "remove from group" cross appears on hover only, so the group reads as a plain list of tags */
-.tag-everything-group-tags .tag-everything-chip-remove {
+/* the NOT and "remove from group" buttons appear on hover only, so the group reads as a plain list of tags */
+.tag-everything-group-tags .tag-everything-chip-remove,
+.tag-everything-group-tags .tag-everything-chip-not {
   display: none;
 }
 
-.tag-everything-group-tags .tag-everything-chip:hover .tag-everything-chip-remove {
+.tag-everything-group-tags .tag-everything-chip:hover .tag-everything-chip-remove,
+.tag-everything-group-tags .tag-everything-chip:hover .tag-everything-chip-not {
   display: inline-flex;
+}
+
+.tag-everything-chip-not svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tag-everything-chip-not:hover {
+  color: var(--text-error);
+}
+
+/* a tag written NOT tag (group formula) or excluded from the search */
+.tag-everything-chip.is-negated > span:first-child {
+  text-decoration: line-through;
 }
 
 /* a group tag no file carries any more */
@@ -466,22 +482,43 @@
   opacity: 1;
 }
 
-/* group search button: magnifier + how many items the group finds */
+/* group search button: "Search" + how many items the group finds, a pill so it reads as a button */
 .tag-everything-group-search {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 4px;
+  gap: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
   color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.tag-everything-group-search-icon {
+  display: inline-flex;
 }
 
 .tag-everything-group-search svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
+}
+
+.tag-everything-group-search:hover,
+.tag-everything-group-header:hover .tag-everything-group-search {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
 }
 
 .tag-everything-group.is-active .tag-everything-group-search {
-  color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.tag-everything-group.is-active .tag-everything-group-search .tag-everything-chip-count {
+  color: inherit;
 }
 
 .tag-everything-view-status {

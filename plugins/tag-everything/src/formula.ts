@@ -31,6 +31,10 @@ export function tagExpr(tag: string): Expr {
   return { k: "tag", tag };
 }
 
+export function notExpr(e: Expr): Expr {
+  return { k: "not", item: e };
+}
+
 /** AND of the parts, flattened; null when there is none, the part itself when there is one. */
 export function andOf(parts: readonly (Expr | null)[]): Expr | null {
   return combine("and", parts);
@@ -217,6 +221,18 @@ export function prune(e: Expr, keep: (tag: string) => boolean): Expr | null {
       return andOf(e.items.map((i) => prune(i, keep)));
     case "or":
       return orOf(e.items.map((i) => prune(i, keep)));
+  }
+}
+
+/** `tag` ↔ `NOT tag` wherever the tag is written; the rest of the formula is unchanged. */
+export function toggleNot(e: Expr, tag: string): Expr {
+  switch (e.k) {
+    case "tag":
+      return e.tag === tag ? notExpr(e) : e;
+    case "not":
+      return e.item.k === "tag" && e.item.tag === tag ? e.item : notExpr(toggleNot(e.item, tag));
+    default:
+      return { k: e.k, items: e.items.map((i) => toggleNot(i, tag)) };
   }
 }
 

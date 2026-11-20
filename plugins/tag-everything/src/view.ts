@@ -24,9 +24,14 @@ interface InternalApp {
   };
 }
 
+/** Draws one tag of a formula; `negated` when it is written `NOT tag`. */
+type TagChipFn = (parent: HTMLElement, tag: string, negated: boolean) => void;
+
 /** What the panel remembers across restarts (workspace.json). */
 interface PanelState {
   selected: string[];
+  /** Tags searched with NOT. */
+  excluded: string[];
   activeGroup: string | null;
   filter: string;
 }
@@ -51,11 +56,13 @@ function clickable(el: HTMLElement, fn: (evt: MouseEvent | KeyboardEvent) => voi
 
 /**
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
- * carrying them. Selecting a group selects its tags; each can then be switched off and on again.
+ * carrying them, or exclude tags (NOT). Selecting a group selects its tags; each can then be switched off and on again.
  */
 export class TagEverythingView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
   private selected: string[] = [];
+  /** Tags the search excludes (AND NOT tag). */
+  private excluded: string[] = [];
   /** Group whose tags make up the search, if the search started from a group. */
   private activeGroup: string | null = null;
   private filter = "";
@@ -140,13 +147,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   getState(): Record<string, unknown> {
-    const state: PanelState = { selected: this.selected, activeGroup: this.activeGroup, filter: this.filter };
+    const state: PanelState = { selected: this.selected, excluded: this.excluded, activeGroup: this.activeGroup, filter: this.filter };
     return { ...super.getState(), ...state };
   }
 
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     const s = (state && typeof state === "object" ? state : {}) as Partial<Record<keyof PanelState, unknown>>;
     if (Array.isArray(s.selected)) this.selected = s.selected.filter((t): t is string => typeof t === "string");
+    if (Array.isArray(s.excluded)) this.excluded = s.excluded.filter((t): t is string => typeof t === "string");
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
     if (this.searchEl) this.searchEl.value = this.filter;
@@ -157,6 +165,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Shows the items carrying `tag` (used by badge clicks). */
   selectOnly(tag: string): void {
     this.selected = [tag];
+    this.excluded = [];
     this.activeGroup = null;
     this.render();
   }
@@ -179,10 +188,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
   }
 
-  /** Creates a group and returns its id (public for the smoke test). Throws on an empty name. */
-  async createGroup(name: string, tags: readonly string[] = []): Promise<string> {
+  /**
+   * Creates a group and returns its id (public for the smoke test). Tags in `excluded` make it a formula:
+   * `tags AND NOT excluded`. Throws on an empty name.
+   */
+  async createGroup(name: string, tags: readonly string[] = [], excluded: readonly string[] = []): Promise<string> {
     const { groups, id } = gr.addGroup(this.groups, name, tags);
-    await this.saveGroups(groups);
+    const formula = excluded.length ? fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]) : null;
+    await this.saveGroups(formula ? gr.setFormula(groups, id, formula) : groups);
     return id;
   }
 
@@ -193,6 +206,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Searches by every tag of the group still in use; on the active group, clears the search. */
   selectGroup(id: string): void {
     const group = this.groups.find((g) => g.id === id);
+    this.excluded = [];
     if (!group || this.activeGroup === id) {
       this.activeGroup = null;
       this.selected = [];
@@ -220,7 +234,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     await this.saveGroups(gr.setFormula(this.groups, id, expr));
   }
 
-  /** The current search: the active group's formula without its switched-off tags, AND the other selected tags. */
+  /** The current search: the active group's formula without its switched-off tags, AND the other selected tags, AND NOT the excluded ones. */
   private searchExpr(): fx.Expr | null {
     const group = this.groups.find((g) => g.id === this.activeGroup);
     const on = (t: string): boolean => this.selected.includes(t);
@@ -228,6 +242,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return fx.andOf([
       groupPart && fx.prune(groupPart, on),
       ...this.selected.filter((t) => !group?.tags.includes(t)).map(fx.tagExpr),
+      ...this.excluded.map((t) => fx.notExpr(fx.tagExpr(t))),
     ]);
   }
 
@@ -244,14 +259,22 @@ export class TagEverythingView extends ItemView implements HoverParent {
     new GroupNameModal(this.app, title, initial, done).open();
   }
 
-  private newGroup(tags: readonly string[]): void {
+  private newGroup(tags: readonly string[], excluded: readonly string[] = []): void {
     this.askGroupName("New tag group", "", async (name) => {
-      await this.createGroup(name, tags);
+      await this.createGroup(name, tags, excluded);
     });
   }
 
   private groupMenu(group: gr.TagGroup, evt: MouseEvent): void {
     const menu = new Menu();
+    const active = this.activeGroup === group.id;
+    const n = this.matchPaths(gr.groupExpr(group)).length;
+    menu.addItem((i) =>
+      i
+        .setTitle(active ? "Stop the search" : `Search with this group (${plural(n, "item")})`)
+        .setIcon(active ? "search-x" : "search")
+        .onClick(() => this.selectGroup(group.id)),
+    );
     menu.addItem((i) =>
       i
         .setTitle("Rename group")
@@ -302,12 +325,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
     ).open();
   }
 
-  /** Draws a formula: chips (from `chip`) between AND / OR / NOT and the parentheses it needs. */
-  private renderExpr(parent: HTMLElement, e: fx.Expr, chip: (parent: HTMLElement, tag: string) => void, outer: fx.Expr["k"] | null = null): void {
+  /** Draws a formula: chips (from `chip`, told when the tag is negated) between AND / OR / NOT and the parentheses it needs. */
+  private renderExpr(parent: HTMLElement, e: fx.Expr, chip: TagChipFn, outer: fx.Expr["k"] | null = null): void {
     const op = (text: string, cls = ""): void => void parent.createSpan({ cls: "tag-everything-op " + cls, text });
-    if (e.k === "tag") return chip(parent, e.tag);
+    if (e.k === "tag") return chip(parent, e.tag, false);
     if (e.k === "not") {
       op("NOT");
+      if (e.item.k === "tag") return chip(parent, e.item.tag, true);
       return this.renderExpr(parent, e.item, chip, "not");
     }
     const parens = (e.k === "or" && (outer === "and" || outer === "not")) || (e.k === "and" && outer === "not");
@@ -349,17 +373,43 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   // ---- rendering
 
-  private toggle(tag: string): void {
-    this.selected = this.selected.includes(tag) ? this.selected.filter((t) => t !== tag) : [...this.selected, tag];
+  /** Puts the tag in the search ("on"), excludes it ("not") or takes it out (null). */
+  private setMode(tag: string, mode: "on" | "not" | null): void {
+    this.selected = this.selected.filter((t) => t !== tag);
+    this.excluded = this.excluded.filter((t) => t !== tag);
+    if (mode === "on") this.selected.push(tag);
+    if (mode === "not") this.excluded.push(tag);
     this.render();
     this.app.workspace.requestSaveLayout(); // the selection is part of the panel's saved state
+  }
+
+  private toggle(tag: string): void {
+    this.setMode(tag, this.selected.includes(tag) || this.excluded.includes(tag) ? null : "on");
+  }
+
+  /** Right-click on a tag of the cloud or of the search bar: search with it, exclude it (NOT), take it out. */
+  private tagMenu(el: HTMLElement, tag: string): void {
+    el.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const on = this.selected.includes(tag);
+      const not = this.excluded.includes(tag);
+      const menu = new Menu();
+      if (!on) menu.addItem((i) => i.setTitle("Search with this tag").setIcon("search").onClick(() => this.setMode(tag, "on")));
+      if (!not) menu.addItem((i) => i.setTitle("Exclude this tag (NOT)").setIcon("ban").onClick(() => this.setMode(tag, "not")));
+      if (on || not) menu.addItem((i) => i.setTitle("Remove from the search").setIcon("x").onClick(() => this.setMode(tag, null)));
+      menu.showAtMouseEvent(evt);
+    });
   }
 
   private render(): void {
     if (!this.tagsEl) return;
     const counts = this.plugin.index.counts();
     // Before the first scan the index is empty: keep a selection restored from the saved workspace.
-    if (this.plugin.index.ready) this.selected = this.selected.filter((t) => counts.has(t));
+    if (this.plugin.index.ready) {
+      this.selected = this.selected.filter((t) => counts.has(t));
+      this.excluded = this.excluded.filter((t) => counts.has(t));
+    }
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
     this.renderSelected();
     this.renderGroups();
@@ -388,7 +438,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private renderSelected(): void {
     this.selectedEl.empty();
     const group = this.groups.find((g) => g.id === this.activeGroup);
-    if (!group && !this.selected.length) return;
+    if (!group && !this.selected.length && !this.excluded.length) return;
     const counts = this.plugin.index.counts();
     if (group) {
       const label = this.selectedEl.createDiv({ cls: "tag-everything-view-selected-group", attr: { "aria-label": "Search started from this group" } });
@@ -396,28 +446,32 @@ export class TagEverythingView extends ItemView implements HoverParent {
       label.createSpan({ text: group.name });
       // The group's tags stay listed (inside its formula, if it has one): a switched-off one (dashed) can be
       // switched on again.
-      const toggleChip = (parent: HTMLElement, tag: string): void => {
+      const toggleChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
         const on = this.selected.includes(tag);
         const used = counts.has(tag);
-        const el = this.chip(parent, tag, on ? "is-selected" : "is-off" + (used ? "" : " is-missing"));
+        const el = this.chip(parent, tag, (on ? "is-selected" : "is-off" + (used ? "" : " is-missing")) + (negated ? " is-negated" : ""));
         el.setAttr("aria-label", !used ? "No file or folder carries this tag" : on ? "Click to leave it out of the search" : "Click to search with it");
         if (used) clickable(el, () => this.toggle(tag));
       };
       const expr = group.formula && !gr.formulaError(group) ? gr.groupExpr(group) : null;
       if (expr) this.renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
-      else for (const tag of group.tags) toggleChip(this.selectedEl, tag);
+      else for (const tag of group.tags) toggleChip(this.selectedEl, tag, false);
     }
-    for (const tag of this.selected) {
-      if (group?.tags.includes(tag)) continue;
-      const el = this.chip(this.selectedEl, tag, "is-selected");
+    const searchChip = (tag: string, negated: boolean): void => {
+      if (negated) this.selectedEl.createSpan({ cls: "tag-everything-op", text: "NOT" });
+      const el = this.chip(this.selectedEl, tag, negated ? "is-selected is-negated" : "is-selected");
       const x = el.createSpan({ cls: "tag-everything-chip-remove" });
       setIcon(x, "x");
-      el.setAttr("aria-label", "Remove from the search");
-      clickable(el, () => this.toggle(tag));
-    }
+      el.setAttr("aria-label", "Remove from the search (right-click: more)");
+      clickable(el, () => this.setMode(tag, null));
+      this.tagMenu(el, tag);
+    };
+    for (const tag of this.selected) if (!group?.tags.includes(tag)) searchChip(tag, false);
+    for (const tag of this.excluded) searchChip(tag, true);
     const clear = this.selectedEl.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
     clear.addEventListener("click", () => {
       this.selected = [];
+      this.excluded = [];
       this.activeGroup = null;
       this.render();
       this.app.workspace.requestSaveLayout();
@@ -434,14 +488,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
     head.createSpan({ cls: "tag-everything-groups-title", text: "Groups" });
     const add = head.createDiv({
       cls: "clickable-icon tag-everything-group-add",
-      attr: { "aria-label": "New group, with the selected tags (or drop a tag here)" },
+      attr: { "aria-label": "New group, from the current search (or drop a tag here)" },
     });
     setIcon(add, "plus");
-    clickable(add, () => this.newGroup(this.selected));
+    clickable(add, () => this.newGroup(this.selected, this.excluded));
     this.dropZone(add, (tag) => this.newGroup([tag]));
 
     if (!this.groups.length) {
-      el.createDiv({ cls: "tag-everything-view-empty", text: "No groups yet. + creates one; drag tags onto a group to add them." });
+      el.createDiv({ cls: "tag-everything-view-empty", text: "No groups yet. + creates one; drag tags onto a group to add them. A group is also a search: its Search button lists what it finds." });
       return;
     }
 
@@ -472,12 +526,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
         const sigma = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula}` } });
         setIcon(sigma, "sigma");
       }
-      // Visible search button: the whole header searches too, but that was easy to miss.
+      // Labelled search button: the whole header searches too, but an icon alone was easy to miss.
       const find = header.createDiv({
-        cls: "clickable-icon tag-everything-group-search",
-        attr: { "aria-label": active ? "Clear the search" : `List the ${plural(n, "item")} this group finds` },
+        cls: "tag-everything-group-search",
+        attr: { "aria-label": active ? "Stop the search" : `Search with the whole group: lists the ${plural(n, "item")} it finds` },
       });
-      setIcon(find, active ? "search-x" : "search");
+      setIcon(find.createSpan({ cls: "tag-everything-group-search-icon" }), active ? "search-x" : "search");
+      find.createSpan({ cls: "tag-everything-group-search-label", text: active ? "Stop" : "Search" });
       find.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       clickable(find, (evt) => {
         evt.stopPropagation();
@@ -491,6 +546,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         else this.groupMenuAt(group, more);
       });
       clickable(header, () => this.selectGroup(group.id));
+      header.setAttr("aria-label", active ? "Click to stop the search" : "Click to search with this group");
       header.addEventListener("contextmenu", (evt) => {
         evt.preventDefault();
         this.groupMenu(group, evt);
@@ -505,15 +561,33 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (group.collapsed) continue;
       const body = box.createDiv({ cls: "tag-everything-group-tags" });
       if (!group.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
-      const groupChip = (parent: HTMLElement, tag: string): void => {
+      const groupChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
         const c = counts.get(tag) ?? 0;
-        const chip = this.chip(parent, tag, (this.selected.includes(tag) ? "is-selected" : "") + (c ? "" : " is-missing"));
+        const chip = this.chip(parent, tag, (this.selected.includes(tag) ? "is-selected" : "") + (c ? "" : " is-missing") + (negated ? " is-negated" : ""));
         chip.createSpan({ cls: "tag-everything-chip-count", text: String(c) });
+        // Hover buttons, also in the chip's right-click menu: NOT on / off in the group's search, take out of the group.
+        const notLabel = negated ? "Include it again in the group's search" : "Exclude it in the group's search (NOT)";
+        const negate = (): void => void this.saveGroups(gr.toggleTagNot(this.groups, group.id, tag));
+        const remove = (): void => void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
+        const not = chip.createSpan({ cls: "tag-everything-chip-not", attr: { "aria-label": notLabel } });
+        setIcon(not, negated ? "undo-2" : "ban");
         const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": "Remove from the group" } });
         setIcon(x, "x");
+        not.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          negate();
+        });
         x.addEventListener("click", (evt) => {
           evt.stopPropagation();
-          void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
+          remove();
+        });
+        chip.addEventListener("contextmenu", (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          const menu = new Menu();
+          menu.addItem((i) => i.setTitle(notLabel).setIcon(negated ? "undo-2" : "ban").onClick(negate));
+          menu.addItem((i) => i.setTitle("Remove from the group").setIcon("x").onClick(remove));
+          menu.showAtMouseEvent(evt);
         });
         if (c) clickable(chip, () => this.toggle(tag));
         else chip.setAttr("aria-label", "No file or folder carries this tag");
@@ -525,7 +599,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       }
       const expr = group.formula && !error ? gr.groupExpr(group) : null;
       if (expr) this.renderExpr(body, expr, groupChip);
-      else for (const tag of group.tags) groupChip(body, tag);
+      else for (const tag of group.tags) groupChip(body, tag, false);
     }
   }
 
@@ -536,7 +610,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const scope = search ? this.matchPaths(search) : undefined;
     const counts = index.counts(scope);
     const rows = [...counts]
-      .filter(([t]) => !this.selected.includes(t) && (!this.filter || t.toLowerCase().includes(this.filter)))
+      .filter(([t]) => !this.selected.includes(t) && !this.excluded.includes(t) && (!this.filter || t.toLowerCase().includes(this.filter)))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     if (!rows.length) {
       this.tagsEl.createDiv({
@@ -556,6 +630,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       clickable(el, () => this.toggle(tag));
+      this.tagMenu(el, tag);
     }
   }
 
@@ -568,7 +643,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       this.statusEl.setText(
         this.activeGroup
           ? "No tag of this group is switched on: click one above."
-          : `${plural(total, "tagged item")}. Select a tag or a group to list them.`,
+          : `${plural(total, "tagged item")}. Click a tag (right-click: exclude it), or Search with a whole group.`,
       );
       return;
     }

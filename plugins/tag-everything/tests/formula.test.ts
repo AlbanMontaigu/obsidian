@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluate, formatFormula, formulaTags, parseFormula, prune, resolveTags, tryParseFormula } from "../src/formula.ts";
+import { evaluate, formatFormula, formulaTags, parseFormula, prune, resolveTags, toggleNot, tryParseFormula } from "../src/formula.ts";
 
 const fmt = (s: string): string => formatFormula(parseFormula(s));
 const matches = (formula: string, tags: string[]): boolean => evaluate(parseFormula(formula), (t) => tags.includes(t));
@@ -70,4 +70,12 @@ test("prune: a switched-off tag drops out of its AND / OR, NOT goes with it", ()
 test("resolveTags: the vault's spelling wins, unknown tags kept", () => {
   const e = resolveTags(parseFormula("b27 OR Shared OR nope"), ["B27", "shared"]);
   assert.equal(formatFormula(e), "B27 OR shared OR nope");
+});
+
+test("toggleNot: tag <-> NOT tag wherever it is written, the rest untouched", () => {
+  const flip = (s: string, tag: string): string => formatFormula(toggleNot(parseFormula(s), tag));
+  assert.equal(flip("(a OR b) AND c", "b"), "(a OR NOT b) AND c");
+  assert.equal(flip("(a OR NOT b) AND c", "b"), "(a OR b) AND c");
+  assert.equal(flip("NOT (a OR b)", "a"), "NOT (NOT a OR b)", "only a tag directly under NOT is un-negated");
+  assert.equal(flip("a AND c", "zzz"), "a AND c");
 });

@@ -13,6 +13,7 @@ import {
   removeTagFromGroup,
   renameGroup,
   setCollapsed,
+  toggleTagNot,
   setFormula,
   type TagGroup,
 } from "../src/groups.ts";
@@ -105,4 +106,15 @@ test("formula: setFormula sets the tags; drop appends AND; × prunes; null keeps
   assert.match(formulaError(broken)!, /missing after OR/);
   assert.equal(formatFormula(groupExpr(broken)!), "p AND q", "unparsable formula: falls back to the tags");
   assert.equal(normalizeGroups([broken])[0].formula, "(p OR", "kept as written, never lost");
+});
+
+test("toggleTagNot: NOT on / off in the group's search; a group without formula gets one", () => {
+  const { groups, id } = addGroup([], "G", ["a", "b"]);
+  const once = toggleTagNot(groups, id, "b");
+  assert.equal(once[0].formula, "a AND NOT b");
+  assert.deepEqual(once[0].tags, ["a", "b"]);
+  assert.equal(toggleTagNot(once, id, "b")[0].formula, "a AND b");
+  assert.deepEqual(toggleTagNot(groups, id, "zzz"), groups, "a tag not in the group changes nothing");
+  const broken = [{ ...groups[0], formula: "(a" }];
+  assert.deepEqual(toggleTagNot(broken, id, "a"), broken, "an unparsable formula is left alone");
 });

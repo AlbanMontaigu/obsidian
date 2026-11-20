@@ -2,7 +2,7 @@
 // Groups live in the plugin's data.json (settings.groups). Every function returns a new array and never mutates.
 // A group without a formula searches for all its tags (AND); with one, its tags are exactly the formula's tags.
 
-import { type Expr, andOf, formatFormula, formulaTags, prune, tagExpr, tryParseFormula } from "./formula.ts";
+import { type Expr, andOf, formatFormula, formulaTags, prune, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
 
 export interface TagGroup {
   /** Stable id ("g1", "g2"...), never reused while the group exists. */
@@ -129,6 +129,18 @@ export function removeTagFromGroup(groups: readonly TagGroup[], id: string, tag:
     const expr = parsedFormula(g);
     if (expr) return withFormula(g, prune(expr, (t) => t !== tag));
     return { ...g, tags: g.tags.filter((t) => t !== tag) };
+  });
+}
+
+/**
+ * Excludes the tag from the group's search (`NOT tag`), or includes it again. A group without a formula gets one:
+ * all its tags (AND), that one negated. An unparsable formula is left alone.
+ */
+export function toggleTagNot(groups: readonly TagGroup[], id: string, tag: string): TagGroup[] {
+  return update(groups, id, (g) => {
+    if (!g.tags.includes(tag) || formulaError(g)) return g;
+    const expr = groupExpr(g);
+    return expr ? withFormula(g, toggleNot(expr, tag)) : g;
   });
 }
 
