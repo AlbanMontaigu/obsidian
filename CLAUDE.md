@@ -6,8 +6,9 @@ Guidance for Claude Code in this repo. Read this first, then the `CLAUDE.md` of 
 
 The owner's **custom Obsidian plugins**, one folder per plugin under `plugins/<id>/`, sharing one toolchain
 (TypeScript + esbuild, `tools/*.mjs`). Personal tools, desktop only (Windows), never published to the
-community catalogue. Not a git repo yet (the workspace root is not one either), so nothing is committed;
-`dist/` and `backups/` are generated.
+community catalogue. Its own git repo (the workspace root is not one), branch `main`, remote `origin` =
+<https://github.com/AlbanMontaigu/obsidian.git>; commit or push only when asked. `dist/` and `backups/` are generated
+and git-ignored.
 
 | Plugin | What it is | Spec |
 |---|---|---|
