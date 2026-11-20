@@ -18,6 +18,7 @@ export default class TagEverythingPlugin extends Plugin {
   async onload(): Promise<void> {
     await this.loadSettings();
     this.index = new TagIndex(this.app);
+    this.index.autoColors = this.settings.autoColors;
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
 
@@ -98,7 +99,8 @@ export default class TagEverythingPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
-    this.badges.refresh();
+    this.index.autoColors = this.settings.autoColors;
+    this.index.trigger("changed"); // panel and badges redraw with the new colours
   }
 
   private async onRename(item: TAbstractFile, oldPath: string): Promise<void> {

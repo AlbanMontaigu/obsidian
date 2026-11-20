@@ -33,9 +33,11 @@ flowchart TB
 | `src/store.ts` | `MetaStore`: read / write sidecar tags, move a file's sidecar + thumbnail. Refuses to overwrite unparsable JSON. |
 | `src/main.ts` | Plugin wiring. `applyTags(items, {added, removed})` is the single write path (modal, tests, future commands): per item it re-reads the sidecar and, for a note, the frontmatter **from the file** (`readFrontTags`: the cache can lag), merges, plans with `targetFor(file, settings)`, checks new tags with `assertWritable`, renames first, then writes the frontmatter (`processFrontMatter`), then the sidecar. `ownRenames` keeps its own renames away from the rename hook. |
 | `src/modal.ts` | `TagEditorModal`: chips; partial chips (`3/5`) in multi-edit; filename preview; returns a `TagEdit` diff, not a full list, so multi-edit keeps each item's other tags. |
-| `src/view.ts` | `TagEverythingView` (`tag-everything-view`): tag cloud with counts, AND filter, results (max 500), click opens (non-notes in the system app, folders revealed), right-click shows the file menu. |
+| `src/view.ts` | `TagEverythingView` (`tag-everything-view`): tag cloud with counts, sized by use (`--tag-everything-weight` from `cloud.ts`), AND filter, results (max 500), click opens (non-notes in the system app, folders revealed), right-click shows the file menu. |
+| `src/cloud.ts` | **Pure** `cloudWeight` / `cloudWeights`: 0..1 per tag, log scale, 5 levels, relative to the tags shown. `styles.css` maps it to `--font-ui-small × (1 + 0.4 × weight)`: floor = normal chip, ceiling = 1.4×. |
+| `src/colors.ts` | **Pure** `autoColor(tag)`: one of 8 theme colours (`var(--color-*)`), FNV-1a hash of the root of the tag, lower-cased (nested tags share their root colour). `TagIndex.colorFor(tag)` = sidecar colour, else `autoColor` when `autoColors` is on (`colorOf` stays the sidecar colour only). |
 | `src/badges.ts` | Chips in the core explorer through its internal `fileItems` (see `docs/obsidian-api.md`). |
-| `src/settings.ts` | `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `showBadges`, `badgeScope`, `maxBadges`; `targetFor(file, settings)` = where an item's new tags go. |
+| `src/settings.ts` | `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `showBadges`, `autoColors`, `badgeScope`, `maxBadges`; `targetFor(file, settings)` = where an item's new tags go. |
 
 ## Invariants (keep them)
 
@@ -53,7 +55,9 @@ flowchart TB
 ## Tests
 
 - `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals.
-- `tests/smoke.js` + `tests/fixtures/vault/`: 44 in-app checks. The first part runs the name / sidecar engine on
+- `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic.
+- `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
+- `tests/smoke.js` + `tests/fixtures/vault/`: 49 in-app checks. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); then panel, badges, modal. Run

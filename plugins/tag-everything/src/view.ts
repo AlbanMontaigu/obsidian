@@ -1,5 +1,6 @@
 import { ItemView, Keymap, Menu, TAbstractFile, TFile, TFolder, WorkspaceLeaf, setIcon } from "obsidian";
 import * as ts from "./format.ts";
+import { cloudWeights } from "./cloud.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
@@ -92,7 +93,7 @@ export class TagEverythingView extends ItemView {
 
   private chip(parent: HTMLElement, tag: string, extra = ""): HTMLElement {
     const el = parent.createDiv({ cls: "tag-everything-chip " + extra });
-    const color = this.plugin.index.colorOf(tag);
+    const color = this.plugin.index.colorFor(tag);
     if (color) el.style.setProperty("--tag-everything-color", color);
     el.createSpan({ text: tag });
     return el;
@@ -129,8 +130,11 @@ export class TagEverythingView extends ItemView {
       });
       return;
     }
+    // Size by use, relative to the tags shown (so it adapts to the filter and the selection).
+    const weights = cloudWeights(rows);
     for (const [tag, n] of rows) {
       const el = this.chip(this.tagsEl, tag);
+      el.style.setProperty("--tag-everything-weight", String(weights.get(tag) ?? 0));
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       el.addEventListener("click", () => this.toggle(tag));
     }

@@ -1,5 +1,6 @@
 import { App, CachedMetadata, Events, TAbstractFile, TFile, TFolder, debounce } from "obsidian";
 import * as ts from "./format.ts";
+import { autoColor } from "./colors.ts";
 
 export interface Entry {
   /** Tags read from the file name. Always empty for folders: folder names are never read for tags. */
@@ -44,6 +45,8 @@ export class TagIndex extends Events {
   private entries = new Map<string, Entry>();
   private colorMap = new Map<string, string>();
   private building: Promise<void> | null = null;
+  /** Mirrors the `autoColors` setting (set by the plugin). */
+  autoColors = true;
   private notify = debounce(() => this.trigger("changed"), 50, true);
 
   constructor(private app: App) {
@@ -59,8 +62,14 @@ export class TagIndex extends Events {
     return e ? ts.dedupe([...e.name, ...e.front, ...e.side]) : [];
   }
 
+  /** Colour stored for the tag in a `.ts` sidecar, if any. */
   colorOf(tag: string): string | undefined {
     return this.colorMap.get(tag);
+  }
+
+  /** Colour to show: the sidecar one, else (setting `autoColors`) one picked from the tag's name, else none. */
+  colorFor(tag: string): string | undefined {
+    return this.colorMap.get(tag) ?? (this.autoColors ? autoColor(tag) : undefined);
   }
 
   paths(): string[] {

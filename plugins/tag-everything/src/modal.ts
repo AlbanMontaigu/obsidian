@@ -170,7 +170,7 @@ export class TagEditorModal extends Modal {
     for (const chip of this.chips) {
       const partial = chip.count < total;
       const el = this.chipsEl.createDiv({ cls: "tag-everything-chip" + (partial ? " is-partial" : "") });
-      const color = this.index.colorOf(chip.tag);
+      const color = this.index.colorFor(chip.tag);
       if (color) el.style.setProperty("--tag-everything-color", color);
       el.createSpan({ text: chip.tag });
       if (partial) {

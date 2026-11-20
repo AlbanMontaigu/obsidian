@@ -9,6 +9,8 @@ export interface TagEverythingSettings {
   noteTagsInFrontmatter: boolean;
   lowercase: boolean;
   showBadges: boolean;
+  /** Tags without a sidecar colour get a stable colour picked from their name. */
+  autoColors: boolean;
   /** "sidecar": hide badges for tags already readable in the file name. */
   badgeScope: "all" | "sidecar";
   maxBadges: number;
@@ -21,6 +23,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   noteTagsInFrontmatter: true,
   lowercase: false,
   showBadges: true,
+  autoColors: true,
   badgeScope: "all",
   maxBadges: 4,
   followRenames: true,
@@ -94,6 +97,19 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(s.followRenames).onChange(async (v) => {
           s.followRenames = v;
+          await save();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Colour tags automatically")
+      .setDesc(
+        "Each tag gets a colour of the theme picked from its name, always the same, so tags are easy to tell apart. " +
+          "Nested tags share their parent's colour. A colour stored in a .ts sidecar wins.",
+      )
+      .addToggle((t) =>
+        t.setValue(s.autoColors).onChange(async (v) => {
+          s.autoColors = v;
           await save();
         }),
       );

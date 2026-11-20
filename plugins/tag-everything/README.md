@@ -16,8 +16,9 @@ Tags are always **read from every place and merged**. For a note, that's the tag
 - **Right-click → Edit tags** on a file or folder; on a multi-selection, **Edit tags of N items**. Chips with autocomplete from every tag in the vault, most used first. With several items, a tag only some carry shows as `3/5`: leave it, click it to give it to all, or remove it from all.
 - A preview of the new file name before saving. Renames go through Obsidian, so **links in notes are updated**.
 - Note tags edited anywhere else (the editor, the Properties panel, another app) show up live. Nested tags (`proj/alpha`) work for notes.
-- **File tags panel** (ribbon `tags` icon): every tag with its count; select tags (AND) to list the matching files and folders; click to open (non-note files open in their default app, folders are revealed), right-click for the usual file menu.
-- **Badges** in the file explorer (optional), coloured with the tag colours stored in sidecars. Clicking a badge opens the panel on that tag.
+- **File tags panel** (ribbon `tags` icon): every tag with its count, frequently used tags a little bigger (at most 1.4× the normal size, rarely used ones stay at the normal size); select tags (AND) to list the matching files and folders; click to open (non-note files open in their default app, folders are revealed), right-click for the usual file menu.
+- **Colours**: each tag gets its own colour, picked from its name among the theme colours (always the same, in the panel, the badges and the editor; nested tags share their parent's colour). A colour stored in a sidecar wins. Setting *Colour tags automatically* turns it off. With 8 colours, two tags can share one.
+- **Badges** in the file explorer (optional), in the tag colours. Clicking a badge opens the panel on that tag.
 - When a file is renamed or moved in Obsidian, its `.ts` sidecar and thumbnail move with it.
 - Command palette: *Edit tags of the current file*, *Open file tags panel*, *Re-read all tags*.
 
@@ -38,7 +39,7 @@ Turn on **Settings → Files and links → Detect all file extensions** to see (
 
 ```powershell
 npm test -- tag-everything                      # format unit tests
-npm run smoke -- tag-everything                 # 44 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # 49 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -63,6 +64,8 @@ src/index.ts       in-memory tag index of the vault (name tags live, sidecars sc
 src/store.ts       sidecar read/write and moves through the vault adapter
 src/modal.ts       chip editor with autocomplete
 src/view.ts        File tags side panel
+src/cloud.ts       tag cloud sizing by use (pure, tested)
+src/colors.ts      automatic tag colours (pure, tested)
 src/badges.ts      explorer badges
 src/main.ts        plugin wiring: menus, commands, rename handling, applying edits
 docs/format.md     storage format spec

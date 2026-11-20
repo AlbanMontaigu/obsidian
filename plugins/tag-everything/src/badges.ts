@@ -57,7 +57,7 @@ export class ExplorerBadges {
     const wrap = host.createSpan({ cls: BADGE_CLS });
     for (const tag of tags.slice(0, settings.maxBadges)) {
       const chip = wrap.createSpan({ cls: "tag-everything-badge", text: tag });
-      const color = index.colorOf(tag);
+      const color = index.colorFor(tag);
       if (color) chip.style.setProperty("--tag-everything-color", color);
       chip.addEventListener("click", (evt) => {
         evt.preventDefault();

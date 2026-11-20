@@ -145,6 +145,37 @@ check("nested tag refused in a file name", !!file("Docs/scan[paper].pdf"));
 const view = await plugin.openView();
 await sleep(500);
 check("panel opens", !!view && document.querySelectorAll(".tag-everything-view .tag-everything-chip").length >= 5);
+// tag cloud: most used bigger than least used, within bounds (floor = normal chip size, ceiling = 1.4x)
+const cloud = [...document.querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((el) => ({
+  n: Number(el.querySelector(".tag-everything-chip-count")?.textContent),
+  px: parseFloat(getComputedStyle(el).fontSize),
+}));
+const big = cloud.reduce((a, b) => (b.n > a.n ? b : a));
+const small = cloud.reduce((a, b) => (b.n < a.n ? b : a));
+const base = parseFloat(getComputedStyle(document.body).getPropertyValue("--font-ui-small"));
+check(
+  "cloud: most used tag bigger, sizes bounded",
+  big.n > small.n && big.px > small.px && Math.abs(small.px - base) < 0.5 && big.px <= base * 1.4 + 0.5,
+  JSON.stringify({ big, small, base }),
+);
+// tag colours: varied automatic colours, the sidecar colour wins, the setting turns them off
+const cloudColors = () =>
+  [...document.querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((el) => [
+    el.firstChild.textContent,
+    el.style.getPropertyValue("--tag-everything-color"),
+  ]);
+const auto = new Map(cloudColors());
+check("cloud: tags get varied colours", new Set(auto.values()).size >= 4 && [...auto.values()].every(Boolean), JSON.stringify([...auto]));
+check("cloud: sidecar colour wins over the automatic one", auto.get("client") === "#2D8282", auto.get("client"));
+check("cloud: nested tags share their root colour", auto.get("proj/alpha") === plugin.index.colorFor("proj"), auto.get("proj/alpha"));
+plugin.settings.autoColors = false;
+await plugin.saveSettings();
+await sleep(300);
+const plain = new Map(cloudColors());
+check("cloud: automatic colours can be turned off", plain.get("client") === "#2D8282" && plain.get("B27") === "", JSON.stringify([...plain]));
+plugin.settings.autoColors = true;
+await plugin.saveSettings();
+await sleep(300);
 view.selectOnly("client");
 await sleep(300);
 check("panel filters by tag", document.querySelectorAll(".tag-everything-result").length === 1);
