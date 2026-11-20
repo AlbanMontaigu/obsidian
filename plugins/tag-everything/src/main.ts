@@ -5,8 +5,8 @@ import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
-import { normalizeGroups } from "./groups.ts";
-import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, targetFor } from "./settings.ts";
+import { failureMessage, plural, progressMessage } from "./messages.ts";
+import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 export default class TagEverythingPlugin extends Plugin {
   settings: TagEverythingSettings = { ...DEFAULT_SETTINGS };
@@ -15,6 +15,8 @@ export default class TagEverythingPlugin extends Plugin {
   badges!: ExplorerBadges;
   /** Paths this plugin is renaming right now: their sidecars are moved by applyTags, not by the rename hook. */
   private ownRenames = new Set<string>();
+  /** Edits run one after the other: two quick edits of the same file must not interleave their reads and writes. */
+  private queue: Promise<void> = Promise.resolve();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -24,8 +26,10 @@ export default class TagEverythingPlugin extends Plugin {
     this.badges = new ExplorerBadges(this);
 
     this.registerView(VIEW_TYPE, (leaf) => new TagEverythingView(leaf, this));
+    // Ctrl/Cmd + hover on a result of the panel shows Obsidian's page preview.
+    this.registerHoverLinkSource(VIEW_TYPE, { display: "File tags", defaultMod: true });
     this.addSettingTab(new TagEverythingSettingTab(this.app, this));
-    this.addRibbonIcon("tags", "File tags", () => void this.openView());
+    this.addRibbonIcon("tags", "Open file tags panel", () => void this.openView());
 
     this.addCommand({ id: "open-panel", name: "Open file tags panel", callback: () => void this.openView() });
     this.addCommand({
@@ -43,7 +47,7 @@ export default class TagEverythingPlugin extends Plugin {
       name: "Re-read all tags (after editing them outside Obsidian)",
       callback: async () => {
         await this.index.rebuild();
-        new Notice(`File tags: ${this.index.paths().length} tagged items`);
+        new Notice(`File tags: ${plural(this.index.size, "tagged item")}`);
       },
     });
 
@@ -95,8 +99,14 @@ export default class TagEverythingPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<TagEverythingSettings> | null) };
-    this.settings.groups = normalizeGroups(this.settings.groups); // also gives each load its own array
+    let raw: unknown = null;
+    try {
+      raw = await this.loadData();
+    } catch (err) {
+      console.error("[tag-everything] settings unreadable, using the defaults", err);
+      new Notice("File tags: the settings file (data.json) could not be read; default settings are used.", 10000);
+    }
+    this.settings = normalizeSettings(raw ?? DEFAULT_SETTINGS); // wrong types and ranges repaired, never throws
   }
 
   async saveSettings(): Promise<void> {
@@ -122,15 +132,21 @@ export default class TagEverythingPlugin extends Plugin {
 
   async openView(): Promise<TagEverythingView | null> {
     const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
-    if (!leaf) {
-      const right = workspace.getRightLeaf(false);
-      if (!right) return null;
-      await right.setViewState({ type: VIEW_TYPE, active: true });
-      leaf = right;
+    try {
+      let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
+      if (!leaf) {
+        const right = workspace.getRightLeaf(false);
+        if (!right) return null;
+        await right.setViewState({ type: VIEW_TYPE, active: true });
+        leaf = right;
+      }
+      await workspace.revealLeaf(leaf);
+      return leaf.view instanceof TagEverythingView ? leaf.view : null;
+    } catch (err) {
+      console.error("[tag-everything] opening the panel failed", err);
+      new Notice("File tags: the panel could not be opened.");
+      return null;
     }
-    await workspace.revealLeaf(leaf);
-    return leaf.view instanceof TagEverythingView ? leaf.view : null;
   }
 
   async showTag(tag: string): Promise<void> {
@@ -141,28 +157,43 @@ export default class TagEverythingPlugin extends Plugin {
     new TagEditorModal(this.app, items, this.index, this.settings, (edit) => this.applyTags(items, edit)).open();
   }
 
-  /** Applies one edit to every item; one failing item never stops the others. */
-  async applyTags(items: TAbstractFile[], edit: TagEdit): Promise<void> {
+  /**
+   * Applies one edit to every item; one failing item never stops the others. Edits are queued: a second edit
+   * starts once the first is written, so two quick edits of the same file never interleave.
+   */
+  applyTags(items: TAbstractFile[], edit: TagEdit): Promise<void> {
+    const run = this.queue.then(() => this.applyNow(items, edit));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async applyNow(items: TAbstractFile[], edit: TagEdit): Promise<void> {
     const failures: string[] = [];
     let changed = 0;
-    const progress = items.length > 5 ? new Notice(`Tagging ${items.length} items…`, 0) : null;
-    for (const item of items) {
-      try {
-        if (await this.applyOne(item, edit)) changed++;
-      } catch (err) {
-        failures.push(`${item.name}: ${(err as Error).message}`);
-        console.error(`[tag-everything] tagging failed  path=${item.path}`, err);
+    const progress = items.length > 5 ? new Notice(progressMessage(0, items.length), 0) : null;
+    try {
+      for (const [i, item] of items.entries()) {
+        try {
+          if (await this.applyOne(item, edit)) changed++;
+        } catch (err) {
+          failures.push(`${item.name}: ${(err as Error).message}`);
+          console.error(`[tag-everything] tagging failed  path=${item.path}`, err);
+        }
+        if (progress && (i % 10 === 9 || i === items.length - 1)) progress.setMessage(progressMessage(i + 1, items.length));
       }
+    } finally {
+      progress?.hide();
     }
-    progress?.hide();
     if (failures.length) {
-      new Notice(`Tags not changed on ${failures.length} of ${items.length}:\n` + failures.slice(0, 5).join("\n"), 10000);
+      new Notice(failureMessage(failures, items.length), 10000);
     } else if (items.length > 1) {
       new Notice(`Tags updated on ${changed} of ${describe(items)}`);
     }
   }
 
   private async applyOne(item: TAbstractFile, edit: TagEdit): Promise<boolean> {
+    // The editor may have stayed open while the item was deleted (or replaced by another with the same path).
+    if (this.app.vault.getAbstractFileByPath(item.path) !== item) throw new Error("it no longer exists");
     // Sidecars are re-read here, not taken from the index: another app may have changed them since.
     const side = await this.store.readTags(item);
 

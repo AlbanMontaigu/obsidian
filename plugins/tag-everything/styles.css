@@ -453,3 +453,37 @@
 .tag-everything-formula-unknown {
   color: var(--text-warning);
 }
+
+/* ---- keyboard focus (chips, group headers and buttons, results are focusable) */
+
+.tag-everything-view [role="button"]:focus-visible,
+.tag-everything-view .tag-everything-result:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.tag-everything-group-more:focus-visible {
+  opacity: 1;
+}
+
+/* group search button: magnifier + how many items the group finds */
+.tag-everything-group-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  color: var(--text-muted);
+}
+
+.tag-everything-group-search svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tag-everything-group.is-active .tag-everything-group-search {
+  color: var(--interactive-accent);
+}
+
+.tag-everything-view-status {
+  flex-shrink: 0;
+}

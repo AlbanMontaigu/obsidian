@@ -18,7 +18,8 @@ interface ExplorerView {
 const BADGE_CLS = "tag-everything-badges";
 
 export class ExplorerBadges {
-  private decorated = new Set<HTMLElement>();
+  /** Explorer rows we decorated -> what their badges show, so a refresh only touches rows that changed. */
+  private decorated = new Map<HTMLElement, string>();
 
   constructor(private plugin: TagEverythingPlugin) {}
 
@@ -26,33 +27,52 @@ export class ExplorerBadges {
     return this.plugin.app.workspace.getLeavesOfType("file-explorer").map((l) => l.view as unknown as ExplorerView);
   }
 
-  clear(): void {
-    for (const el of this.decorated) el.querySelector(`:scope > .${BADGE_CLS}`)?.remove();
-    this.decorated.clear();
+  private undecorate(host: HTMLElement): void {
+    host.querySelector(`:scope > .${BADGE_CLS}`)?.remove();
+    this.decorated.delete(host);
   }
 
+  clear(): void {
+    for (const host of [...this.decorated.keys()]) this.undecorate(host);
+  }
+
+  /** Called (debounced) on every index change and layout change: cheap when nothing changed. */
   refresh(): void {
     try {
-      this.clear();
       const { settings, index } = this.plugin;
-      if (!settings.showBadges) return;
+      if (!settings.showBadges) return this.clear();
+      const wanted = new Map<HTMLElement, string[]>();
       for (const view of this.explorers()) {
         const items = view.fileItems;
         if (!items) continue;
         for (const path of index.paths()) {
           const host = items[path]?.selfEl;
           if (!host) continue;
-          const entry = index.get(path);
-          const tags = settings.badgeScope === "sidecar" ? index.tagsOf(path).filter((t) => !entry.name.includes(t)) : index.tagsOf(path);
-          if (tags.length) this.decorate(host, tags);
+          const all = index.tagsOf(path);
+          const name = index.get(path).name;
+          const tags = settings.badgeScope === "sidecar" ? all.filter((t) => !name.includes(t)) : [...all];
+          if (tags.length) wanted.set(host, tags);
         }
+      }
+      for (const host of [...this.decorated.keys()]) if (!wanted.has(host) || !host.isConnected) this.undecorate(host);
+      for (const [host, tags] of wanted) {
+        const signature = this.signature(tags);
+        if (this.decorated.get(host) === signature && host.querySelector(`:scope > .${BADGE_CLS}`)) continue;
+        this.undecorate(host);
+        this.decorate(host, tags, signature);
       }
     } catch (err) {
       console.warn("[tag-everything] explorer badges unavailable", err);
     }
   }
 
-  private decorate(host: HTMLElement, tags: string[]): void {
+  /** Everything the badges of a row depend on: tags, their colours, the badge limit. */
+  private signature(tags: readonly string[]): string {
+    const { settings, index } = this.plugin;
+    return settings.maxBadges + "\u0000" + tags.map((t) => t + "\u0001" + (index.colorFor(t) ?? "")).join("\u0000");
+  }
+
+  private decorate(host: HTMLElement, tags: string[], signature: string): void {
     const { settings, index } = this.plugin;
     const wrap = host.createSpan({ cls: BADGE_CLS });
     for (const tag of tags.slice(0, settings.maxBadges)) {
@@ -66,7 +86,7 @@ export class ExplorerBadges {
       });
     }
     const hidden = tags.length - settings.maxBadges;
-    if (hidden > 0) wrap.createSpan({ cls: "tag-everything-badge is-more", text: `+${hidden}`, attr: { "aria-label": tags.join(" ") } });
-    this.decorated.add(host);
+    if (hidden > 0) wrap.createSpan({ cls: "tag-everything-badge is-more", text: `+${hidden}`, attr: { "aria-label": tags.slice(settings.maxBadges).join(" ") } });
+    this.decorated.set(host, signature);
   }
 }

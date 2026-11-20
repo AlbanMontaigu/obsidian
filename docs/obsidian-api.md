@@ -39,6 +39,8 @@ export default class MyPlugin extends Plugin {
 | Files Obsidian ignores (dot-folders like `.ts`) | `vault.adapter.exists/read/write/list/mkdir/rename/remove` with vault-relative paths | `tag-everything/src/store.ts` |
 | Vault events | `vault.on("create" \| "delete" \| "rename" \| "modify")` | `main.ts`, `index.ts` |
 | Debounce | `debounce(fn, ms, true)` | `index.ts` |
+| Page preview on hover (Ctrl/Cmd + hover) in your view | `plugin.registerHoverLinkSource(viewType, { display, defaultMod: true })`; on `mouseover` `workspace.trigger("hover-link", { event, source: viewType, hoverParent: view, targetEl, linktext: file.path })`; the view `implements HoverParent` (`hoverPopover = null`) | `tag-everything/src/view.ts` |
+| View state across restarts | `getState()` / `setState(state, result)` on the `ItemView` (validate what comes back), `workspace.requestSaveLayout()` after a change | `tag-everything/src/view.ts` |
 | Own event bus | `class X extends Events`, `trigger("changed")`, `this.registerEvent(x.on("changed", cb))` | `index.ts` |
 | Absolute path on disk (desktop) | `(vault.adapter as FileSystemAdapter).getBasePath()` | |
 
@@ -52,6 +54,9 @@ They work in 1.15 but can change: always guard (`?.`, `try/catch`) and degrade g
 | Reveal a folder in the explorer | `app.internalPlugins.getPluginById("file-explorer").instance.revealInFolder(folder)` | `tag-everything` panel |
 | Open a non-note in the system app | `app.openWithDefaultApp(path)`; check `app.viewRegistry.isExtensionRegistered(ext)` first | `tag-everything` panel |
 | A core setting | `(app.vault as any).getConfig("showUnsupportedFiles")` | `tag-everything` settings |
+| Drag a file from your own view into a note (link) | `app.dragManager.dragFile(evt, file)` / `dragFolder(evt, folder)`, then `app.dragManager.onDragStart(evt, data)` in `dragstart` | `tag-everything` panel results |
+| Page-preview sources (tests) | `app.workspace.hoverLinkSources[id]` after `registerHoverLinkSource` | `tag-everything` smoke |
+| A plugin's settings tab (tests) | `app.setting.pluginTabs.find(t => t.id === id)`, then `.display()` | `tag-everything` smoke |
 | Enable a plugin (tests only) | `app.plugins.setEnable(true)`, `app.plugins.enablePluginAndSave(id)`, `app.plugins.plugins[id]` | `tools/smoke.mjs` |
 
 Pattern for internals the types do not know:
@@ -85,6 +90,13 @@ interface InternalApp { openWithDefaultApp?: (path: string) => void }
 - **Non-note files are only loaded if *Detect all file extensions* is on** (`showUnsupportedFiles`). Without it,
   PDFs and Office files are missing from `getFiles()`, menus and events. The owner's main vault has it **off**.
 - **`vault.on("create")` fires for every file at startup**: register vault events inside `onLayoutReady`.
+- **An async scan that swaps in a fresh map loses the events that arrived meanwhile** (renames, your own writes),
+  and a folder renamed mid-scan makes `adapter.list(oldPath)` throw ENOENT. Log the events during the scan and
+  replay them on its result, re-read what is cheap to read synchronously at the swap, retry a folder at its new
+  path (`TagIndex.scan` in `tag-everything`).
+- **A view's `setState` runs before your data is loaded** at startup: don't prune restored state against an index
+  that is still empty.
+- **`Notice.setMessage()`** updates a long-running notice (progress) instead of stacking new ones.
 - **Renaming inside your own rename handler** loops: mark paths you rename yourself (see `ownRenames` in
   `tag-everything/src/main.ts`).
 - **`renameFile` to an existing path throws**: check `vault.getAbstractFileByPath(newPath)` first and refuse.

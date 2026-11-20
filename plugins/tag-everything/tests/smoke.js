@@ -141,6 +141,57 @@ await plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["proj/alpha"], 
 await sleep(300);
 check("nested tag refused in a file name", !!file("Docs/scan[paper].pdf"));
 
+// ---- robustness: edits during a rebuild, queued edits, an item gone since the editor opened
+let scanning = plugin.index.rebuild(); // not awaited: the edit lands while the sidecars are being read
+plugin.index.setSide("Index[shared].md", ["during-scan"]);
+await scanning;
+check("rebuild: a tag edit made during the scan is kept", plugin.index.tagsOf("Index[shared].md").includes("during-scan"), plugin.index.tagsOf("Index[shared].md").join());
+plugin.index.setSide("Index[shared].md", []);
+scanning = plugin.index.rebuild();
+await app.fileManager.renameFile(file("Projects/Alpha"), "Projects/Alpha2");
+await scanning;
+check("rebuild: a folder renamed during the scan keeps its tags", plugin.index.tagsOf("Projects/Alpha2").join() === "client,2026", plugin.index.paths().filter((p) => p.startsWith("Projects/Alpha")).join(" | "));
+await app.fileManager.renameFile(file("Projects/Alpha2"), "Projects/Alpha");
+await sleep(300);
+check("rebuild: and back", plugin.index.tagsOf("Projects/Alpha").join() === "client,2026" && plugin.index.tagsOf("Projects/Alpha/budget[B27 INC].md").join() === "B27,INC");
+
+await Promise.all([
+  plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["q1"], removed: [] }),
+  plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["q2"], removed: [] }),
+]);
+check("two edits at once are queued, neither is lost", !!file("Docs/scan[paper q1 q2].pdf"), vault.getFiles().map((f) => f.path).filter((p) => p.startsWith("Docs/")).join(" | "));
+await plugin.applyTags([file("Docs/scan[paper q1 q2].pdf")], { added: [], removed: ["q1", "q2"] });
+check("and undone", !!file("Docs/scan[paper].pdf"));
+
+plugin.settings.storage = "sidecar";
+const gone = await vault.create("Gone.pdf", "x");
+await vault.delete(gone, true);
+expectError(/tagging failed\s+path=Gone\.pdf/);
+await plugin.applyTags([gone], { added: ["x"], removed: [] });
+check("an item deleted while the editor was open is refused, no sidecar written", !file("Gone.pdf") && !(await adapter.exists(".ts/Gone.pdf.json")));
+plugin.settings.storage = "filename";
+
+// ---- editor: an invalid word stays in the box; once fixed, Save works
+plugin.editTags([file("report.md")]);
+await sleep(300);
+const ed = document.querySelector(".tag-everything-modal");
+const edInput = ed.querySelector("input.tag-everything-input");
+edInput.value = "kept a:b ";
+edInput.dispatchEvent(new Event("input"));
+const edChips = () => [...ed.querySelectorAll(".tag-everything-chip")].map((c) => c.firstChild.textContent);
+check(
+  "editor: an invalid word stays in the box with its error",
+  edInput.value === "a:b" && /cannot contain/.test(ed.querySelector(".tag-everything-error").textContent) && edChips().includes("kept"),
+  JSON.stringify({ value: edInput.value, chips: edChips() }),
+);
+ed.querySelector(".mod-cta").click();
+await sleep(200);
+check("editor: Save with an invalid word left keeps the dialog open", !!document.querySelector(".tag-everything-modal"));
+edInput.value = "";
+ed.querySelector(".mod-cta").click();
+check("editor: once fixed, Save closes and applies", (await waitFor(() => plugin.index.tagsOf("report.md").includes("kept"))) && !document.querySelector(".tag-everything-modal"));
+await plugin.applyTags([file("report.md")], { added: [], removed: ["kept"] });
+
 // ---- UI: panel opens and lists the tags; explorer badges appear
 const view = await plugin.openView();
 await sleep(500);
@@ -182,6 +233,18 @@ check("panel filters by tag", document.querySelectorAll(".tag-everything-result"
 plugin.badges.refresh();
 await sleep(300);
 check("explorer badges rendered", document.querySelectorAll(".nav-files-container .tag-everything-badge").length > 0);
+const badgeWrap = document.querySelector(".nav-files-container .tag-everything-badges");
+plugin.badges.refresh();
+check("badges: a refresh with nothing changed keeps the same elements", !!badgeWrap?.isConnected);
+const settingTab = app.setting?.pluginTabs?.find((t) => t.id === "tag-everything");
+if (settingTab) {
+  plugin.settings.showBadges = false;
+  settingTab.display();
+  const disabled = settingTab.containerEl.querySelectorAll(".setting-item.is-disabled").length;
+  plugin.settings.showBadges = true;
+  settingTab.display();
+  check("settings: badge options disabled while badges are off", disabled === 2, String(disabled));
+} else check("settings: tab found", false);
 
 // ---- tag groups in the panel: create, drag tags in, fold, select = search over the group's tags
 const panel = () => document.querySelector(".tag-everything-view");
@@ -300,6 +363,38 @@ check("formula: a dropped tag is added with AND", fGroup().formula === "shared A
 groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-chip-remove")[1].click(); // final
 await sleep(200);
 check("formula: × takes the tag out of the formula", fGroup().formula === "shared AND IMAC", fGroup().formula);
+
+// ---- panel usability: filter + Enter, keyboard, saved state, group search button, results
+panel().querySelector(".tag-everything-view-clear")?.click();
+await sleep(100);
+const searchBox = panel().querySelector(".tag-everything-view-search");
+searchBox.value = "clie";
+searchBox.dispatchEvent(new Event("input"));
+searchBox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+await sleep(200);
+check("panel: Enter in the filter selects the first matching tag", view.getState().selected?.join() === "client" && searchBox.value === "" && results() === 1, JSON.stringify(view.getState()));
+const row = panel().querySelector(".tag-everything-result");
+check("panel: results are draggable and focusable", row?.draggable === true && row.tabIndex === 0);
+check("panel: page preview source registered", !!app.workspace.hoverLinkSources?.["tag-everything-view"]);
+const savedState = view.getState();
+panel().querySelector(".tag-everything-view-clear").click();
+await sleep(100);
+await view.setState(savedState, { history: false });
+check("panel: selection restored from its saved state", results() === 1 && view.getState().selected.join() === "client");
+panel().querySelector(".tag-everything-view-clear").click();
+await sleep(100);
+const keyChip = cloudChip("client");
+keyChip.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+await sleep(200);
+check("panel: tags work from the keyboard", keyChip.tabIndex === 0 && view.getState().selected?.join() === "client");
+panel().querySelector(".tag-everything-view-clear").click();
+await sleep(100);
+groupEl("Formula").querySelector(".tag-everything-group-search").click();
+await sleep(200);
+check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group"));
+groupEl("Formula").querySelector(".tag-everything-group-search").click();
+await sleep(200);
+check("groups: and clears it", !panel().querySelector(".tag-everything-group.is-active"));
 
 // left for the screenshot: a formula group search with one tag switched off
 await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC)");

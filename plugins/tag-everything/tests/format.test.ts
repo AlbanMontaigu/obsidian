@@ -13,6 +13,7 @@ import {
   sidecarTags,
   splitExtension,
   splitTagInput,
+  parseTagInput,
   assertWritable,
   frontmatterTags,
   setFrontmatterTags,
@@ -203,4 +204,21 @@ test("normalizeTag nested mode and assertWritable", () => {
 
 test("mergeEdit keeps order, drops removed, appends added once", () => {
   assert.deepEqual(mergeEdit(["a", "b", "c"], ["d", "a"], ["b"]), ["a", "c", "d"]);
+});
+
+test("parseTagInput keeps invalid words for fixing", () => {
+  assert.deepEqual(parseTagInput("a, b a"), { tags: ["a", "b"], errors: [], rest: "" });
+  const r = parseTagInput("ok a:b x c?d", false, false);
+  assert.deepEqual(r.tags, ["ok", "x"]);
+  assert.equal(r.rest, "a:b c?d");
+  assert.equal(r.errors.length, 2);
+  assert.deepEqual(parseTagInput("Tax", true).tags, ["tax"]);
+  assert.deepEqual(parseTagInput("proj/alpha", false, true), { tags: ["proj/alpha"], errors: [], rest: "" });
+  assert.equal(parseTagInput("", false).rest, "");
+});
+
+test("a nested tag in a file name gets a specific message", () => {
+  assert.match(normalizeTag("proj/alpha").error ?? "", /nested tags only go in a note's frontmatter/);
+  assert.doesNotMatch(normalizeTag("a:b").error ?? "", /nested/);
+  assert.doesNotMatch(normalizeTag("a#b/c").error ?? "", /nested/);
 });

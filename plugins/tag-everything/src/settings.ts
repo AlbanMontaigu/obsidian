@@ -1,37 +1,10 @@
 import { App, PluginSettingTab, Setting, TFile } from "obsidian";
 import type { StorageMode, TagTarget } from "./format.ts";
-import type { TagGroup } from "./groups.ts";
+import { MAX_BADGES, MIN_BADGES, type TagEverythingSettings } from "./config.ts";
 import type TagEverythingPlugin from "./main.ts";
 
-export interface TagEverythingSettings {
-  /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
-  storage: StorageMode;
-  /** Markdown notes: new tags go to the frontmatter `tags` property instead of `storage`. */
-  noteTagsInFrontmatter: boolean;
-  lowercase: boolean;
-  showBadges: boolean;
-  /** Tags without a sidecar colour get a stable colour picked from their name. */
-  autoColors: boolean;
-  /** "sidecar": hide badges for tags already readable in the file name. */
-  badgeScope: "all" | "sidecar";
-  maxBadges: number;
-  /** Move `.ts/<name>.json` and `.ts/<name>.jpg` along when a file is renamed or moved in Obsidian. */
-  followRenames: boolean;
-  /** Tag groups of the File tags panel (src/groups.ts). Edited in the panel, not in the settings tab. */
-  groups: TagGroup[];
-}
-
-export const DEFAULT_SETTINGS: TagEverythingSettings = {
-  storage: "filename",
-  noteTagsInFrontmatter: true,
-  lowercase: false,
-  showBadges: true,
-  autoColors: true,
-  badgeScope: "all",
-  maxBadges: 4,
-  followRenames: true,
-  groups: [],
-};
+export { DEFAULT_SETTINGS, normalizeSettings } from "./config.ts";
+export type { TagEverythingSettings } from "./config.ts";
 
 /** Where new tags of `file` go. */
 export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarget {
@@ -127,11 +100,13 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         t.setValue(s.showBadges).onChange(async (v) => {
           s.showBadges = v;
           await save();
+          this.display(); // the badge options below only apply with badges on
         }),
       );
 
     new Setting(containerEl)
       .setName("Badges for")
+      .setDisabled(!s.showBadges)
       .addDropdown((d) =>
         d
           .addOption("all", "All tags")
@@ -145,9 +120,11 @@ export class TagEverythingSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Maximum badges per item")
+      .setDesc("More tags show as +N; hover it to read them.")
+      .setDisabled(!s.showBadges)
       .addSlider((sl) =>
         sl
-          .setLimits(1, 10, 1)
+          .setLimits(MIN_BADGES, MAX_BADGES, 1)
           .setValue(s.maxBadges)
           .setDynamicTooltip()
           .onChange(async (v) => {

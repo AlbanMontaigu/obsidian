@@ -1,8 +1,9 @@
-import { AbstractInputSuggest, App, ItemView, Keymap, Menu, Modal, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf, setIcon } from "obsidian";
+import { AbstractInputSuggest, App, HoverParent, HoverPopover, ItemView, Keymap, Menu, Modal, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
 import * as ts from "./format.ts";
 import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
+import { plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
@@ -15,13 +16,40 @@ interface InternalApp {
   viewRegistry?: { isExtensionRegistered?: (ext: string) => boolean };
   openWithDefaultApp?: (path: string) => void;
   internalPlugins?: { getPluginById?: (id: string) => { instance?: { revealInFolder?: (f: TAbstractFile) => void } } | null };
+  /** Drag a file into a note to link it, as from the file explorer. */
+  dragManager?: {
+    dragFile?: (evt: DragEvent, file: TFile) => unknown;
+    dragFolder?: (evt: DragEvent, folder: TFolder) => unknown;
+    onDragStart?: (evt: DragEvent, data: unknown) => void;
+  };
+}
+
+/** What the panel remembers across restarts (workspace.json). */
+interface PanelState {
+  selected: string[];
+  activeGroup: string | null;
+  filter: string;
+}
+
+/** Makes `el` a button for the keyboard too: focusable, Enter / Space run `fn` like a click. */
+function clickable(el: HTMLElement, fn: (evt: MouseEvent | KeyboardEvent) => void): void {
+  el.tabIndex = 0;
+  el.setAttr("role", "button");
+  el.addEventListener("click", fn);
+  el.addEventListener("keydown", (evt) => {
+    if ((evt.key === "Enter" || evt.key === " ") && evt.target === el) {
+      evt.preventDefault();
+      fn(evt);
+    }
+  });
 }
 
 /**
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
  * carrying them. Selecting a group selects its tags; each can then be switched off and on again.
  */
-export class TagEverythingView extends ItemView {
+export class TagEverythingView extends ItemView implements HoverParent {
+  hoverPopover: HoverPopover | null = null;
   private selected: string[] = [];
   /** Group whose tags make up the search, if the search started from a group. */
   private activeGroup: string | null = null;
@@ -31,6 +59,7 @@ export class TagEverythingView extends ItemView {
   private selectedEl!: HTMLElement;
   private resultsEl!: HTMLElement;
   private statusEl!: HTMLElement;
+  private searchEl!: HTMLInputElement;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -57,14 +86,36 @@ export class TagEverythingView extends ItemView {
     root.addClass("tag-everything-view");
 
     const bar = root.createDiv({ cls: "tag-everything-view-bar" });
-    const search = bar.createEl("input", { type: "search", cls: "tag-everything-view-search", attr: { placeholder: "Filter tags…" } });
+    const search = (this.searchEl = bar.createEl("input", {
+      type: "search",
+      cls: "tag-everything-view-search",
+      attr: { placeholder: "Filter tags…", "aria-label": "Filter tags (Enter selects the first one, Escape clears)" },
+    }));
+    search.value = this.filter;
     search.addEventListener("input", () => {
       this.filter = search.value.trim().toLowerCase();
       this.renderTags();
+      this.app.workspace.requestSaveLayout();
+    });
+    search.addEventListener("keydown", (evt) => {
+      if (evt.isComposing) return;
+      if (evt.key === "Enter") {
+        // the first tag shown, i.e. the most used one matching the filter
+        const tag = this.tagsEl.querySelector<HTMLElement>(":scope > .tag-everything-chip")?.dataset.tag;
+        if (!tag) return;
+        evt.preventDefault();
+        search.value = this.filter = "";
+        this.toggle(tag);
+      } else if (evt.key === "Escape" && search.value) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        search.value = this.filter = "";
+        this.renderTags();
+      }
     });
     const rebuild = bar.createDiv({ cls: "clickable-icon", attr: { "aria-label": "Re-read tags (picks up changes made outside Obsidian)" } });
     setIcon(rebuild, "refresh-cw");
-    rebuild.addEventListener("click", () => {
+    clickable(rebuild, () => {
       this.statusEl.setText("Reading tags…");
       void this.plugin.index.rebuild();
     });
@@ -83,6 +134,21 @@ export class TagEverythingView extends ItemView {
     this.contentEl.empty();
   }
 
+  getState(): Record<string, unknown> {
+    const state: PanelState = { selected: this.selected, activeGroup: this.activeGroup, filter: this.filter };
+    return { ...super.getState(), ...state };
+  }
+
+  async setState(state: unknown, result: ViewStateResult): Promise<void> {
+    const s = (state && typeof state === "object" ? state : {}) as Partial<Record<keyof PanelState, unknown>>;
+    if (Array.isArray(s.selected)) this.selected = s.selected.filter((t): t is string => typeof t === "string");
+    if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
+    if (typeof s.filter === "string") this.filter = s.filter;
+    if (this.searchEl) this.searchEl.value = this.filter;
+    this.render();
+    await super.setState(state, result);
+  }
+
   /** Shows the items carrying `tag` (used by badge clicks). */
   selectOnly(tag: string): void {
     this.selected = [tag];
@@ -99,6 +165,7 @@ export class TagEverythingView extends ItemView {
   private async saveGroups(groups: gr.TagGroup[]): Promise<void> {
     this.plugin.settings.groups = groups;
     this.render();
+    this.app.workspace.requestSaveLayout();
     try {
       await this.plugin.saveData(this.plugin.settings);
     } catch (err) {
@@ -130,6 +197,7 @@ export class TagEverythingView extends ItemView {
       this.selected = group.tags.filter((t) => counts.has(t));
     }
     this.render();
+    this.app.workspace.requestSaveLayout();
   }
 
   /**
@@ -164,10 +232,7 @@ export class TagEverythingView extends ItemView {
     const counts = index.counts();
     const used = expr && fx.prune(expr, (t) => counts.has(t));
     if (!used) return [];
-    return index.paths().filter((p) => {
-      const own = new Set(index.tagsOf(p));
-      return fx.evaluate(used, (t) => own.has(t));
-    });
+    return index.paths().filter((p) => fx.evaluate(used, (t) => index.hasTag(p, t)));
   }
 
   private askGroupName(title: string, initial: string, done: (name: string) => Promise<void>): void {
@@ -210,6 +275,12 @@ export class TagEverythingView extends ItemView {
         .onClick(() => void this.saveGroups(gr.deleteGroup(this.groups, group.id))),
     );
     menu.showAtMouseEvent(evt);
+  }
+
+  /** The group menu, opened from the keyboard: under the ⋯ button. */
+  private groupMenuAt(group: gr.TagGroup, el: HTMLElement): void {
+    const r = el.getBoundingClientRect();
+    this.groupMenu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }));
   }
 
   editFormula(group: gr.TagGroup): void {
@@ -275,12 +346,14 @@ export class TagEverythingView extends ItemView {
   private toggle(tag: string): void {
     this.selected = this.selected.includes(tag) ? this.selected.filter((t) => t !== tag) : [...this.selected, tag];
     this.render();
+    this.app.workspace.requestSaveLayout(); // the selection is part of the panel's saved state
   }
 
   private render(): void {
     if (!this.tagsEl) return;
     const counts = this.plugin.index.counts();
-    this.selected = this.selected.filter((t) => counts.has(t));
+    // Before the first scan the index is empty: keep a selection restored from the saved workspace.
+    if (this.plugin.index.ready) this.selected = this.selected.filter((t) => counts.has(t));
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
     this.renderSelected();
     this.renderGroups();
@@ -290,6 +363,7 @@ export class TagEverythingView extends ItemView {
 
   private chip(parent: HTMLElement, tag: string, extra = ""): HTMLElement {
     const el = parent.createDiv({ cls: "tag-everything-chip " + extra });
+    el.dataset.tag = tag;
     const color = this.plugin.index.colorFor(tag);
     if (color) el.style.setProperty("--tag-everything-color", color);
     el.createSpan({ text: tag });
@@ -311,7 +385,7 @@ export class TagEverythingView extends ItemView {
     if (!group && !this.selected.length) return;
     const counts = this.plugin.index.counts();
     if (group) {
-      const label = this.selectedEl.createDiv({ cls: "tag-everything-view-selected-group", attr: { title: "Search started from this group" } });
+      const label = this.selectedEl.createDiv({ cls: "tag-everything-view-selected-group", attr: { "aria-label": "Search started from this group" } });
       setIcon(label.createSpan(), "layers");
       label.createSpan({ text: group.name });
       // The group's tags stay listed (inside its formula, if it has one): a switched-off one (dashed) can be
@@ -320,8 +394,8 @@ export class TagEverythingView extends ItemView {
         const on = this.selected.includes(tag);
         const used = counts.has(tag);
         const el = this.chip(parent, tag, on ? "is-selected" : "is-off" + (used ? "" : " is-missing"));
-        el.setAttr("title", !used ? "No file or folder carries this tag" : on ? "Click to leave it out of the search" : "Click to search with it");
-        if (used) el.addEventListener("click", () => this.toggle(tag));
+        el.setAttr("aria-label", !used ? "No file or folder carries this tag" : on ? "Click to leave it out of the search" : "Click to search with it");
+        if (used) clickable(el, () => this.toggle(tag));
       };
       const expr = group.formula && !gr.formulaError(group) ? gr.groupExpr(group) : null;
       if (expr) this.renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
@@ -332,13 +406,15 @@ export class TagEverythingView extends ItemView {
       const el = this.chip(this.selectedEl, tag, "is-selected");
       const x = el.createSpan({ cls: "tag-everything-chip-remove" });
       setIcon(x, "x");
-      el.addEventListener("click", () => this.toggle(tag));
+      el.setAttr("aria-label", "Remove from the search");
+      clickable(el, () => this.toggle(tag));
     }
     const clear = this.selectedEl.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
     clear.addEventListener("click", () => {
       this.selected = [];
       this.activeGroup = null;
       this.render();
+      this.app.workspace.requestSaveLayout();
     });
   }
 
@@ -355,7 +431,7 @@ export class TagEverythingView extends ItemView {
       attr: { "aria-label": "New group, with the selected tags (or drop a tag here)" },
     });
     setIcon(add, "plus");
-    add.addEventListener("click", () => this.newGroup(this.selected));
+    clickable(add, () => this.newGroup(this.selected));
     this.dropZone(add, (tag) => this.newGroup([tag]));
 
     if (!this.groups.length) {
@@ -379,7 +455,7 @@ export class TagEverythingView extends ItemView {
 
       const fold = header.createDiv({ cls: "tag-everything-group-fold", attr: { "aria-label": group.collapsed ? "Unfold" : "Fold" } });
       setIcon(fold, "chevron-down");
-      fold.addEventListener("click", (evt) => {
+      clickable(fold, (evt) => {
         evt.stopPropagation();
         void this.saveGroups(gr.setCollapsed(this.groups, group.id, !group.collapsed));
       });
@@ -390,15 +466,25 @@ export class TagEverythingView extends ItemView {
         const sigma = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula}` } });
         setIcon(sigma, "sigma");
       }
-      header.createSpan({ cls: "tag-everything-chip-count", text: String(n), attr: { "aria-label": `${n} item${n === 1 ? "" : "s"} carry all its tags` } });
-      const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Rename, delete…" } });
-      setIcon(more, "more-horizontal");
-      more.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        this.groupMenu(group, evt);
+      // Visible search button: the whole header searches too, but that was easy to miss.
+      const find = header.createDiv({
+        cls: "clickable-icon tag-everything-group-search",
+        attr: { "aria-label": active ? "Clear the search" : `List the ${plural(n, "item")} this group finds` },
       });
-      header.setAttr("title", active ? "Click to clear the search" : "Click to list the items carrying all these tags");
-      header.addEventListener("click", () => this.selectGroup(group.id));
+      setIcon(find, active ? "search-x" : "search");
+      find.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
+      clickable(find, (evt) => {
+        evt.stopPropagation();
+        this.selectGroup(group.id);
+      });
+      const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Group options" } });
+      setIcon(more, "more-horizontal");
+      clickable(more, (evt) => {
+        evt.stopPropagation();
+        if (evt instanceof MouseEvent) this.groupMenu(group, evt);
+        else this.groupMenuAt(group, more);
+      });
+      clickable(header, () => this.selectGroup(group.id));
       header.addEventListener("contextmenu", (evt) => {
         evt.preventDefault();
         this.groupMenu(group, evt);
@@ -423,12 +509,13 @@ export class TagEverythingView extends ItemView {
           evt.stopPropagation();
           void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
         });
-        if (c) chip.addEventListener("click", () => this.toggle(tag));
+        if (c) clickable(chip, () => this.toggle(tag));
+        else chip.setAttr("aria-label", "No file or folder carries this tag");
       };
       const error = gr.formulaError(group);
       if (error) {
         const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit formula.` });
-        err.setAttr("title", group.formula ?? "");
+        err.setAttr("aria-label", group.formula ?? "");
       }
       const expr = group.formula && !error ? gr.groupExpr(group) : null;
       if (expr) this.renderExpr(body, expr, groupChip);
@@ -448,7 +535,11 @@ export class TagEverythingView extends ItemView {
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
-        text: index.paths().length ? "No other tag." : "No tags yet. Right-click a file or folder → Edit tags.",
+        text: !index.size
+          ? "No tags yet. Right-click a file or folder → Edit tags."
+          : this.filter
+            ? `No tag matches "${this.filter}".`
+            : "No other tag.",
       });
       return;
     }
@@ -458,20 +549,20 @@ export class TagEverythingView extends ItemView {
       const el = this.chip(this.tagsEl, tag);
       el.style.setProperty("--tag-everything-weight", String(weights.get(tag) ?? 0));
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
-      el.addEventListener("click", () => this.toggle(tag));
+      clickable(el, () => this.toggle(tag));
     }
   }
 
   private renderResults(): void {
     this.resultsEl.empty();
     const index = this.plugin.index;
-    const total = index.paths().length;
+    const total = index.size;
     const search = this.searchExpr();
     if (!search) {
       this.statusEl.setText(
         this.activeGroup
           ? "No tag of this group is switched on: click one above."
-          : `${total} tagged item${total === 1 ? "" : "s"}. Select a tag or a group to list them.`,
+          : `${plural(total, "tagged item")}. Select a tag or a group to list them.`,
       );
       return;
     }
@@ -481,7 +572,7 @@ export class TagEverythingView extends ItemView {
       .map((p) => vault.getAbstractFileByPath(p))
       .filter((f): f is TAbstractFile => !!f)
       .sort((a, b) => Number(a instanceof TFile) - Number(b instanceof TFile) || a.path.localeCompare(b.path));
-    this.statusEl.setText(`${items.length} item${items.length === 1 ? "" : "s"}` + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : ""));
+    this.statusEl.setText(plural(items.length, "item") + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : ""));
 
     for (const item of items.slice(0, MAX_RESULTS)) {
       const row = this.resultsEl.createDiv({ cls: "tag-everything-result" });
@@ -494,18 +585,38 @@ export class TagEverythingView extends ItemView {
       const chips = body.createDiv({ cls: "tag-everything-result-tags" });
       for (const t of index.tagsOf(item.path)) this.chip(chips, t, "is-small" + (this.selected.includes(t) ? " is-selected" : ""));
 
-      row.setAttr("title", item.path);
-      row.addEventListener("click", (evt) => this.openItem(item, evt));
+      clickable(row, (evt) => this.openItem(item, evt));
+      row.addEventListener("auxclick", (evt) => {
+        if (evt.button === 1) this.openItem(item, evt); // middle click: new tab
+      });
       row.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
         const menu = new Menu();
-        this.app.workspace.trigger("file-menu", menu, item, "tag-everything-view", this.leaf);
+        this.app.workspace.trigger("file-menu", menu, item, VIEW_TYPE, this.leaf);
         menu.showAtMouseEvent(evt);
+      });
+      if (item instanceof TFile) {
+        // Ctrl/Cmd + hover: page preview, as in the file explorer (source registered in main.ts)
+        row.addEventListener("mouseover", (evt) => {
+          this.app.workspace.trigger("hover-link", { event: evt, source: VIEW_TYPE, hoverParent: this, targetEl: row, linktext: item.path });
+        });
+      }
+      // Drag into a note to link the item, as from the file explorer (internal API: skipped if missing).
+      row.draggable = true;
+      row.addEventListener("dragstart", (evt) => {
+        try {
+          const dm = (this.app as unknown as InternalApp).dragManager;
+          const data = item instanceof TFile ? dm?.dragFile?.(evt, item) : item instanceof TFolder ? dm?.dragFolder?.(evt, item) : null;
+          if (data) dm?.onDragStart?.(evt, data);
+        } catch (err) {
+          console.warn("[tag-everything] drag unavailable", err);
+        }
       });
     }
   }
 
   // Not "open": View.open(containerEl) is an internal Obsidian method that this would shadow.
-  private openItem(item: TAbstractFile, evt: MouseEvent): void {
+  private openItem(item: TAbstractFile, evt: MouseEvent | KeyboardEvent): void {
     const app = this.app as unknown as InternalApp;
     try {
       if (item instanceof TFolder) {
@@ -569,7 +680,7 @@ class FormulaTagSuggest extends AbstractInputSuggest<string> {
     app: App,
     private input: HTMLInputElement,
     private tags: readonly string[],
-    private counts: Map<string, number>,
+    private counts: ReadonlyMap<string, number>,
   ) {
     super(app, input);
   }
@@ -612,7 +723,7 @@ class FormulaModal extends Modal {
     private groupName: string,
     private initial: string,
     private tags: readonly string[],
-    private counts: Map<string, number>,
+    private counts: ReadonlyMap<string, number>,
     private countMatches: (expr: fx.Expr) => number,
     private done: (text: string) => Promise<void>,
   ) {
@@ -648,7 +759,7 @@ class FormulaModal extends Modal {
       }
       const expr = fx.resolveTags(r.expr, this.tags);
       const n = this.countMatches(expr);
-      preview.createDiv({ text: `${fx.formatFormula(expr)}  →  ${n} item${n === 1 ? "" : "s"}` });
+      preview.createDiv({ text: `${fx.formatFormula(expr)}  →  ${plural(n, "item")}` });
       const unknown = fx.formulaTags(expr).filter((t) => !this.counts.has(t));
       if (unknown.length) preview.createDiv({ cls: "tag-everything-formula-unknown", text: `No item carries ${unknown.join(", ")} (left out of the search).` });
     };

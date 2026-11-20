@@ -13,17 +13,18 @@ Tags are always **read from every place and merged**. For a note, that's the tag
 
 ## Features
 
-- **Right-click → Edit tags** on a file or folder; on a multi-selection, **Edit tags of N items**. Chips with autocomplete from every tag in the vault, most used first. With several items, a tag only some carry shows as `3/5`: leave it, click it to give it to all, or remove it from all.
+- **Right-click → Edit tags** on a file or folder; on a multi-selection, **Edit tags of N items**. Chips with autocomplete from every tag in the vault, most used first. With several items, a tag only some carry shows as `3/5`: leave it, click it to give it to all, or remove it from all. A word that can't be a tag (e.g. `a:b`) stays in the box with the reason, so you can fix it; a nested tag (`proj/alpha`) is refused up front where it can't go (a file name).
 - A preview of the new file name before saving. Renames go through Obsidian, so **links in notes are updated**.
 - Note tags edited anywhere else (the editor, the Properties panel, another app) show up live. Nested tags (`proj/alpha`) work for notes.
-- **File tags panel** (ribbon `tags` icon): every tag with its count, frequently used tags a little bigger (at most 1.4× the normal size, rarely used ones stay at the normal size); select tags (AND) to list the matching files and folders; click to open (non-note files open in their default app, folders are revealed), right-click for the usual file menu.
+- **File tags panel** (ribbon `tags` icon): every tag with its count, frequently used tags a little bigger (at most 1.4× the normal size, rarely used ones stay at the normal size); select tags (AND) to list the matching files and folders. Type in **Filter tags** and press **Enter** to select the first match, **Escape** to clear it. Results work like the file explorer: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files open in their default app, folders are revealed), **Ctrl/Cmd + hover** for a page preview, **drag** one into a note to link it, right-click for the usual file menu. Everything in the panel works from the keyboard too (Tab, then Enter or Space). The panel remembers its selection and filter across restarts.
 - **Tag groups** in the panel, to keep related tags together. **+** creates a group (with the tags selected at that moment; or drop a tag on **+**). **Drag** any tag of the panel onto a group to add it; a tag can be in several groups. Groups **fold** (chevron) and can be reordered by dragging one onto another; **⋯** or right-click: rename, add the selected tags, delete (the tags stay on the files). Hover a tag of a group and click its × to take it out of the group.
-- **A group is also a search**: click its name to list the files and folders carrying **all** its tags (the number next to the group). Its tags then show at the top: click one to leave it out of the search (dashed), click again to put it back; click other tags to narrow further. Click the group again, or **Clear**, to stop. Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
+- **A group is also a search**: click its name, or its magnifier button (with the number of items it finds), to list the files and folders carrying **all** its tags. Its tags then show at the top: click one to leave it out of the search (dashed), click again to put it back; click other tags to narrow further. Click the group again, or **Clear**, to stop. Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
 - **Formulas**: **⋯ → Combine with a formula** turns a group into any combination of its tags, e.g. `(B27 OR INC) AND (q3 OR 2026)`. Operators `AND` / `OR` / `NOT` (or `ET` / `OU` / `NON`, `&` / `|` / `!`) and parentheses; two tags side by side mean AND; `NOT` binds first, then `AND`, then `OR`. Tag names complete as you type, and the dialog shows the formula as it understood it and how many items it finds (or what is wrong). The group then shows its tags between the operators. In a group search, a tag switched off drops out of its `OR` / `AND` as if it were not written, `NOT x` included. Dropping a tag on a group with a formula adds `AND tag`; its × removes the tag from the formula. Empty the formula to go back to "all the tags". Tags are matched whatever the case; a tag in quotes can contain a parenthesis or be spelled like an operator (`"ou"`).
 - **Colours**: each tag gets its own colour, picked from its name among the theme colours (always the same, in the panel, the badges and the editor; nested tags share their parent's colour). A colour stored in a sidecar wins. Setting *Colour tags automatically* turns it off. With 8 colours, two tags can share one.
 - **Badges** in the file explorer (optional), in the tag colours. Clicking a badge opens the panel on that tag.
 - When a file is renamed or moved in Obsidian, its `.ts` sidecar and thumbnail move with it.
 - Command palette: *Edit tags of the current file*, *Open file tags panel*, *Re-read all tags*.
+- Tagging more than 5 items shows its progress; if some fail, one notice lists why (the first 5, then how many more). Edits run one after the other, so a second edit started before the first is written waits for it.
 
 ## Install
 
@@ -42,7 +43,7 @@ Turn on **Settings → Files and links → Detect all file extensions** to see (
 
 ```powershell
 npm test -- tag-everything                      # format unit tests
-npm run smoke -- tag-everything                 # 78 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # 96 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -72,8 +73,10 @@ src/formula.ts     tag formulas: parse, format, evaluate, switch tags off (pure,
 src/cloud.ts       tag cloud sizing by use (pure, tested)
 src/colors.ts      automatic tag colours (pure, tested)
 src/badges.ts      explorer badges
+src/config.ts      settings: shape, defaults, loading a damaged data.json (pure, tested)
+src/messages.ts    notice texts (pure, tested)
 src/main.ts        plugin wiring: menus, commands, rename handling, applying edits
 docs/format.md     storage format spec
-tests/             format.test.ts (node --test), smoke.js + fixtures/vault (in-app)
+tests/             *.test.ts (node --test), smoke.js + fixtures/vault (in-app)
 tools/check-vault.ts  read-only check of every tagged name in a vault
 ```

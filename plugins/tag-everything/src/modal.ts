@@ -13,7 +13,7 @@ class TagSuggest extends AbstractInputSuggest<string> {
     app: App,
     private input: HTMLInputElement,
     private source: () => string[],
-    private counts: Map<string, number>,
+    private counts: ReadonlyMap<string, number>,
     private onPick: (tag: string) => void,
   ) {
     super(app, input);
@@ -93,15 +93,18 @@ export class TagEditorModal extends Modal {
       () => this.index.ranked().filter((t) => !this.has(t)),
       counts,
       (tag) => {
-        if (!this.has(tag)) this.chips.push({ tag, count: this.items.length });
-        this.renderChips();
+        // A tag picked from the vault may not be valid here, e.g. a nested note tag for a PDF.
+        const { error } = ts.normalizeTag(tag, false, this.allFrontmatter());
+        if (!error && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
+        this.renderChips(error ?? "");
         this.input.focus();
       },
     );
 
     this.input.addEventListener("keydown", (evt) => this.onKey(evt));
     this.input.addEventListener("input", () => {
-      if (/[\s,]/.test(this.input.value)) this.commitInput();
+      // A separator typed after a word commits it (not while fixing an invalid word left in the box).
+      if (/[\s,]$/.test(this.input.value)) this.commitInput();
     });
 
     new Setting(contentEl)
@@ -153,15 +156,16 @@ export class TagEditorModal extends Modal {
     }
   }
 
-  private commitInput(): void {
-    const errors: string[] = [];
-    for (const raw of ts.splitTagInput(this.input.value)) {
-      const { tag, error } = ts.normalizeTag(raw, this.settings.lowercase, this.allFrontmatter());
-      if (error) errors.push(error);
-      else if (tag && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
-    }
-    this.input.value = "";
+  /**
+   * Turns the typed text into chips. Invalid words stay in the box, with their error, so they can be fixed
+   * (they used to vanish). Returns false if any word was invalid.
+   */
+  private commitInput(): boolean {
+    const { tags, errors, rest } = ts.parseTagInput(this.input.value, this.settings.lowercase, this.allFrontmatter());
+    for (const tag of tags) if (!this.has(tag)) this.chips.push({ tag, count: this.items.length });
+    if (this.input.value !== rest) this.input.value = rest;
     this.renderChips(errors.join(" · "));
+    return !errors.length;
   }
 
   private renderChips(error = ""): void {
@@ -225,8 +229,8 @@ export class TagEditorModal extends Modal {
   }
 
   private async save(): Promise<void> {
-    if (this.input.value.trim()) this.commitInput();
-    if (this.errorEl.getText()) return;
+    // Text still in the box is committed first; an invalid word stays there with its error and nothing is saved.
+    if (this.input.value.trim() && !this.commitInput()) return;
     const edit = this.edit();
     this.close();
     if (edit.added.length || edit.removed.length) await this.onSubmit(edit);

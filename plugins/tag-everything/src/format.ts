@@ -127,8 +127,31 @@ export function normalizeTag(raw: string, lowercase = false, nested = false): { 
     if (tag.startsWith("/") || tag.endsWith("/") || tag.includes("//")) return { error: `"${tag}": empty part in a nested tag` };
     return { tag };
   }
-  if (FORBIDDEN_IN_TAG.test(tag)) return { error: `"${tag}": a tag cannot contain [ ] # ^ | \\ / : * ? " < >` };
+  if (FORBIDDEN_IN_TAG.test(tag)) {
+    if (tag.includes("/") && !FORBIDDEN_IN_NESTED_TAG.test(tag)) {
+      return { error: `"${tag}": a file name cannot contain / (nested tags only go in a note's frontmatter)` };
+    }
+    return { error: `"${tag}": a tag cannot contain [ ] # ^ | \\ / : * ? " < >` };
+  }
   return { tag };
+}
+
+/**
+ * Typed text -> valid tags, error messages, and the invalid words (`rest`, space-separated) to leave in the input
+ * box so they can be fixed instead of vanishing.
+ */
+export function parseTagInput(text: string, lowercase = false, nested = false): { tags: string[]; errors: string[]; rest: string } {
+  const tags: string[] = [];
+  const errors: string[] = [];
+  const bad: string[] = [];
+  for (const raw of splitTagInput(text)) {
+    const { tag, error } = normalizeTag(raw, lowercase, nested);
+    if (error) {
+      errors.push(error);
+      bad.push(raw);
+    } else if (tag && !tags.includes(tag)) tags.push(tag);
+  }
+  return { tags, errors, rest: bad.join(" ") };
 }
 
 /**
