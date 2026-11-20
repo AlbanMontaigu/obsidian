@@ -41,7 +41,7 @@ flowchart TB
 | `src/badges.ts` | Chips in the core explorer through its internal `fileItems` (see `docs/obsidian-api.md`). `refresh()` is keyed: `decorated` maps each row to a signature (tags, colours, limit) and only rows whose signature changed are redrawn; rows no longer tagged or detached are cleaned. |
 | `src/config.ts` | **Pure** settings data: `TagEverythingSettings`, `DEFAULT_SETTINGS`, `normalizeSettings(raw)` (wrong types / out-of-range values → defaults, unknown keys kept, groups via `normalizeGroups`; never throws). `loadSettings` also survives an unreadable `data.json` (defaults + Notice). |
 | `src/messages.ts` | **Pure** notice texts: `plural`, `failureMessage` (first 5, then "…and N more"), `progressMessage`. |
-| `src/settings.ts` | Settings tab (re-exports `config.ts`): `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `showBadges`, `autoColors`, `badgeScope`, `maxBadges` (disabled while badges are off), `groups` (edited in the panel only); `targetFor(file, settings)` = where an item's new tags go. |
+| `src/settings.ts` | **Declarative** settings tab (`getSettingDefinitions()`, Obsidian 1.13+, so its rows are in Obsidian's settings search; icon `tags`; re-exports `config.ts`): `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `autoColors`, then group *File explorer*: `showBadges`, `badgeScope`, `maxBadges` (`disabled` predicates while badges are off), a hint row `visible` only when *Detect all file extensions* is off. `setControlValue` repairs the value through `normalizeSettings`, calls `refreshDomState()`, then `plugin.saveSettings()`. `groups` is edited in the panel only. `targetFor(file, settings)` = where an item's new tags go. |
 
 ## Invariants (keep them)
 
@@ -64,12 +64,13 @@ flowchart TB
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
 - `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
-- `tests/smoke.js` + `tests/fixtures/vault/`: 96 in-app checks. The first part runs the name / sidecar engine on
+- `tests/smoke.js` + `tests/fixtures/vault/`: 100 in-app checks. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); robustness (a sidecar edit and a folder rename during `rebuild()` are kept, two
   concurrent edits queued, an item deleted since the editor opened refused, editor keeps an invalid word and saves
-  once fixed); then panel, badges (a no-op refresh keeps the DOM; settings disable badge options), tag groups (create through the
+  once fixed); then panel, badges (a no-op refresh keeps the DOM), settings (declarative rows indexed for search, tab icon; in the
+  real settings dialog, the badges toggle disables / enables the two badge options and is saved to `data.json`), tag groups (create through the
   dialog, drag with a synthetic `DataTransfer`, fold, `data.json`, group search, switch a tag off / on; formula through the real menu and dialog: error, preview,
   rendering, search, switch-off pruning, NOT, drop = AND, × prunes), panel usability (filter + Enter, keyboard,
   saved state, group search button, draggable results, hover source), modal. It ends on the panel with a formula
@@ -78,6 +79,23 @@ flowchart TB
 - `tools/check-vault.ts "<vault>"`: **read-only**; every tagged name in a real vault must round-trip unchanged
   (2026-11-20 on the owner's vault: 9 500 files, 70 tagged names, 0 problems). Run it after any change to
   `parseNameTags` / `setNameTags`.
+
+## Official guidelines
+
+Audited on 2026-11-20 (0.8.0) against the official guidelines (summary and linter how-to: root
+`docs/obsidian-api.md` → *Official guidelines*). The official linter `eslint-plugin-obsidianmd` 0.6.0, run from this
+folder with `ui/sentence-case` on, reports one false positive: the formula placeholder `(tag1 OR tag2) AND tag3`.
+Keep it that way: computed styles via `setCssProps` (CSS variables), `instanceof TFile` and never a cast,
+`.instanceOf()` for DOM nodes and events (panel and settings may be in a pop-out window), `async` / `await`.
+
+Deliberate exceptions, each for a reason:
+
+- `vault.adapter` for `.ts` sidecars: dot-folders are invisible to the Vault API.
+- Internal APIs (explorer `fileItems`, `revealInFolder`, `openWithDefaultApp`, `dragManager`, `getConfig`): no
+  public equivalent; all guarded, they degrade to doing nothing.
+- No `normalizePath()` on the paths it builds: they come from vault paths Obsidian already normalized, and
+  normalizing again (NFC, non-breaking spaces) could point at a different file. Nothing here is a user-typed path.
+- `isDesktopOnly: true` and an unminified `main.js`: a personal desktop plugin; readable stack traces matter more.
 
 ## Known limits / ideas not done
 

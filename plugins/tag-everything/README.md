@@ -35,7 +35,9 @@ npm run tag-everything                          # build + deploy into the open v
 npm run deploy -- tag-everything --vault Perso
 ```
 
-Then in Obsidian: **Settings → Community plugins** → turn off Restricted mode if needed → enable **TagEverything**. After a redeploy, disable/enable it or reload Obsidian.
+Needs Obsidian 1.13 or later (desktop). Then in Obsidian: **Settings → Community plugins** → turn off Restricted mode if needed → enable **TagEverything**. After a redeploy, disable/enable it or reload Obsidian.
+
+Its settings (**Settings → TagEverything**) also show up when you type in the settings search box, e.g. "badges" or "sidecar".
 
 Turn on **Settings → Files and links → Detect all file extensions** to see (and right-click) PDFs, Office files and images in the explorer.
 
@@ -43,7 +45,7 @@ Turn on **Settings → Files and links → Detect all file extensions** to see (
 
 ```powershell
 npm test -- tag-everything                      # format unit tests
-npm run smoke -- tag-everything                 # 96 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # 100 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```

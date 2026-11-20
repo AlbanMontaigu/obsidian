@@ -208,14 +208,16 @@ export class TagIndex extends Events {
   }
 
   rebuild(): Promise<void> {
-    if (!this.building) {
-      this.building = this.scan()
-        .catch((err) => console.error("[tag-everything] index rebuild failed", err))
-        .finally(() => {
-          this.scanLog = null;
-          this.building = null;
-        });
-    }
+    this.building ??= (async (): Promise<void> => {
+      try {
+        await this.scan();
+      } catch (err) {
+        console.error("[tag-everything] index rebuild failed", err);
+      } finally {
+        this.scanLog = null;
+        this.building = null;
+      }
+    })();
     return this.building;
   }
 

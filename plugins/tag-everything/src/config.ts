@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
 export function normalizeSettings(raw: unknown): TagEverythingSettings {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const d = DEFAULT_SETTINGS;
-  const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? (r[k] as boolean) : (d[k] as boolean));
+  const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? r[k] :(d[k] as boolean));
   const max = typeof r.maxBadges === "number" && Number.isFinite(r.maxBadges) ? Math.round(r.maxBadges) : d.maxBadges;
   return {
     ...r,

@@ -6,7 +6,7 @@ In the formula system integrate the NOT. Then also make more visible that the wh
 
 Allow to bookmark some tags or groups of tags in other tabs, possibility create as much as we want other tab that we can name
 
-# Pluging best practicies
+# Plugin best practicies
 
 Reread all obsidian doc about plugin ensure that this one respect the latest guidance and best practicices
 
@@ -29,3 +29,7 @@ Prepare guidance or eventual claude.md to put in each folder to guide claude to 
 # Tag auto generation
 
 Offer an integration with claude code to help user to generate tags automatically based on content. It should be based on file reading context of the folder and also eventual other existing tag already in the dictionnary
+
+# Skills for claude to work with
+
+# MCP to connect to obsidian ?

@@ -31,6 +31,11 @@ interface PanelState {
   filter: string;
 }
 
+/** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
+function isNode(target: EventTarget | null): target is Node {
+  return !!target && typeof (target as Partial<Node>).nodeType === "number";
+}
+
 /** Makes `el` a button for the keyboard too: focusable, Enter / Space run `fn` like a click. */
 function clickable(el: HTMLElement, fn: (evt: MouseEvent | KeyboardEvent) => void): void {
   el.tabIndex = 0;
@@ -327,7 +332,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
       el.addClass("is-drop-target");
     });
     el.addEventListener("dragleave", (evt) => {
-      if (!(evt.relatedTarget instanceof Node && el.contains(evt.relatedTarget))) el.removeClass("is-drop-target");
+      const to = evt.relatedTarget;
+      if (!(isNode(to) && el.contains(to))) el.removeClass("is-drop-target");
     });
     el.addEventListener("drop", (evt) => {
       el.removeClass("is-drop-target");
@@ -365,7 +371,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const el = parent.createDiv({ cls: "tag-everything-chip " + extra });
     el.dataset.tag = tag;
     const color = this.plugin.index.colorFor(tag);
-    if (color) el.style.setProperty("--tag-everything-color", color);
+    if (color) el.setCssProps({ "--tag-everything-color": color });
     el.createSpan({ text: tag });
     // Every chip of the panel can be dragged onto a group.
     el.draggable = true;
@@ -481,7 +487,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       setIcon(more, "more-horizontal");
       clickable(more, (evt) => {
         evt.stopPropagation();
-        if (evt instanceof MouseEvent) this.groupMenu(group, evt);
+        if (evt.instanceOf(MouseEvent)) this.groupMenu(group, evt);
         else this.groupMenuAt(group, more);
       });
       clickable(header, () => this.selectGroup(group.id));
@@ -547,7 +553,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const weights = cloudWeights(rows);
     for (const [tag, n] of rows) {
       const el = this.chip(this.tagsEl, tag);
-      el.style.setProperty("--tag-everything-weight", String(weights.get(tag) ?? 0));
+      el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       clickable(el, () => this.toggle(tag));
     }
@@ -623,7 +629,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
         app.internalPlugins?.getPluginById?.("file-explorer")?.instance?.revealInFolder?.(item);
         return;
       }
-      const file = item as TFile;
+      if (!(item instanceof TFile)) return;
+      const file = item;
       const known = app.viewRegistry?.isExtensionRegistered?.(file.extension) ?? true;
       if (!known && app.openWithDefaultApp) app.openWithDefaultApp(file.path);
       else void this.app.workspace.getLeaf(Keymap.isModEvent(evt)).openFile(file);
@@ -646,7 +653,7 @@ class GroupNameModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("tag-everything-group-modal");
-    this.titleEl.setText(this.heading);
+    this.setTitle(this.heading);
     const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: "Group name" } });
     input.value = this.initial;
     const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
@@ -732,7 +739,7 @@ class FormulaModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("tag-everything-formula-modal");
-    this.titleEl.setText(`Formula of "${this.groupName}"`);
+    this.setTitle(`Formula of "${this.groupName}"`);
     this.contentEl.createDiv({
       cls: "tag-everything-where",
       text:

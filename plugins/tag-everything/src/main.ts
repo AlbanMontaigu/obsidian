@@ -94,10 +94,6 @@ export default class TagEverythingPlugin extends Plugin {
     });
   }
 
-  onunload(): void {
-    this.badges?.clear();
-  }
-
   async loadSettings(): Promise<void> {
     let raw: unknown = null;
     try {
@@ -162,8 +158,18 @@ export default class TagEverythingPlugin extends Plugin {
    * starts once the first is written, so two quick edits of the same file never interleave.
    */
   applyTags(items: TAbstractFile[], edit: TagEdit): Promise<void> {
-    const run = this.queue.then(() => this.applyNow(items, edit));
-    this.queue = run.catch(() => undefined);
+    const previous = this.queue;
+    const run = (async (): Promise<void> => {
+      await previous; // never rejects: see below
+      await this.applyNow(items, edit);
+    })();
+    this.queue = (async (): Promise<void> => {
+      try {
+        await run;
+      } catch {
+        // the caller of applyTags gets the error; the next edit still runs
+      }
+    })();
     return run;
   }
 

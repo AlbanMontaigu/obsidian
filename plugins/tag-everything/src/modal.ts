@@ -175,7 +175,7 @@ export class TagEditorModal extends Modal {
       const partial = chip.count < total;
       const el = this.chipsEl.createDiv({ cls: "tag-everything-chip" + (partial ? " is-partial" : "") });
       const color = this.index.colorFor(chip.tag);
-      if (color) el.style.setProperty("--tag-everything-color", color);
+      if (color) el.setCssProps({ "--tag-everything-color": color });
       el.createSpan({ text: chip.tag });
       if (partial) {
         el.createSpan({ cls: "tag-everything-chip-count", text: `${chip.count}/${total}` });
@@ -207,8 +207,8 @@ export class TagEditorModal extends Modal {
   }
 
   private renderPreview(): void {
-    if (!this.previewEl) return;
-    const item = this.items[0] as TFile;
+    const item = this.items[0];
+    if (!this.previewEl || !(item instanceof TFile)) return;
     const { added, removed } = this.edit();
     const desired = ts.mergeEdit(this.index.tagsOf(item.path), added, removed);
     const entry = this.index.get(item.path);

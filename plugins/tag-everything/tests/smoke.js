@@ -238,12 +238,29 @@ plugin.badges.refresh();
 check("badges: a refresh with nothing changed keeps the same elements", !!badgeWrap?.isConnected);
 const settingTab = app.setting?.pluginTabs?.find((t) => t.id === "tag-everything");
 if (settingTab) {
-  plugin.settings.showBadges = false;
-  settingTab.display();
-  const disabled = settingTab.containerEl.querySelectorAll(".setting-item.is-disabled").length;
-  plugin.settings.showBadges = true;
-  settingTab.display();
-  check("settings: badge options disabled while badges are off", disabled === 2, String(disabled));
+  // Declarative tab (getSettingDefinitions): its rows are indexed for Obsidian's settings search.
+  const walk = (d) => (d.items ? d.items.flatMap(walk) : [d.name]);
+  const names = (settingTab.settingItems ?? []).flatMap(walk);
+  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Maximum badges per item"), JSON.stringify(names));
+  check("settings: tab has an icon", settingTab.icon === "tags", String(settingTab.icon));
+  // Through the real dialog: the badges toggle disables / enables the two badge options and is saved.
+  app.setting.open();
+  app.setting.openTabById("tag-everything");
+  await sleep(300);
+  const el = settingTab.containerEl;
+  const row = (name) => [...el.querySelectorAll(".setting-item")].find((i) => i.querySelector(".setting-item-name")?.textContent === name);
+  const disabledCount = () => el.querySelectorAll(".setting-item.is-disabled").length;
+  const toggle = row("Show tag badges")?.querySelector(".checkbox-container");
+  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 0, String(disabledCount()));
+  toggle?.click();
+  await sleep(300);
+  const off = disabledCount();
+  const saved = (await plugin.loadData())?.showBadges;
+  toggle?.click();
+  await sleep(300);
+  check("settings: badge options disabled while badges are off", off === 2 && saved === false, `disabled=${off} saved=${saved}`);
+  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 0 && (await plugin.loadData())?.showBadges === true);
+  app.setting.close();
 } else check("settings: tab found", false);
 
 // ---- tag groups in the panel: create, drag tags in, fold, select = search over the group's tags

@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { Notice, Plugin, PluginSettingTab, SettingDefinitionItem } from "obsidian";
 import { greeting } from "./core.ts";
 
 interface Settings {
@@ -29,21 +29,12 @@ export default class __CLASS__ extends Plugin {
   }
 }
 
+/**
+ * Declarative settings tab (Obsidian 1.13+): its rows show up in Obsidian's settings search. A control reads
+ * `plugin.settings[key]` and saves with `saveData` on change. Override `setControlValue` to validate or react.
+ */
 class SettingTab extends PluginSettingTab {
-  constructor(
-    app: App,
-    private plugin: __CLASS__,
-  ) {
-    super(app, plugin);
-  }
-
-  display(): void {
-    this.containerEl.empty();
-    new Setting(this.containerEl).setName("Name").addText((t) =>
-      t.setValue(this.plugin.settings.name).onChange(async (v) => {
-        this.plugin.settings.name = v;
-        await this.plugin.saveSettings();
-      }),
-    );
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [{ name: "Name", desc: "Who the command greets.", control: { type: "text", key: "name" } }];
   }
 }

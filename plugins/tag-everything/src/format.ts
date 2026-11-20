@@ -226,7 +226,7 @@ export function sidecarTags(meta: SidecarMeta): SidecarTag[] {
 }
 
 function newId(): string {
-  return globalThis.crypto.randomUUID().replace(/-/g, "");
+  return crypto.randomUUID().replace(/-/g, "");
 }
 
 /** Returns a copy of `meta` with `tags` replaced. Every other field (id, description, perspective, order...) is kept. */
