@@ -1,0 +1,243 @@
+/* TagEverything. Uses Obsidian theme variables only, so it follows light/dark and any theme.
+   A tag colour read from a .ts sidecar arrives as --tag-everything-color on the chip. */
+
+.tag-everything-chip,
+.tag-everything-badge {
+  --tag-everything-bg: var(--tag-everything-color, var(--interactive-accent));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--tag-everything-bg) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tag-everything-bg) 45%, transparent);
+  color: var(--text-normal);
+  white-space: nowrap;
+}
+
+.tag-everything-chip {
+  padding: 2px 8px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.tag-everything-chip:hover {
+  background: color-mix(in srgb, var(--tag-everything-bg) 30%, transparent);
+}
+
+.tag-everything-chip.is-selected {
+  background: var(--tag-everything-bg);
+  color: var(--text-on-accent);
+}
+
+.tag-everything-chip.is-partial {
+  border-style: dashed;
+  background: transparent;
+}
+
+.tag-everything-chip.is-small {
+  padding: 0 6px;
+  font-size: var(--font-ui-smaller);
+  cursor: default;
+}
+
+.tag-everything-chip-count,
+.tag-everything-suggestion-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-chip.is-selected .tag-everything-chip-count {
+  color: inherit;
+}
+
+.tag-everything-chip-remove {
+  display: inline-flex;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tag-everything-chip-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tag-everything-chip-remove:hover {
+  color: var(--text-error);
+}
+
+/* ---- editor modal */
+
+.tag-everything-where {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-bottom: 8px;
+}
+
+.tag-everything-input-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+  cursor: text;
+}
+
+.tag-everything-input-box:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+.tag-everything-chips {
+  display: contents;
+}
+
+.tag-everything-input-box input.tag-everything-input {
+  flex: 1 1 140px;
+  min-width: 120px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 2px 4px;
+}
+
+.tag-everything-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  min-height: 1.2em;
+  margin-top: 6px;
+}
+
+.tag-everything-preview {
+  font-size: var(--font-ui-small);
+  word-break: break-all;
+}
+
+.tag-everything-preview-label {
+  color: var(--text-muted);
+}
+
+.tag-everything-suggestion {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ---- file explorer badges */
+
+.tag-everything-badges {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+}
+
+.tag-everything-badge {
+  padding: 0 5px;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.tag-everything-badge.is-more {
+  color: var(--text-muted);
+}
+
+/* ---- sidebar panel */
+
+.tag-everything-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tag-everything-view-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-everything-view-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-everything-view-selected,
+.tag-everything-view-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-everything-view-tags {
+  max-height: 40%;
+  overflow-y: auto;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-view-clear {
+  font-size: var(--font-ui-smaller);
+  padding: 0 8px;
+  height: auto;
+}
+
+.tag-everything-view-status,
+.tag-everything-view-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.tag-everything-view-results {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tag-everything-result {
+  display: flex;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.tag-everything-result:hover {
+  background: var(--background-modifier-hover);
+}
+
+.tag-everything-result-icon {
+  color: var(--text-muted);
+  padding-top: 2px;
+}
+
+.tag-everything-result-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tag-everything-result-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.tag-everything-result-name {
+  word-break: break-word;
+}
+
+.tag-everything-result-path {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-everything-result-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}

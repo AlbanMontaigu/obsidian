@@ -1,0 +1,28 @@
+{
+  "name": "obsidian-local-plugins",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build, test and deploy custom Obsidian plugins into a local vault.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "status": "node tools/status.mjs",
+    "new": "node tools/new.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "node tools/build.mjs",
+    "dev": "node tools/dev.mjs",
+    "deploy": "node tools/deploy.mjs",
+    "undeploy": "node tools/undeploy.mjs",
+    "test": "node tools/test.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "tag-everything": "node tools/deploy.mjs tag-everything"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "0.25.10",
+    "obsidian": "1.10.3",
+    "typescript": "5.9.3"
+  }
+}

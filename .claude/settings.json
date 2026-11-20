@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run status*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm run build*)",
+      "Bash(npm run smoke*)",
+      "Bash(npm run new*)",
+      "Bash(npm test*)",
+      "Bash(npx tsc*)",
+      "PowerShell(npm run status*)",
+      "PowerShell(npm run typecheck*)",
+      "PowerShell(npm run build*)",
+      "PowerShell(npm run smoke*)",
+      "PowerShell(npm run new*)",
+      "PowerShell(npm test*)",
+      "PowerShell(npx tsc*)"
+    ],
+    "ask": [
+      "Bash(npm run deploy*)",
+      "Bash(npm run dev*)",
+      "Bash(npm run undeploy*)",
+      "Bash(npm run tag-everything*)",
+      "PowerShell(npm run deploy*)",
+      "PowerShell(npm run dev*)",
+      "PowerShell(npm run undeploy*)",
+      "PowerShell(npm run tag-everything*)"
+    ]
+  }
+}

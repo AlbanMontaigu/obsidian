@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "plugin",
+      "type": "promptString",
+      "description": "Plugin id (folder under plugins/)",
+      "default": "tag-everything"
+    }
+  ],
+  "tasks": [
+    { "label": "status", "type": "shell", "command": "npm run status", "problemMatcher": [] },
+    { "label": "test", "type": "shell", "command": "npm test -- ${input:plugin}", "group": "test", "problemMatcher": [] },
+    { "label": "build", "type": "shell", "command": "npm run build -- ${input:plugin}", "problemMatcher": ["$tsc"] },
+    {
+      "label": "deploy",
+      "type": "shell",
+      "command": "npm run deploy -- ${input:plugin}",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$tsc"]
+    },
+    { "label": "dev (watch + deploy)", "type": "shell", "command": "npm run dev -- ${input:plugin}", "isBackground": true, "problemMatcher": [] }
+  ]
+}

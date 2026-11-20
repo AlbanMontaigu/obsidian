@@ -1,0 +1,96 @@
+# Obsidian API notes
+
+What you need beyond `node_modules/obsidian/obsidian.d.ts` (the authoritative, documented API: grep it for every
+signature). Verified against Obsidian 1.15 with the `obsidian` types 1.10.
+
+## Plugin skeleton
+
+```ts
+import { Plugin } from "obsidian";
+export default class MyPlugin extends Plugin {
+  async onload() {
+    await this.loadSettings();                       // this.loadData() / this.saveData() -> .obsidian/plugins/<id>/data.json
+    this.addSettingTab(new MySettingTab(this.app, this));
+    this.addCommand({ id: "do-x", name: "Do X", callback: () => {} });   // command id becomes "<plugin-id>:do-x"
+    this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {}));
+    this.app.workspace.onLayoutReady(() => { /* vault events + initial scans here */ });
+  }
+  onunload() { /* only what register*() does not already clean up */ }
+}
+```
+
+## Building blocks and where to find an example
+
+| Need | API | Example in this repo |
+|---|---|---|
+| Right-click on a file / folder / multi-selection | `workspace.on("file-menu" \| "files-menu")`, `menu.addItem(i => i.setTitle().setIcon().setSection("action").onClick())` | `tag-everything/src/main.ts` |
+| Command (palette + hotkey) | `addCommand({ id, name, callback \| checkCallback \| editorCallback })` | `tag-everything/src/main.ts` |
+| Settings tab | `PluginSettingTab` + `new Setting(el).setName().setDesc().addToggle/addDropdown/addText/addSlider` | `tag-everything/src/settings.ts`, template |
+| Dialog | `Modal` (`this.setTitle()`, `this.contentEl`, `onOpen` / `onClose`) | `tag-everything/src/modal.ts` |
+| Autocomplete on an `<input>` | `AbstractInputSuggest<T>` (`getSuggestions`, `renderSuggestion`, `selectSuggestion`) | `tag-everything/src/modal.ts` |
+| Pick-from-list dialog | `SuggestModal<T>` / `FuzzySuggestModal<T>` | |
+| Side panel | `ItemView` + `registerView(type, leaf => new View(leaf, this))`, open with `workspace.getRightLeaf(false).setViewState({ type, active: true })` then `revealLeaf` | `tag-everything/src/view.ts`, `openView()` in `main.ts` |
+| Ribbon button | `addRibbonIcon(icon, title, cb)` (Lucide icon names) | `main.ts` |
+| Toast | `new Notice(text, ms)`; `ms = 0` stays until `.hide()` | `main.ts` |
+| Icons | `setIcon(el, "lucide-name")` | `view.ts` |
+| Rename / move with link updates | `app.fileManager.renameFile(file, newPath)` | `main.ts` |
+| Read / write a note | `vault.read(file)`, `vault.process(file, fn)` (atomic), `vault.modify` | |
+| Frontmatter | `app.fileManager.processFrontMatter(file, fm => {})`, `app.metadataCache.getFileCache(file)` | |
+| Files Obsidian ignores (dot-folders like `.ts`) | `vault.adapter.exists/read/write/list/mkdir/rename/remove` with vault-relative paths | `tag-everything/src/store.ts` |
+| Vault events | `vault.on("create" \| "delete" \| "rename" \| "modify")` | `main.ts`, `index.ts` |
+| Debounce | `debounce(fn, ms, true)` | `index.ts` |
+| Own event bus | `class X extends Events`, `trigger("changed")`, `this.registerEvent(x.on("changed", cb))` | `index.ts` |
+| Absolute path on disk (desktop) | `(vault.adapter as FileSystemAdapter).getBasePath()` | |
+
+## Internal (undocumented) APIs we rely on
+
+They work in 1.15 but can change: always guard (`?.`, `try/catch`) and degrade gracefully.
+
+| What | How | Used by |
+|---|---|---|
+| File explorer items | `workspace.getLeavesOfType("file-explorer")[0].view.fileItems[path].selfEl` | `tag-everything` badges |
+| Reveal a folder in the explorer | `app.internalPlugins.getPluginById("file-explorer").instance.revealInFolder(folder)` | `tag-everything` panel |
+| Open a non-note in the system app | `app.openWithDefaultApp(path)`; check `app.viewRegistry.isExtensionRegistered(ext)` first | `tag-everything` panel |
+| A core setting | `(app.vault as any).getConfig("showUnsupportedFiles")` | `tag-everything` settings |
+| Enable a plugin (tests only) | `app.plugins.setEnable(true)`, `app.plugins.enablePluginAndSave(id)`, `app.plugins.plugins[id]` | `tools/smoke.mjs` |
+
+Pattern for internals the types do not know:
+
+```ts
+interface InternalApp { openWithDefaultApp?: (path: string) => void }
+(this.app as unknown as InternalApp).openWithDefaultApp?.(file.path);
+```
+
+## Traps (already hit, don't repeat)
+
+- **Don't name a method `open`, `close`, `load`, `unload`, `onload`... on a `View`, `Modal` or `Component`
+  subclass** unless you mean to override it. `ItemView` has an internal `open(containerEl)` that Obsidian calls when
+  showing the view; a `private open(item)` in `tag-everything` shadowed it and crashed the panel. TypeScript does
+  not flag it because the base method is not in the typings. Use specific names (`openItem`, `showResults`).
+- **Enter in a modal with an `AbstractInputSuggest`**: Obsidian's keymap handles keys in the capture phase; the
+  suggest popover takes Enter / arrows while it is open. In your own `keydown` handler, return early on
+  `evt.defaultPrevented || evt.isComposing`, and return no suggestions for an empty query, otherwise Enter on an
+  empty box picks the first suggestion instead of submitting. Don't dispatch synthetic key events.
+- **Dot-folders are invisible to the Vault API** (`getAbstractFileByPath(".ts/x")` is null, no events). Use
+  `vault.adapter` for them, and remember nothing tells you when another app changes them.
+- **Non-note files are only loaded if *Detect all file extensions* is on** (`showUnsupportedFiles`). Without it,
+  PDFs and Office files are missing from `getFiles()`, menus and events. The owner's main vault has it **off**.
+- **`vault.on("create")` fires for every file at startup**: register vault events inside `onLayoutReady`.
+- **Renaming inside your own rename handler** loops: mark paths you rename yourself (see `ownRenames` in
+  `tag-everything/src/main.ts`).
+- **`renameFile` to an existing path throws**: check `vault.getAbstractFileByPath(newPath)` first and refuse.
+- **File names**: max 255 chars on Windows; forbidden `\ / : * ? " < > |`; Obsidian links also break on `# ^ [ ] |`.
+  `[` `]` in names work in Obsidian (links are updated) but are wildcards in PowerShell paths.
+- **The `obsidian` package has no runtime code**: importing it from a module makes that module untestable under
+  `node --test`. Keep pure logic separate.
+- **DOM decoration of core views** (explorer, tabs) must be re-applied on `layout-change` and after your data changes,
+  removed on unload, and must never throw.
+- **Styles**: theme variables only; prefix classes with the plugin id; `color-mix(in srgb, var(--x) 20%, transparent)`
+  works for tints.
+
+## Manifest
+
+`manifest.json`: `id` (= folder name, lower-case, no "obsidian"), `name`, `version` (semver), `minAppVersion`
+(`1.7.2` unless you use something newer: check the `@since` tags in `obsidian.d.ts`), `description`, `author`,
+`isDesktopOnly` (`true` when using Node / Electron / `FileSystemAdapter`). `tools/lib.mjs` validates it on every
+command.
