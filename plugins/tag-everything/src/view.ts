@@ -3,8 +3,10 @@ import * as ts from "./format.ts";
 import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
+import * as tb from "./tabs.ts";
 import { plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
+import type { TagEverythingSettings } from "./config.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 const MAX_RESULTS = 500;
@@ -34,6 +36,8 @@ interface PanelState {
   excluded: string[];
   activeGroup: string | null;
   filter: string;
+  /** Bookmark tab shown; null = All. */
+  tab: string | null;
 }
 
 /** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
@@ -57,6 +61,7 @@ function clickable(el: HTMLElement, fn: (evt: MouseEvent | KeyboardEvent) => voi
 /**
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
  * carrying them, or exclude tags (NOT). Selecting a group selects its tags; each can then be switched off and on again.
+ * Bookmark tabs (src/tabs.ts) narrow the groups and tags shown to those bookmarked in the tab; the search is shared.
  */
 export class TagEverythingView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -66,6 +71,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Group whose tags make up the search, if the search started from a group. */
   private activeGroup: string | null = null;
   private filter = "";
+  /** Bookmark tab shown; null = All. */
+  private tab: string | null = null;
+  private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
   private tagsEl!: HTMLElement;
   private selectedEl!: HTMLElement;
@@ -132,6 +140,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       void this.plugin.index.rebuild();
     });
 
+    this.tabsEl = root.createDiv({ cls: "tag-everything-tabs", attr: { role: "tablist" } });
     this.selectedEl = root.createDiv({ cls: "tag-everything-view-selected" });
     this.groupsEl = root.createDiv({ cls: "tag-everything-view-groups" });
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
@@ -147,7 +156,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   getState(): Record<string, unknown> {
-    const state: PanelState = { selected: this.selected, excluded: this.excluded, activeGroup: this.activeGroup, filter: this.filter };
+    const state: PanelState = { selected: this.selected, excluded: this.excluded, activeGroup: this.activeGroup, filter: this.filter, tab: this.tab };
     return { ...super.getState(), ...state };
   }
 
@@ -157,6 +166,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (Array.isArray(s.excluded)) this.excluded = s.excluded.filter((t): t is string => typeof t === "string");
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
+    if (typeof s.tab === "string" || s.tab === null) this.tab = s.tab;
     if (this.searchEl) this.searchEl.value = this.filter;
     this.render();
     await super.setState(state, result);
@@ -176,27 +186,109 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return this.plugin.settings.groups;
   }
 
-  private async saveGroups(groups: gr.TagGroup[]): Promise<void> {
-    this.plugin.settings.groups = groups;
+  private async save(change: Partial<Pick<TagEverythingSettings, "groups" | "tabs">>): Promise<void> {
+    Object.assign(this.plugin.settings, change);
     this.render();
     this.app.workspace.requestSaveLayout();
     try {
       await this.plugin.saveData(this.plugin.settings);
     } catch (err) {
-      console.error("[tag-everything] saving tag groups failed", err);
-      new Notice("File tags: the tag groups could not be saved.");
+      console.error("[tag-everything] saving tag groups / tabs failed", err);
+      new Notice("File tags: the tag groups and tabs could not be saved.");
     }
+  }
+
+  private async saveGroups(groups: gr.TagGroup[]): Promise<void> {
+    await this.save({ groups });
   }
 
   /**
    * Creates a group and returns its id (public for the smoke test). Tags in `excluded` make it a formula:
-   * `tags AND NOT excluded`. Throws on an empty name.
+   * `tags AND NOT excluded`. Created from a bookmark tab, it is bookmarked there. Throws on an empty name.
    */
   async createGroup(name: string, tags: readonly string[] = [], excluded: readonly string[] = []): Promise<string> {
     const { groups, id } = gr.addGroup(this.groups, name, tags);
     const formula = excluded.length ? fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]) : null;
-    await this.saveGroups(formula ? gr.setFormula(groups, id, formula) : groups);
+    const tabs = this.tab ? tb.setBookmark(this.tabs, this.tab, "groups", id, true) : this.tabs;
+    await this.save({ groups: formula ? gr.setFormula(groups, id, formula) : groups, tabs });
     return id;
+  }
+
+  private deleteGroup(id: string): void {
+    void this.save({ groups: gr.deleteGroup(this.groups, id), tabs: tb.forgetGroup(this.tabs, id) });
+  }
+
+  // ---- bookmark tabs (stored in settings.tabs, logic in src/tabs.ts)
+
+  private get tabs(): tb.BookmarkTab[] {
+    return this.plugin.settings.tabs;
+  }
+
+  private get currentTab(): tb.BookmarkTab | undefined {
+    return this.tabs.find((t) => t.id === this.tab);
+  }
+
+  /** Shows a bookmark tab, or All with null (public for the smoke test). */
+  showTab(id: string | null): void {
+    this.tab = id;
+    this.render();
+    this.app.workspace.requestSaveLayout();
+  }
+
+  /** Creates a bookmark tab holding these bookmarks and shows it (public for the smoke test). Throws on an empty name. */
+  async createTab(name: string, tags: readonly string[] = [], groups: readonly string[] = []): Promise<string> {
+    const added = tb.addTab(this.tabs, name);
+    let tabs = added.tabs;
+    for (const t of tags) tabs = tb.setBookmark(tabs, added.id, "tags", t, true);
+    for (const g of groups) tabs = tb.setBookmark(tabs, added.id, "groups", g, true);
+    this.tab = added.id;
+    await this.save({ tabs });
+    return added.id;
+  }
+
+  private newTab(tags: readonly string[] = [], groups: readonly string[] = []): void {
+    new NameModal(this.app, "New bookmark tab", "", "Tab name", async (name) => void (await this.createTab(name, tags, groups))).open();
+  }
+
+  private bookmark(tabId: string, kind: tb.BookmarkKind, value: string, on: boolean): void {
+    void this.save({ tabs: tb.setBookmark(this.tabs, tabId, kind, value, on) });
+  }
+
+  /** Menu items: bookmark a tag or group in each tab (or remove it from a tab that has it), or in a new tab. */
+  private bookmarkItems(menu: Menu, kind: tb.BookmarkKind, value: string): void {
+    menu.addSeparator();
+    for (const tab of this.tabs) {
+      const has = tab[kind].includes(value);
+      menu.addItem((i) =>
+        i
+          .setTitle(has ? `Remove from the tab "${tab.name}"` : `Bookmark in the tab "${tab.name}"`)
+          .setIcon(has ? "bookmark-minus" : "bookmark-plus")
+          .onClick(() => this.bookmark(tab.id, kind, value, !has)),
+      );
+    }
+    menu.addItem((i) =>
+      i
+        .setTitle("Bookmark in a new tab…")
+        .setIcon("bookmark")
+        .onClick(() => (kind === "tags" ? this.newTab([value]) : this.newTab([], [value]))),
+    );
+  }
+
+  private tabMenu(tab: tb.BookmarkTab, evt: MouseEvent): void {
+    const menu = new Menu();
+    menu.addItem((i) =>
+      i
+        .setTitle("Rename tab")
+        .setIcon("pencil")
+        .onClick(() => new NameModal(this.app, "Rename bookmark tab", tab.name, "Tab name", (name) => this.save({ tabs: tb.renameTab(this.tabs, tab.id, name) })).open()),
+    );
+    menu.addItem((i) =>
+      i
+        .setTitle("Delete tab (its tags and groups stay)")
+        .setIcon("trash")
+        .onClick(() => void this.save({ tabs: tb.deleteTab(this.tabs, tab.id) })),
+    );
+    menu.showAtMouseEvent(evt);
   }
 
   async addToGroup(id: string, tags: readonly string[]): Promise<void> {
@@ -256,7 +348,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   private askGroupName(title: string, initial: string, done: (name: string) => Promise<void>): void {
-    new GroupNameModal(this.app, title, initial, done).open();
+    new NameModal(this.app, title, initial, "Group name", done).open();
   }
 
   private newGroup(tags: readonly string[], excluded: readonly string[] = []): void {
@@ -296,11 +388,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
           .onClick(() => void this.addToGroup(group.id, extra)),
       );
     }
+    this.bookmarkItems(menu, "groups", group.id);
+    menu.addSeparator();
     menu.addItem((i) =>
       i
         .setTitle("Delete group (the tags stay on the files)")
         .setIcon("trash")
-        .onClick(() => void this.saveGroups(gr.deleteGroup(this.groups, group.id))),
+        .onClick(() => this.deleteGroup(group.id)),
     );
     menu.showAtMouseEvent(evt);
   }
@@ -398,6 +492,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (!on) menu.addItem((i) => i.setTitle("Search with this tag").setIcon("search").onClick(() => this.setMode(tag, "on")));
       if (!not) menu.addItem((i) => i.setTitle("Exclude this tag (NOT)").setIcon("ban").onClick(() => this.setMode(tag, "not")));
       if (on || not) menu.addItem((i) => i.setTitle("Remove from the search").setIcon("x").onClick(() => this.setMode(tag, null)));
+      this.bookmarkItems(menu, "tags", tag);
       menu.showAtMouseEvent(evt);
     });
   }
@@ -411,6 +506,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
       this.excluded = this.excluded.filter((t) => counts.has(t));
     }
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
+    if (this.tab && !this.currentTab) this.tab = null;
+    this.renderTabs();
     this.renderSelected();
     this.renderGroups();
     this.renderTags();
@@ -433,6 +530,40 @@ export class TagEverythingView extends ItemView implements HoverParent {
       evt.dataTransfer.effectAllowed = "copy";
     });
     return el;
+  }
+
+  /** "All", then the bookmark tabs; a tag or group dropped on a tab is bookmarked there. */
+  private renderTabs(): void {
+    const el = this.tabsEl;
+    el.empty();
+    const tabEl = (id: string | null, name: string, label: string): HTMLElement => {
+      const t = el.createDiv({ cls: "tag-everything-tab", text: name, attr: { role: "tab", "aria-label": label, "aria-selected": String(this.tab === id) } });
+      t.toggleClass("is-active", this.tab === id);
+      clickable(t, () => this.showTab(id));
+      return t;
+    };
+    tabEl(null, "All", "Every group and tag");
+    for (const tab of this.tabs) {
+      const t = tabEl(tab.id, tab.name, `${plural(tab.groups.length, "group")}, ${plural(tab.tags.length, "tag")}. Drop a tag or group here to bookmark it; right-click: rename, delete`);
+      t.dataset.tab = tab.id;
+      t.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
+        this.tabMenu(tab, evt);
+      });
+      this.dropZone(
+        t,
+        (tag) => this.bookmark(tab.id, "tags", tag, true),
+        (group) => this.bookmark(tab.id, "groups", group, true),
+      );
+    }
+    const add = el.createDiv({ cls: "clickable-icon tag-everything-tab-add", attr: { "aria-label": "New bookmark tab (or drop a tag or group here)" } });
+    setIcon(add, "plus");
+    clickable(add, () => this.newTab());
+    this.dropZone(
+      add,
+      (tag) => this.newTab([tag]),
+      (group) => this.newTab([], [group]),
+    );
   }
 
   private renderSelected(): void {
@@ -494,12 +625,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
     clickable(add, () => this.newGroup(this.selected, this.excluded));
     this.dropZone(add, (tag) => this.newGroup([tag]));
 
-    if (!this.groups.length) {
-      el.createDiv({ cls: "tag-everything-view-empty", text: "No groups yet. + creates one; drag tags onto a group to add them. A group is also a search: its Search button lists what it finds." });
+    // In a bookmark tab, its groups only, in the panel's group order (so dragging one onto another still reorders).
+    const tab = this.currentTab;
+    const shown = tab ? this.groups.filter((g) => tab.groups.includes(g.id)) : this.groups;
+    if (!shown.length) {
+      el.createDiv({
+        cls: "tag-everything-view-empty",
+        text: tab
+          ? `No group in this tab. + creates one here; or in All, drag a group onto "${tab.name}" (or ⋯ → Bookmark in the tab).`
+          : "No groups yet. + creates one; drag tags onto a group to add them. A group is also a search: its Search button lists what it finds.",
+      });
       return;
     }
 
-    for (const group of this.groups) {
+    for (const group of shown) {
       const active = this.activeGroup === group.id;
       const box = el.createDiv({ cls: "tag-everything-group", attr: { "data-group": group.id } });
       box.toggleClass("is-collapsed", group.collapsed);
@@ -609,27 +748,33 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const search = this.searchExpr();
     const scope = search ? this.matchPaths(search) : undefined;
     const counts = index.counts(scope);
-    const rows = [...counts]
+    // In a bookmark tab, its tags only; with no search, one no item carries any more stays (faded) so it can be removed.
+    const tab = this.currentTab;
+    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]).filter(([, n]) => n > 0 || !search) : [...counts];
+    const rows = entries
       .filter(([t]) => !this.selected.includes(t) && !this.excluded.includes(t) && (!this.filter || t.toLowerCase().includes(this.filter)))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
-        text: !index.size
-          ? "No tags yet. Right-click a file or folder → Edit tags."
-          : this.filter
-            ? `No tag matches "${this.filter}".`
-            : "No other tag.",
+        text: this.filter
+          ? `No tag matches "${this.filter}".`
+          : tab && !tab.tags.length
+            ? `No tag in this tab yet. In All, drag a tag onto "${tab.name}" (or right-click it → Bookmark in the tab).`
+            : !index.size
+              ? "No tags yet. Right-click a file or folder → Edit tags."
+              : "No other tag.",
       });
       return;
     }
     // Size by use, relative to the tags shown (so it adapts to the filter and the selection).
     const weights = cloudWeights(rows);
     for (const [tag, n] of rows) {
-      const el = this.chip(this.tagsEl, tag);
+      const el = this.chip(this.tagsEl, tag, n ? "" : "is-missing");
       el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
-      clickable(el, () => this.toggle(tag));
+      if (n) clickable(el, () => this.toggle(tag));
+      else el.setAttr("aria-label", "No file or folder carries this tag (right-click: remove it from the tab)");
       this.tagMenu(el, tag);
     }
   }
@@ -715,12 +860,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 }
 
-/** Asks for a group name. If `done` throws (empty name), the message shows and the modal stays open. */
-class GroupNameModal extends Modal {
+/** Asks for a group or tab name. If `done` throws (empty name), the message shows and the modal stays open. */
+class NameModal extends Modal {
   constructor(
     app: App,
     private heading: string,
     private initial: string,
+    private placeholder: string,
     private done: (name: string) => Promise<void>,
   ) {
     super(app);
@@ -729,7 +875,7 @@ class GroupNameModal extends Modal {
   onOpen(): void {
     this.modalEl.addClass("tag-everything-group-modal");
     this.setTitle(this.heading);
-    const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: "Group name" } });
+    const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: this.placeholder } });
     input.value = this.initial;
     const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
     const buttons = this.contentEl.createDiv({ cls: "modal-button-container" });

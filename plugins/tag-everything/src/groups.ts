@@ -49,14 +49,15 @@ function isIdHolder(g: unknown): g is { id: string } {
   return !!g && typeof g === "object" && typeof (g as { id?: unknown }).id === "string";
 }
 
-/** "g<n>" with n above every numeric id in use. */
-export function nextGroupId(groups: readonly { id: string }[]): string {
+/** "<prefix><n>" ("g1"...) with n above every numeric id in use. Bookmark tabs use the prefix "t". */
+export function nextGroupId(groups: readonly { id: string }[], prefix = "g"): string {
   let max = 0;
   for (const g of groups) {
-    const m = /^g(\d+)$/.exec(g.id);
-    if (m) max = Math.max(max, Number(m[1]));
+    if (!g.id.startsWith(prefix)) continue;
+    const n = g.id.slice(prefix.length);
+    if (/^\d+$/.test(n)) max = Math.max(max, Number(n));
   }
-  return `g${max + 1}`;
+  return `${prefix}${max + 1}`;
 }
 
 /** Adds a group at the end. Throws on an empty name (the caller shows the message). */

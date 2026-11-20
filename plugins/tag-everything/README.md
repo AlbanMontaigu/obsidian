@@ -20,6 +20,7 @@ Tags are always **read from every place and merged**. For a note, that's the tag
 - **Tag groups** in the panel, to keep related tags together. **+** creates a group from the current search (its tags; excluded tags become `NOT tag` in the group's formula), or drop a tag on **+**. **Drag** any tag of the panel onto a group to add it; a tag can be in several groups. Groups **fold** (chevron) and can be reordered by dragging one onto another; **⋯** or right-click: rename, add the selected tags, delete (the tags stay on the files). Hover a tag of a group and click its × to take it out of the group.
 - **A group is also a search**: click its **Search** button (it shows how many items the group finds), its name, or **⋯ → Search with this group**, to list the files and folders carrying **all** its tags (or matching its formula). The button turns into **Stop** while the group's search runs. Its tags then show at the top: click one to leave it out of the search (dashed), click again to put it back; click other tags to narrow further. Click the group again, or **Clear**, to stop. Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
 - **Formulas**: **⋯ → Combine with a formula** turns a group into any combination of its tags, e.g. `(B27 OR INC) AND (q3 OR 2026)`. Operators `AND` / `OR` / `NOT` (or `ET` / `OU` / `NON`, `&` / `|` / `!`) and parentheses; two tags side by side mean AND; `NOT` binds first, then `AND`, then `OR`. Tag names complete as you type, and the dialog shows the formula as it understood it and how many items it finds (or what is wrong). The group then shows its tags between the operators. In a group search, a tag switched off drops out of its `OR` / `AND` as if it were not written, `NOT x` included. Dropping a tag on a group with a formula adds `AND tag`; its × removes the tag from the formula. **NOT without typing**: hover a tag of a group and click its ⊘ button (or right-click it) to exclude it from the group's search (`NOT tag`, struck through); click it again (↶) to include it again. A group without a formula gets one (`a AND NOT b`). Empty the formula to go back to "all the tags". Tags are matched whatever the case; a tag in quotes can contain a parenthesis or be spelled like an operator (`"ou"`).
+- **Bookmark tabs**: under the filter box, the panel has a tab **All** (every group and tag) and as many named tabs as you want. **+** next to the tabs creates one (drop a tag or a group on **+** to start the tab with it). Bookmark a tag or a group in a tab by **dragging it onto the tab's name**, or right-click it → **Bookmark in the tab "…"** (or **Bookmark in a new tab…**). A tab shows only the groups and tags bookmarked in it, so you can keep e.g. a *Work* and a *Home* view; the same menu item **Remove from the tab "…"** takes one out (the tag stays on your files, the group stays in **All**). A group created with **+** while a tab is shown is bookmarked in it. Right-click a tab to rename or delete it (deleting a tab deletes nothing else). The search and its results are the same whatever the tab; the panel reopens on the tab you left. Tabs are saved with the groups in `data.json`.
 - **Colours**: each tag gets its own colour, picked from its name among the theme colours (always the same, in the panel, the badges and the editor; nested tags share their parent's colour). A colour stored in a sidecar wins. Setting *Colour tags automatically* turns it off. With 8 colours, two tags can share one.
 - **Badges** in the file explorer (optional), in the tag colours. Clicking a badge opens the panel on that tag.
 - When a file is renamed or moved in Obsidian, its `.ts` sidecar and thumbnail move with it.
@@ -45,7 +46,7 @@ Turn on **Settings → Files and links → Detect all file extensions** to see (
 
 ```powershell
 npm test -- tag-everything                      # format unit tests
-npm run smoke -- tag-everything                 # 108 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # 115 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -69,8 +70,9 @@ src/format.ts      storage format: parse/write name tags, sidecar JSON, paths, w
 src/index.ts       in-memory tag index of the vault (name tags live, sidecars scanned)
 src/store.ts       sidecar read/write and moves through the vault adapter
 src/modal.ts       chip editor with autocomplete
-src/view.ts        File tags side panel, tag groups UI
+src/view.ts        File tags side panel, tag groups and bookmark tabs UI
 src/groups.ts      tag groups: add, rename, move, fold, formula, load safely (pure, tested)
+src/tabs.ts        bookmark tabs of the panel: add, rename, bookmark tags and groups, load safely (pure, tested)
 src/formula.ts     tag formulas: parse, format, evaluate, switch tags off (pure, tested)
 src/cloud.ts       tag cloud sizing by use (pure, tested)
 src/colors.ts      automatic tag colours (pure, tested)

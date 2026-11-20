@@ -445,6 +445,41 @@ groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
 check("groups: and clears it", !panel().querySelector(".tag-everything-group.is-active"));
 
+// ---- bookmark tabs: create one, bookmark tags and a group (drop, menu), the tab shows only them, saved
+const tabEl = (name) => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === name);
+const shownGroups = () => [...panel().querySelectorAll(".tag-everything-group-name")].map((e) => e.textContent).join();
+const shownTags = () => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((e) => e.firstChild.textContent).sort().join();
+const workTab = () => plugin.settings.tabs.find((t) => t.name === "Work");
+check("tabs: All comes first and is active", panel().querySelector(".tag-everything-tab") === tabEl("All") && tabEl("All").classList.contains("is-active"));
+panel().querySelector(".tag-everything-tab-add").click();
+await sleep(300);
+document.querySelector(".tag-everything-group-modal input").value = " Work ";
+document.querySelector(".tag-everything-group-modal .mod-cta").click();
+await sleep(300);
+check("tabs: + creates a named tab and shows it, empty", tabEl("Work")?.classList.contains("is-active") && shownGroups() === "" && shownTags() === "", `${shownGroups()} / ${shownTags()}`);
+tabEl("All").click();
+await sleep(100);
+const dropped = dragTag(cloudChip("client"), tabEl("Work")) && dragTag(groupEl("Formula").querySelector(".tag-everything-group-header"), tabEl("Work"));
+await sleep(200);
+cloudChip("final").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await sleep(200);
+[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent === 'Bookmark in the tab "Work"')?.click();
+await sleep(200);
+check("tabs: tags and groups bookmarked by drop and by menu", dropped && workTab()?.tags.join() === "client,final" && workTab().groups.join() === formulaId, JSON.stringify(workTab()));
+check("tabs: All still shows everything", shownGroups().split(",").length === plugin.settings.groups.length && shownTags().split(",").length > 2);
+tabEl("Work").click();
+await sleep(200);
+check("tabs: a tab shows only its bookmarks", shownGroups() === "Formula" && shownTags() === "client,final", `${shownGroups()} / ${shownTags()}`);
+check("tabs: saved in data.json, shown tab in the panel state", (await plugin.loadData())?.tabs?.[0]?.tags?.length === 2 && view.getState().tab === workTab().id);
+const tempId = await view.createGroup("Temp");
+await sleep(200);
+const tempBookmarked = workTab().groups.includes(tempId);
+groupEl("Temp").querySelector(".tag-everything-group-header").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await sleep(200);
+[...document.querySelectorAll(".menu .menu-item")].find((m) => /^Delete group/.test(m.textContent))?.click();
+await sleep(200);
+check("tabs: a group created in a tab is bookmarked there; deleted, it leaves the tab", tempBookmarked && !workTab().groups.includes(tempId) && shownGroups() === "Formula", JSON.stringify(workTab()));
+
 // left for the screenshot: a formula group search with a NOT and one tag switched off
 await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC) AND NOT IMAC");
 view.selectGroup(formulaId);

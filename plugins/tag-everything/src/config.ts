@@ -3,6 +3,7 @@
 
 import type { StorageMode } from "./format.ts";
 import { type TagGroup, normalizeGroups } from "./groups.ts";
+import { type BookmarkTab, normalizeTabs } from "./tabs.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -20,6 +21,8 @@ export interface TagEverythingSettings {
   followRenames: boolean;
   /** Tag groups of the File tags panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
+  /** Bookmark tabs of the File tags panel (src/tabs.ts). Edited in the panel. */
+  tabs: BookmarkTab[];
 }
 
 export const MIN_BADGES = 1;
@@ -35,6 +38,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   maxBadges: 4,
   followRenames: true,
   groups: [],
+  tabs: [],
 };
 
 /**
@@ -46,6 +50,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
   const d = DEFAULT_SETTINGS;
   const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? r[k] :(d[k] as boolean));
   const max = typeof r.maxBadges === "number" && Number.isFinite(r.maxBadges) ? Math.round(r.maxBadges) : d.maxBadges;
+  const groups = normalizeGroups(r.groups);
   return {
     ...r,
     storage: r.storage === "filename" || r.storage === "sidecar" ? r.storage : d.storage,
@@ -56,6 +61,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,
     maxBadges: Math.min(MAX_BADGES, Math.max(MIN_BADGES, max)),
     followRenames: bool("followRenames"),
-    groups: normalizeGroups(r.groups),
+    groups,
+    tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
   };
 }
