@@ -8,7 +8,7 @@ Tag any file or folder of a vault from the file explorer (right-click, multi-sel
 tags in the frontmatter `tags` property (Obsidian-native, setting `noteTagsInFrontmatter`, on by default). Other
 files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSON files; mostly compatible with
 TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
-tags (AND); badges show tags in the explorer.
+tags (AND), with foldable tag groups that double as saved searches; badges show tags in the explorer.
 
 ## Architecture
 
@@ -33,11 +33,13 @@ flowchart TB
 | `src/store.ts` | `MetaStore`: read / write sidecar tags, move a file's sidecar + thumbnail. Refuses to overwrite unparsable JSON. |
 | `src/main.ts` | Plugin wiring. `applyTags(items, {added, removed})` is the single write path (modal, tests, future commands): per item it re-reads the sidecar and, for a note, the frontmatter **from the file** (`readFrontTags`: the cache can lag), merges, plans with `targetFor(file, settings)`, checks new tags with `assertWritable`, renames first, then writes the frontmatter (`processFrontMatter`), then the sidecar. `ownRenames` keeps its own renames away from the rename hook. |
 | `src/modal.ts` | `TagEditorModal`: chips; partial chips (`3/5`) in multi-edit; filename preview; returns a `TagEdit` diff, not a full list, so multi-edit keeps each item's other tags. |
-| `src/view.ts` | `TagEverythingView` (`tag-everything-view`): tag cloud with counts, sized by use (`--tag-everything-weight` from `cloud.ts`), AND filter, results (max 500), click opens (non-notes in the system app, folders revealed), right-click shows the file menu. |
+| `src/view.ts` | `TagEverythingView` (`tag-everything-view`): tag cloud with counts, sized by use (`--tag-everything-weight` from `cloud.ts`), AND filter, results (max 500), click opens (non-notes in the system app, folders revealed), right-click shows the file menu. Tag groups: section above the cloud; every chip is draggable (`application/x-tag-everything-tag`), group headers too (`…-group`, reorder); `selectGroup(id)` sets `activeGroup` + `selected` = the group's tags in use, the selection bar then lists all the group's tags, switched-off ones `is-off`. The search is `searchExpr()` = `prune(groupExpr(active), selected)` AND the other selected tags, run by `matchPaths(expr)` (tags no item carries are pruned first, as off). `renderExpr` draws a formula as chips between `.tag-everything-op` spans (bar and group body). Groups are saved with `plugin.saveData(settings)` directly (no index `changed`). `GroupNameModal` asks for names; `FormulaModal` (+ `FormulaTagSuggest` on the word before the caret) edits a formula, `setGroupFormula(id, text)` saves it (resolved to the vault's spelling). |
+| `src/formula.ts` | **Pure** tag formulas: `Expr` tree (`tag` / `and` / `or` / `not`), `parseFormula` (AND OR NOT, ET OU NON, & \| !, `!tag`, parentheses, side by side = AND, quotes; readable errors), `formatFormula` (canonical, minimal parentheses, round-trips), `evaluate`, `prune` (drop switched-off tags, NOT with them; null if nothing left), `resolveTags` (case-insensitive to the vault's spelling), `formulaTags`, `andOf` / `orOf`. |
+| `src/groups.ts` | **Pure** tag groups `{ id, name, tags, collapsed, formula? }`: `addGroup` (ids `g<n>`), `renameGroup`, `deleteGroup`, `addTagsToGroup`, `removeTagFromGroup`, `setCollapsed`, `moveGroup`, `setFormula` (tags := the formula's), `groupExpr` (formula, else AND of the tags), `formulaError`, `normalizeGroups` (repairs whatever `data.json` holds, never throws; called in `loadSettings`). With a formula, adding a tag appends `AND tag`, removing one prunes it; an unparsable stored formula is kept as is (error shown, search falls back to AND). Immutable. A tag may be in several groups; a group may name a tag no item carries any more (shown faded, kept). |
 | `src/cloud.ts` | **Pure** `cloudWeight` / `cloudWeights`: 0..1 per tag, log scale, 5 levels, relative to the tags shown. `styles.css` maps it to `--font-ui-small × (1 + 0.4 × weight)`: floor = normal chip, ceiling = 1.4×. |
 | `src/colors.ts` | **Pure** `autoColor(tag)`: one of 8 theme colours (`var(--color-*)`), FNV-1a hash of the root of the tag, lower-cased (nested tags share their root colour). `TagIndex.colorFor(tag)` = sidecar colour, else `autoColor` when `autoColors` is on (`colorOf` stays the sidecar colour only). |
 | `src/badges.ts` | Chips in the core explorer through its internal `fileItems` (see `docs/obsidian-api.md`). |
-| `src/settings.ts` | `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `showBadges`, `autoColors`, `badgeScope`, `maxBadges`; `targetFor(file, settings)` = where an item's new tags go. |
+| `src/settings.ts` | `storage` (`filename` \| `sidecar`), `noteTagsInFrontmatter`, `lowercase`, `followRenames`, `showBadges`, `autoColors`, `badgeScope`, `maxBadges`, `groups` (edited in the panel only); `targetFor(file, settings)` = where an item's new tags go. |
 
 ## Invariants (keep them)
 
@@ -57,10 +59,15 @@ flowchart TB
 - `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals.
 - `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic.
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
-- `tests/smoke.js` + `tests/fixtures/vault/`: 49 in-app checks. The first part runs the name / sidecar engine on
+- `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas.
+- `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
+- `tests/smoke.js` + `tests/fixtures/vault/`: 78 in-app checks. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
-  refused, PDF still renamed, nested tag refused in a name); then panel, badges, modal. Run
+  refused, PDF still renamed, nested tag refused in a name); then panel, badges, tag groups (create through the
+  dialog, drag with a synthetic `DataTransfer`, fold, `data.json`, group search, switch a tag off / on; formula through the real menu and dialog: error, preview,
+  rendering, search, switch-off pruning, NOT, drop = AND, × prunes), modal. It ends on the panel with a formula
+  group search (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
 - `tools/check-vault.ts "<vault>"`: **read-only**; every tagged name in a real vault must round-trip unchanged
   (2026-11-20 on the owner's vault: 9 500 files, 70 tagged names, 0 problems). Run it after any change to
@@ -74,5 +81,6 @@ flowchart TB
 - The owner's main vault has *Detect all file extensions* off, so PDFs and Office files are invisible to the plugin
   until they turn it on.
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.
-- Ideas: rename / merge a tag everywhere; tag groups and colours editable in settings; tag search in the quick
+- Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded).
+- Ideas: rename / merge a tag everywhere; colours editable in settings; tag search in the quick
   switcher; a command to move a note's name tags into its frontmatter (renames the note, so opt-in).

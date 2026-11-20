@@ -5,6 +5,7 @@ import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
+import { normalizeGroups } from "./groups.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, targetFor } from "./settings.ts";
 
 export default class TagEverythingPlugin extends Plugin {
@@ -95,6 +96,7 @@ export default class TagEverythingPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<TagEverythingSettings> | null) };
+    this.settings.groups = normalizeGroups(this.settings.groups); // also gives each load its own array
   }
 
   async saveSettings(): Promise<void> {

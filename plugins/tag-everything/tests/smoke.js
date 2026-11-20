@@ -183,7 +183,132 @@ plugin.badges.refresh();
 await sleep(300);
 check("explorer badges rendered", document.querySelectorAll(".nav-files-container .tag-everything-badge").length > 0);
 
-// ---- edit modal on a note with name + frontmatter tags (left open: it is what the screenshot shows)
+// ---- tag groups in the panel: create, drag tags in, fold, select = search over the group's tags
+const panel = () => document.querySelector(".tag-everything-view");
+const groupEl = (name) =>
+  [...panel().querySelectorAll(".tag-everything-group")].find((g) => g.querySelector(".tag-everything-group-name")?.textContent === name);
+const results = () => panel().querySelectorAll(".tag-everything-result").length;
+const dragTag = (chipEl, target) => {
+  const dt = new DataTransfer();
+  chipEl.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+  const over = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt });
+  target.dispatchEvent(over);
+  target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  return over.defaultPrevented; // the target accepted the drag
+};
+const cloudChip = (tag) => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].find((el) => el.firstChild.textContent === tag);
+
+panel().querySelector(".tag-everything-view-clear")?.click();
+await sleep(100);
+check("groups: empty state shown", plugin.settings.groups.length === 0 && !!panel().querySelector(".tag-everything-groups-head"));
+panel().querySelector(".tag-everything-group-add").click();
+await sleep(300);
+const nameModal = document.querySelector(".tag-everything-group-modal");
+nameModal.querySelector(".mod-cta").click(); // empty name
+await sleep(200);
+check("groups: an empty name is refused, the dialog stays", !!document.querySelector(".tag-everything-group-modal") && /name/.test(nameModal.querySelector(".tag-everything-error").textContent));
+nameModal.querySelector("input").value = "  Shared docs ";
+nameModal.querySelector(".mod-cta").click();
+await sleep(300);
+check("groups: + creates a group from its name", !document.querySelector(".tag-everything-group-modal") && !!groupEl("Shared docs"), JSON.stringify(plugin.settings.groups));
+check("groups: dropping a tag adds it", dragTag(cloudChip("shared"), groupEl("Shared docs")) && dragTag(cloudChip("final"), groupEl("Shared docs")));
+await sleep(200);
+check("groups: group lists its tags", [...groupEl("Shared docs").querySelectorAll(".tag-everything-group-tags .tag-everything-chip")].map((c) => c.firstChild.textContent).join() === "shared,final");
+await view.createGroup("Clients", ["client"]);
+dragTag(cloudChip("shared"), groupEl("Clients"));
+await sleep(200);
+check("groups: a tag can be in several groups", plugin.settings.groups.filter((g) => g.tags.includes("shared")).length === 2, JSON.stringify(plugin.settings.groups));
+check("groups: a non-tag drag is refused", !(() => {
+  const over = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+  groupEl("Clients").dispatchEvent(over);
+  return over.defaultPrevented;
+})());
+groupEl("Clients").querySelectorAll(".tag-everything-group-tags .tag-everything-chip-remove")[1].click(); // remove "shared"
+await sleep(200);
+check("groups: × removes a tag from the group only", plugin.settings.groups[1].tags.join() === "client" && plugin.index.counts().has("shared"));
+groupEl("Clients").querySelector(".tag-everything-group-fold").click();
+await sleep(300);
+check("groups: fold hides the tags", groupEl("Clients").classList.contains("is-collapsed") && !groupEl("Clients").querySelector(".tag-everything-group-tags"));
+const saved = JSON.parse(await adapter.read(`${app.vault.configDir}/plugins/tag-everything/data.json`));
+check("groups: saved in data.json, fold state too", saved.groups?.length === 2 && saved.groups[1].collapsed === true, JSON.stringify(saved.groups));
+
+groupEl("Shared docs").querySelector(".tag-everything-group-header").click();
+await sleep(200);
+check("groups: selecting a group searches all its tags (AND)", groupEl("Shared docs").classList.contains("is-active") && results() === 1, String(results()));
+const offChip = [...panel().querySelectorAll(".tag-everything-view-selected .tag-everything-chip")].find((c) => c.firstChild.textContent === "final");
+offChip.click();
+await sleep(200);
+const offNow = [...panel().querySelectorAll(".tag-everything-view-selected .tag-everything-chip")].find((c) => c.firstChild.textContent === "final");
+check("groups: a group tag can be switched off in the search", offNow?.classList.contains("is-off") && results() === 2, String(results()));
+offNow.click();
+await sleep(200);
+check("groups: and on again", results() === 1, String(results()));
+groupEl("Shared docs").querySelector(".tag-everything-group-header").click();
+await sleep(200);
+check("groups: clicking the active group clears the search", results() === 0 && !panel().querySelector(".tag-everything-group.is-active"));
+// ---- group formulas: (A OR B) AND (C OR D), through the group menu and the formula dialog
+const formulaId = await view.createGroup("Formula", ["shared"]);
+await sleep(200);
+groupEl("Formula").querySelector(".tag-everything-group-header").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await sleep(200);
+const formulaItem = [...document.querySelectorAll(".menu .menu-item")].find((m) => /formula/i.test(m.textContent));
+check("formula: group menu offers it", !!formulaItem, [...document.querySelectorAll(".menu .menu-item")].map((m) => m.textContent).join(" | "));
+formulaItem?.click();
+await sleep(300);
+const fModal = document.querySelector(".tag-everything-formula-modal");
+const fInput = fModal?.querySelector("input");
+check("formula: dialog starts from the group's tags", fInput?.value === "shared", fInput?.value);
+fInput.value = "(shared ou b27";
+fInput.dispatchEvent(new Event("input"));
+await sleep(100);
+check("formula: syntax error shown live", /not closed/.test(fModal.querySelector(".tag-everything-error").textContent), fModal.querySelector(".tag-everything-error").textContent);
+fModal.querySelector(".mod-cta").click();
+await sleep(200);
+check("formula: invalid formula not saved, dialog stays", !!document.querySelector(".tag-everything-formula-modal") && !plugin.settings.groups.find((g) => g.id === formulaId).formula);
+fInput.value = "(shared ou b27) et (final OU INC)";
+fInput.dispatchEvent(new Event("input"));
+await sleep(100);
+const fPreview = fModal.querySelector(".tag-everything-formula-preview").textContent;
+check("formula: preview in canonical form, with the vault's spelling and the count", fPreview.includes("(shared OR B27) AND (final OR INC)") && fPreview.includes("2 items"), fPreview);
+fModal.querySelector(".mod-cta").click();
+await sleep(300);
+const fGroup = () => plugin.settings.groups.find((g) => g.id === formulaId);
+check("formula: saved, tags = the formula's", !document.querySelector(".tag-everything-formula-modal") && fGroup().formula === "(shared OR B27) AND (final OR INC)" && fGroup().tags.join() === "shared,B27,final,INC", JSON.stringify(fGroup()));
+const ops = [...groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-op")].map((o) => o.textContent).join(" ");
+check("formula: drawn in the group with its operators", ops === "( OR ) AND ( OR )", ops);
+check("formula: group count follows the formula", groupEl("Formula").querySelector(".tag-everything-group-header .tag-everything-chip-count").textContent === "2");
+groupEl("Formula").querySelector(".tag-everything-group-header").click();
+await sleep(200);
+const resultNames = () => [...panel().querySelectorAll(".tag-everything-result-name")].map((e) => e.textContent).sort().join(" | ");
+check("formula: selecting the group runs it", resultNames() === "budget[B27 INC].md | spec[final shared].md", resultNames());
+const barChip = (tag) => [...panel().querySelectorAll(".tag-everything-view-selected .tag-everything-chip")].find((c) => c.firstChild.textContent === tag);
+check("formula: the search bar shows the formula", panel().querySelectorAll(".tag-everything-view-selected .tag-everything-op").length === 7);
+barChip("final").click();
+await sleep(200);
+check("formula: a switched-off tag drops out of its OR", resultNames() === "budget[B27 INC].md" && barChip("final").classList.contains("is-off"), resultNames());
+barChip("INC").click();
+await sleep(200);
+check("formula: a whole OR switched off drops out of the AND", results() === 3, resultNames());
+await view.setGroupFormula(formulaId, "shared AND NOT final");
+await sleep(200);
+check("formula: NOT", fGroup().formula === "shared AND NOT final" && groupEl("Formula").querySelector(".tag-everything-group-header .tag-everything-chip-count").textContent === "1");
+panel().querySelector(".tag-everything-view-clear").click(); // the cloud only shows the tags of the current results
+await sleep(100);
+dragTag(cloudChip("IMAC"), groupEl("Formula"));
+await sleep(200);
+check("formula: a dropped tag is added with AND", fGroup().formula === "shared AND NOT final AND IMAC", fGroup().formula);
+groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-chip-remove")[1].click(); // final
+await sleep(200);
+check("formula: × takes the tag out of the formula", fGroup().formula === "shared AND IMAC", fGroup().formula);
+
+// left for the screenshot: a formula group search with one tag switched off
+await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC)");
+view.selectGroup(formulaId);
+await sleep(100);
+barChip("final").click();
+await sleep(200);
+
+// ---- edit modal on a note with name + frontmatter tags
 await plugin.applyTags([file("Projects/Alpha/budget[B27 INC].md")], { added: ["q3"], removed: [] });
 await waitFor(() => plugin.index.tagsOf("Projects/Alpha/budget[B27 INC].md").includes("q3"));
 plugin.editTags([file("Projects/Alpha/budget[B27 INC].md")]);
@@ -191,3 +316,8 @@ await sleep(400);
 check("edit modal shows merged chips", document.querySelectorAll(".tag-everything-modal .tag-everything-chip").length === 3);
 const wheres = [...document.querySelectorAll(".tag-everything-modal .tag-everything-where")].map((e) => e.textContent);
 check("edit modal says note tags go to frontmatter", wheres.length === 1 && wheres[0].includes("frontmatter"), JSON.stringify(wheres));
+document.querySelector(".tag-everything-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click();
+
+// Screenshot: the panel with its groups and a group search, one of its tags switched off.
+document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above
+await sleep(300);

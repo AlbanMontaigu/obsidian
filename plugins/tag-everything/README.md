@@ -17,6 +17,9 @@ Tags are always **read from every place and merged**. For a note, that's the tag
 - A preview of the new file name before saving. Renames go through Obsidian, so **links in notes are updated**.
 - Note tags edited anywhere else (the editor, the Properties panel, another app) show up live. Nested tags (`proj/alpha`) work for notes.
 - **File tags panel** (ribbon `tags` icon): every tag with its count, frequently used tags a little bigger (at most 1.4× the normal size, rarely used ones stay at the normal size); select tags (AND) to list the matching files and folders; click to open (non-note files open in their default app, folders are revealed), right-click for the usual file menu.
+- **Tag groups** in the panel, to keep related tags together. **+** creates a group (with the tags selected at that moment; or drop a tag on **+**). **Drag** any tag of the panel onto a group to add it; a tag can be in several groups. Groups **fold** (chevron) and can be reordered by dragging one onto another; **⋯** or right-click: rename, add the selected tags, delete (the tags stay on the files). Hover a tag of a group and click its × to take it out of the group.
+- **A group is also a search**: click its name to list the files and folders carrying **all** its tags (the number next to the group). Its tags then show at the top: click one to leave it out of the search (dashed), click again to put it back; click other tags to narrow further. Click the group again, or **Clear**, to stop. Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
+- **Formulas**: **⋯ → Combine with a formula** turns a group into any combination of its tags, e.g. `(B27 OR INC) AND (q3 OR 2026)`. Operators `AND` / `OR` / `NOT` (or `ET` / `OU` / `NON`, `&` / `|` / `!`) and parentheses; two tags side by side mean AND; `NOT` binds first, then `AND`, then `OR`. Tag names complete as you type, and the dialog shows the formula as it understood it and how many items it finds (or what is wrong). The group then shows its tags between the operators. In a group search, a tag switched off drops out of its `OR` / `AND` as if it were not written, `NOT x` included. Dropping a tag on a group with a formula adds `AND tag`; its × removes the tag from the formula. Empty the formula to go back to "all the tags". Tags are matched whatever the case; a tag in quotes can contain a parenthesis or be spelled like an operator (`"ou"`).
 - **Colours**: each tag gets its own colour, picked from its name among the theme colours (always the same, in the panel, the badges and the editor; nested tags share their parent's colour). A colour stored in a sidecar wins. Setting *Colour tags automatically* turns it off. With 8 colours, two tags can share one.
 - **Badges** in the file explorer (optional), in the tag colours. Clicking a badge opens the panel on that tag.
 - When a file is renamed or moved in Obsidian, its `.ts` sidecar and thumbnail move with it.
@@ -39,7 +42,7 @@ Turn on **Settings → Files and links → Detect all file extensions** to see (
 
 ```powershell
 npm test -- tag-everything                      # format unit tests
-npm run smoke -- tag-everything                 # 49 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # 78 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -63,7 +66,9 @@ src/format.ts      storage format: parse/write name tags, sidecar JSON, paths, w
 src/index.ts       in-memory tag index of the vault (name tags live, sidecars scanned)
 src/store.ts       sidecar read/write and moves through the vault adapter
 src/modal.ts       chip editor with autocomplete
-src/view.ts        File tags side panel
+src/view.ts        File tags side panel, tag groups UI
+src/groups.ts      tag groups: add, rename, move, fold, formula, load safely (pure, tested)
+src/formula.ts     tag formulas: parse, format, evaluate, switch tags off (pure, tested)
 src/cloud.ts       tag cloud sizing by use (pure, tested)
 src/colors.ts      automatic tag colours (pure, tested)
 src/badges.ts      explorer badges

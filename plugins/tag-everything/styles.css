@@ -258,3 +258,198 @@
   gap: 3px;
   margin-top: 2px;
 }
+
+/* ---- tag groups (panel): foldable boxes of chips; a group is a saved search over its tags */
+
+.tag-everything-view-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 35%;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.tag-everything-groups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tag-everything-groups-title {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tag-everything-group {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.tag-everything-group.is-active {
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+}
+
+.tag-everything-group.is-drop-target,
+.tag-everything-group-add.is-drop-target {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.tag-everything-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  border-radius: var(--radius-s);
+}
+
+.tag-everything-group-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.tag-everything-group.is-active .tag-everything-group-name {
+  font-weight: var(--font-semibold);
+}
+
+.tag-everything-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-everything-group-fold {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 100ms ease-in-out;
+}
+
+.tag-everything-group-fold svg,
+.tag-everything-group-more svg,
+.tag-everything-view-selected-group svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tag-everything-group.is-collapsed .tag-everything-group-fold {
+  transform: rotate(-90deg);
+}
+
+.tag-everything-group-more {
+  padding: 0 2px;
+  opacity: 0;
+}
+
+.tag-everything-group-header:hover .tag-everything-group-more {
+  opacity: 1;
+}
+
+.tag-everything-group-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 6px 6px;
+}
+
+/* the "remove from group" cross appears on hover only, so the group reads as a plain list of tags */
+.tag-everything-group-tags .tag-everything-chip-remove {
+  display: none;
+}
+
+.tag-everything-group-tags .tag-everything-chip:hover .tag-everything-chip-remove {
+  display: inline-flex;
+}
+
+/* a group tag no file carries any more */
+.tag-everything-chip.is-missing {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* search started from a group: its switched-off tags */
+.tag-everything-chip.is-off {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.tag-everything-view-selected-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  margin-right: 2px;
+}
+
+.tag-everything-view-selected {
+  align-items: center;
+}
+
+.tag-everything-group-input {
+  width: 100%;
+}
+
+/* ---- group formulas: (a OR b) AND c drawn as chips between operator words */
+
+.tag-everything-formula {
+  display: contents;
+}
+
+.tag-everything-op {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.03em;
+}
+
+.tag-everything-op.is-paren {
+  font-size: var(--font-ui-medium);
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.tag-everything-group-tags {
+  align-items: center;
+}
+
+.tag-everything-group-formula-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.tag-everything-group-formula-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tag-everything-group-tags > .tag-everything-error {
+  flex-basis: 100%;
+  font-size: var(--font-ui-smaller);
+  margin: 0;
+}
+
+.tag-everything-formula-input {
+  width: 100%;
+  font-family: var(--font-monospace);
+}
+
+.tag-everything-formula-preview {
+  margin-top: 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.tag-everything-formula-unknown {
+  color: var(--text-warning);
+}
