@@ -5,10 +5,14 @@
  *    before the extension with no separator: `report[tax-2024 receipt].pdf`;
  *  - folder names are never parsed for tags: folder tags live in `<folder>/.ts/tsm.json` -> `tags`;
  *  - any file may also carry sidecar tags in `<dir>/.ts/<file name>.json` -> `tags: [{ title, type, color? }]`,
- *    always merged with the name tags.
+ *    always merged with the name tags;
+ *  - a Markdown note may also carry tags in its frontmatter `tags` property (Obsidian's own), always merged too;
+ *    new note tags go there by default.
  */
 
 export type StorageMode = "filename" | "sidecar";
+/** Where an edit puts new tags: the storage setting, or a note's frontmatter. */
+export type TagTarget = StorageMode | "frontmatter";
 
 export interface SidecarTag {
   title: string;
@@ -30,6 +34,8 @@ export const MAX_NAME_LENGTH = 255;
 
 const MULTI_EXTENSIONS = [".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst", ".tar.lz", ".tar.lzma", ".tar.lz4", ".tar.lzo", ".cpio.gz"];
 const FORBIDDEN_IN_TAG = /[[\]#^|\\/:*?"<>]/;
+/** Frontmatter tags may be nested (`project/alpha`), as in Obsidian; the rest stays forbidden. */
+const FORBIDDEN_IN_NESTED_TAG = /[[\]#^|\\:*?"<>,]/;
 
 export function dedupe(tags: Iterable<string>): string[] {
   return [...new Set(tags)];
@@ -107,14 +113,34 @@ export function setNameTags(name: string, tags: readonly string[], isFile = true
   return out;
 }
 
-/** Trims, optionally lower-cases, and rejects what cannot live in a file name. Empty input -> {}. */
-export function normalizeTag(raw: string, lowercase = false): { tag?: string; error?: string } {
+/**
+ * Trims, optionally lower-cases, and rejects what cannot live in a file name. Empty input -> {}.
+ * `nested`: the tag only goes to a note's frontmatter, so `/` is allowed (Obsidian nested tag).
+ */
+export function normalizeTag(raw: string, lowercase = false, nested = false): { tag?: string; error?: string } {
   let tag = raw.trim();
   if (lowercase) tag = tag.toLowerCase();
   if (!tag) return {};
   if (/\s/.test(tag)) return { error: `"${tag}": a tag cannot contain spaces` };
+  if (nested) {
+    if (FORBIDDEN_IN_NESTED_TAG.test(tag)) return { error: `"${tag}": a tag cannot contain [ ] # ^ | \\ : * ? " < > ,` };
+    if (tag.startsWith("/") || tag.endsWith("/") || tag.includes("//")) return { error: `"${tag}": empty part in a nested tag` };
+    return { tag };
+  }
   if (FORBIDDEN_IN_TAG.test(tag)) return { error: `"${tag}": a tag cannot contain [ ] # ^ | \\ / : * ? " < >` };
   return { tag };
+}
+
+/**
+ * Throws when a tag about to be written to `target` is not valid there, e.g. a nested `a/b` picked from a note's
+ * frontmatter and about to go in a file name.
+ */
+export function assertWritable(tags: readonly string[], target: TagTarget): void {
+  for (const t of tags) {
+    const { tag, error } = normalizeTag(t, false, target === "frontmatter");
+    if (error) throw new Error(error);
+    if (tag !== t) throw new Error(`"${t}": invalid tag`);
+  }
 }
 
 /** Splits typed text on spaces and commas: "a, b c" -> ["a", "b", "c"]. */
@@ -194,42 +220,113 @@ export function serializeSidecar(meta: SidecarMeta, original?: string): string {
   return original !== undefined && original.trim() && !original.includes("\n") ? JSON.stringify(meta) : JSON.stringify(meta, null, 2);
 }
 
+// ---------------------------------------------------------------- note frontmatter (Obsidian `tags` property)
+
+/** Keys Obsidian reads tags from: `tags`, and the older `tag`, any case. */
+const FRONT_KEY = /^tags?$/i;
+
+function frontKeys(fm: Record<string, unknown>): string[] {
+  return Object.keys(fm).filter((k) => FRONT_KEY.test(k));
+}
+
+function cleanFrontTag(v: unknown): string {
+  return (typeof v === "string" || typeof v === "number" ? String(v) : "").trim().replace(/^#/, "").trim();
+}
+
+/** Raw items of one frontmatter value: a list, or a string separated by commas / spaces (`tags: a, b`). */
+function frontItems(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") return value.split(/[\s,]+/);
+  if (typeof value === "number") return [value];
+  return [];
+}
+
+/** Tags of a parsed frontmatter object (`#` prefix dropped, duplicates removed). Anything else -> []. */
+export function frontmatterTags(fm: unknown): string[] {
+  if (!fm || typeof fm !== "object" || Array.isArray(fm)) return [];
+  const rec = fm as Record<string, unknown>;
+  const out: string[] = [];
+  for (const key of frontKeys(rec)) for (const item of frontItems(rec[key])) out.push(cleanFrontTag(item));
+  return dedupe(out.filter(Boolean));
+}
+
+/**
+ * Sets the tags of a parsed frontmatter object in place (meant for `processFrontMatter`): one `tags` list, as
+ * Obsidian writes it. A kept list item keeps its spelling (`"#beta"` stays). Other properties are untouched; the
+ * older `tag` key is folded into `tags`. No tags left -> the property is removed.
+ */
+export function setFrontmatterTags(fm: Record<string, unknown>, tags: readonly string[]): void {
+  const keys = frontKeys(fm);
+  const original = new Map<string, unknown>();
+  for (const key of keys) {
+    if (!Array.isArray(fm[key])) continue;
+    for (const item of fm[key] as unknown[]) {
+      const clean = cleanFrontTag(item);
+      if (clean && !original.has(clean)) original.set(clean, item);
+    }
+  }
+  const wanted = dedupe(tags);
+  const main = keys.find((k) => k === "tags") ?? keys.find((k) => k.toLowerCase() === "tags") ?? "tags";
+  for (const key of keys) if (key !== main) delete fm[key];
+  if (!wanted.length) {
+    delete fm[main];
+    return;
+  }
+  fm[main] = wanted.map((t) => original.get(t) ?? t);
+}
+
 // ---------------------------------------------------------------- edit planning
 
 export interface TagState {
   nameTags: string[];
   sideTags: string[];
+  /** A note's frontmatter tags. Always empty for other files. */
+  frontTags?: string[];
 }
 
 export interface TagPlan {
   nameTags: string[];
   sideTags: string[];
+  frontTags: string[];
   renamed: boolean;
   sideChanged: boolean;
+  frontChanged: boolean;
 }
 
 /**
- * Where the `desired` tags go.
- *  - filename: all tags in the name; any sidecar tags move into it, so a tag never lives in two places.
- *  - sidecar:  name tags that are kept stay in the name, so no rename happens just to add a tag.
- *              Removing a name tag still renames, because that is the only way to remove it.
+ * Where the `desired` tags go. A kept tag never moves between the name and the frontmatter, and sidecar tags move
+ * into the target, so a tag never lives in two places.
+ *  - filename:    new and sidecar tags go in the name; frontmatter tags that are kept stay there.
+ *  - sidecar:     name and frontmatter tags that are kept stay where they are, so no rename happens just to add a
+ *                 tag; the rest goes to the sidecar. Removing a name tag still renames: it is the only way.
+ *  - frontmatter: (notes) name tags that are kept stay in the name; everything else goes to the frontmatter.
  */
-export function planTags(current: TagState, desired: readonly string[], mode: StorageMode): TagPlan {
+export function planTags(current: TagState, desired: readonly string[], target: TagTarget): TagPlan {
   const wanted = dedupe(desired);
+  const curFront = current.frontTags ?? [];
   let nameTags: string[];
   let sideTags: string[];
-  if (mode === "filename") {
-    nameTags = wanted;
+  let frontTags: string[];
+  if (target === "filename") {
+    frontTags = curFront.filter((t) => wanted.includes(t));
+    nameTags = wanted.filter((t) => !frontTags.includes(t));
+    sideTags = [];
+  } else if (target === "frontmatter") {
+    nameTags = current.nameTags.filter((t) => wanted.includes(t));
+    frontTags = wanted.filter((t) => !nameTags.includes(t));
     sideTags = [];
   } else {
     nameTags = current.nameTags.filter((t) => wanted.includes(t));
-    sideTags = wanted.filter((t) => !nameTags.includes(t));
+    frontTags = curFront.filter((t) => wanted.includes(t) && !nameTags.includes(t));
+    sideTags = wanted.filter((t) => !nameTags.includes(t) && !frontTags.includes(t));
   }
   return {
     nameTags,
     sideTags,
+    frontTags,
     renamed: !sameTags(nameTags, current.nameTags),
     sideChanged: !sameTags(sideTags, current.sideTags),
+    frontChanged: !sameTags(frontTags, curFront),
   };
 }
 

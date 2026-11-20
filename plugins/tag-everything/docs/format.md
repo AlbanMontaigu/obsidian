@@ -37,12 +37,38 @@ Tags in a sidecar: `"tags": [{ "title": "draft", "type": "sidecar", "color": "#2
   for that item.
 - No sidecar is created just to store an empty tag list.
 
+## Note tags in the frontmatter (Markdown notes)
+
+A `.md` note can also carry tags in its frontmatter, Obsidian's own `tags` property:
+
+```yaml
+---
+tags:
+  - alpha
+  - proj/alpha
+---
+```
+
+- **Reading** merges everything: a note's tags = name tags ∪ frontmatter tags ∪ sidecar tags (in that order).
+  `tags` and the older `tag` key are read, as a list or a comma/space string, with or without `#`.
+- **Writing** (setting *Note tags in frontmatter*, on by default) goes through Obsidian (`processFrontMatter`): one
+  `tags` list; every other property is kept, a kept item keeps its spelling (`"#beta"` stays), a `tag` key is folded
+  into `tags`, and the property is removed when no tag is left. Frontmatter that isn't valid YAML is **never
+  rewritten**: the edit fails for that note.
+- Frontmatter tags may be nested (`proj/alpha`); they can't go into a file name, so adding one to a non-note file is
+  refused.
+- Other tag-aware apps don't read frontmatter: tags there are only visible in Obsidian (and any Markdown tool).
+
 ## Where an edit goes (`planTags`)
 
-| Setting | Behaviour |
+A tag that is kept never moves between the name and the frontmatter; sidecar tags move into where new tags go,
+so a tag never lives in two places.
+
+| Item and setting | Behaviour |
 |---|---|
-| **File name** (default) | All the file's tags go in the name; any sidecar tags move into the name too, and the sidecar list is emptied, so a tag never lives in two places. |
-| **Sidecar** | Added tags go to the sidecar; name tags you keep stay in the name, so no rename happens just to add a tag; removing a name tag still renames, since that's the only way to remove it. |
+| **Note**, *Note tags in frontmatter* on (default) | New tags go to the frontmatter; the note is never renamed to add a tag. Name tags you keep stay in the name; sidecar tags move to the frontmatter. Removing a name tag still renames. |
+| **File name** (default for other files) | New tags go in the name; any sidecar tags move into the name too, and the sidecar list is emptied. A note's frontmatter tags that are kept stay there. |
+| **Sidecar** | Added tags go to the sidecar; name (and frontmatter) tags you keep stay where they are, so no rename happens just to add a tag; removing a name tag still renames, since that's the only way to remove it. |
 
 ## Renames and moves
 
@@ -53,4 +79,5 @@ folder moves with the folder on its own.
 ## Limits
 
 - Names are capped at 255 characters; longer results are refused.
-- Tags can't contain spaces or `[ ] # ^ | \ / : * ? " < >`.
+- Tags can't contain spaces or `[ ] # ^ | \ / : * ? " < >` (`/` is allowed when every edited item is a note whose
+  tags go to the frontmatter).

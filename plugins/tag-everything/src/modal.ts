@@ -1,7 +1,7 @@
 import { AbstractInputSuggest, App, Modal, Setting, TAbstractFile, TFile, TFolder, setIcon } from "obsidian";
 import * as ts from "./format.ts";
 import type { TagIndex } from "./index.ts";
-import type { TagEverythingSettings } from "./settings.ts";
+import { TagEverythingSettings, targetFor } from "./settings.ts";
 
 export interface TagEdit {
   added: string[];
@@ -123,12 +123,18 @@ export class TagEditorModal extends Modal {
   }
 
   private whereText(): string {
-    const files = this.items.filter((i) => i instanceof TFile).length;
-    const folders = this.items.length - files;
+    const targets = new Set(this.items.map((i) => (i instanceof TFile ? targetFor(i, this.settings) : "folder")));
     const parts: string[] = [];
-    if (files) parts.push(this.settings.storage === "filename" ? "file tags go in the file name" : "file tags go in .ts sidecar files");
-    if (folders) parts.push("folder tags go in the folder's .ts/tsm.json");
+    if (targets.has("frontmatter")) parts.push("note tags go in the note's frontmatter (tags property)");
+    if (targets.has("filename")) parts.push("file tags go in the file name");
+    if (targets.has("sidecar")) parts.push("file tags go in .ts sidecar files");
+    if (targets.has("folder")) parts.push("folder tags go in the folder's .ts/tsm.json");
     return parts.join(" · ");
+  }
+
+  /** Nested tags (`a/b`) can only be typed when every item stores them in its frontmatter. */
+  private allFrontmatter(): boolean {
+    return this.items.every((i) => i instanceof TFile && targetFor(i, this.settings) === "frontmatter");
   }
 
   private has(tag: string): boolean {
@@ -150,7 +156,7 @@ export class TagEditorModal extends Modal {
   private commitInput(): void {
     const errors: string[] = [];
     for (const raw of ts.splitTagInput(this.input.value)) {
-      const { tag, error } = ts.normalizeTag(raw, this.settings.lowercase);
+      const { tag, error } = ts.normalizeTag(raw, this.settings.lowercase, this.allFrontmatter());
       if (error) errors.push(error);
       else if (tag && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
     }
@@ -201,7 +207,12 @@ export class TagEditorModal extends Modal {
     const item = this.items[0] as TFile;
     const { added, removed } = this.edit();
     const desired = ts.mergeEdit(this.index.tagsOf(item.path), added, removed);
-    const plan = ts.planTags({ nameTags: ts.parseNameTags(item.name), sideTags: this.index.get(item.path).side }, desired, this.settings.storage);
+    const entry = this.index.get(item.path);
+    const plan = ts.planTags(
+      { nameTags: ts.parseNameTags(item.name), sideTags: entry.side, frontTags: entry.front },
+      desired,
+      targetFor(item, this.settings),
+    );
     this.previewEl.empty();
     if (!plan.renamed) return;
     try {

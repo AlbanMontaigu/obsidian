@@ -7,8 +7,19 @@ const vault = app.vault;
 const adapter = vault.adapter;
 const file = (p) => vault.getAbstractFileByPath(p);
 const readJson = async (p) => JSON.parse(await adapter.read(p));
+const waitFor = async (cond, ms = 5000) => {
+  for (let t = 0; t < ms && !cond(); t += 100) await sleep(100);
+  return cond();
+};
+const fmTags = (p) => app.metadataCache.getFileCache(file(p))?.frontmatter?.tags;
 
+// The metadata cache of a fresh vault is still being built when the plugin loads.
+await waitFor(() => app.metadataCache.getFileCache(file("Notes/plan[gamma].md"))?.frontmatter);
 await plugin.index.rebuild();
+
+// Sections up to "UI" exercise the name / sidecar engine on notes: frontmatter storage off for them.
+check("note tags go to frontmatter by default", plugin.settings.noteTagsInFrontmatter === true);
+plugin.settings.noteTagsInFrontmatter = false;
 
 // ---- context menus: single item and multi-selection
 const single = fakeMenu();
@@ -20,8 +31,9 @@ check("files-menu has bulk edit", multi.titles().includes("Edit tags of 2 items"
 single.click("Edit tags");
 await sleep(300);
 check("menu item opens the editor", !!document.querySelector(".tag-everything-modal"));
-document.querySelector(".tag-everything-modal .modal-close-button")?.click();
+document.querySelector(".tag-everything-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click(); // 1.15 calls the close button .modal-header-button
 await sleep(200);
+check("editor closes", !document.querySelector(".tag-everything-modal"));
 check("command registered", !!app.commands.commands["tag-everything:edit-active-file-tags"]);
 
 // ---- index: name tags, file sidecar, folder tsm.json
@@ -85,6 +97,50 @@ try {
 }
 check("over-long name refused, file untouched", refused);
 
+// ---- notes: frontmatter tags (default setting), merged with name tags
+plugin.settings.noteTagsInFrontmatter = true;
+plugin.settings.storage = "filename";
+check("frontmatter + name tags merged in the index", plugin.index.tagsOf("Notes/plan[gamma].md").join() === "gamma,alpha,beta", plugin.index.tagsOf("Notes/plan[gamma].md").join());
+
+await plugin.applyTags([file("Notes/plan[gamma].md")], { added: ["delta", "proj/alpha"], removed: [] });
+await waitFor(() => (fmTags("Notes/plan[gamma].md") ?? []).includes("delta"));
+check("adding a note tag does not rename", !!file("Notes/plan[gamma].md"));
+check("note tag written to frontmatter, spelling kept", JSON.stringify(fmTags("Notes/plan[gamma].md")) === '["alpha","#beta","delta","proj/alpha"]', JSON.stringify(fmTags("Notes/plan[gamma].md")));
+const planText = await vault.read(file("Notes/plan[gamma].md"));
+check("other properties and body kept", planText.includes("title: Plan") && planText.trimEnd().endsWith("# Plan"), planText);
+
+await plugin.applyTags([file("Notes/plan[gamma].md")], { added: [], removed: ["gamma", "beta"] });
+await waitFor(() => !!file("Notes/plan.md") && !(fmTags("Notes/plan.md") ?? []).some((t) => t.includes("beta")));
+check("removing a name tag renames, frontmatter tag removed", !!file("Notes/plan.md") && JSON.stringify(fmTags("Notes/plan.md")) === '["alpha","delta","proj/alpha"]', JSON.stringify(fmTags("Notes/plan.md")));
+check("index follows the note", plugin.index.tagsOf("Notes/plan.md").join() === "alpha,delta,proj/alpha", plugin.index.tagsOf("Notes/plan.md").join());
+
+await plugin.applyTags([file("report.md")], { added: ["fresh"], removed: [] });
+await waitFor(() => (fmTags("report.md") ?? []).includes("fresh"));
+const reportText = await vault.read(file("report.md"));
+check("plain note gets a frontmatter block", !!file("report.md") && reportText.startsWith("---\n") && reportText.includes("# Report"), reportText);
+
+await plugin.applyTags([file("Notes/old.md")], { added: ["new"], removed: [] });
+await waitFor(() => (fmTags("Notes/old.md") ?? []).includes("new"));
+check("note sidecar tags move into the frontmatter", JSON.stringify(fmTags("Notes/old.md")) === '["legacy","new"]', JSON.stringify(fmTags("Notes/old.md")));
+check("note sidecar emptied, its fields kept", (await readJson("Notes/.ts/old.md.json")).tags.length === 0 && (await readJson("Notes/.ts/old.md.json")).id === "f00000000000000000000000000000c3");
+
+await vault.process(file("report.md"), (text) => text.replace("- fresh", "- fresh\n  - typed"));
+check("frontmatter edited outside the plugin shows up live", await waitFor(() => plugin.index.tagsOf("report.md").includes("typed")), plugin.index.tagsOf("report.md").join());
+
+expectError(/tagging failed\s+path=Notes\/broken\.md/);
+const brokenBefore = await vault.read(file("Notes/broken.md"));
+await plugin.applyTags([file("Notes/broken.md")], { added: ["x"], removed: [] });
+check("invalid YAML frontmatter refused, note untouched", (await vault.read(file("Notes/broken.md"))) === brokenBefore);
+
+// ---- non-note files still use the storage setting; a nested note tag cannot go in a file name
+await plugin.applyTags([file("Docs/scan.pdf")], { added: ["paper"], removed: [] });
+await sleep(500);
+check("pdf still tagged in its name", !!file("Docs/scan[paper].pdf"));
+expectError(/tagging failed\s+path=Docs\/scan\[paper\]\.pdf/);
+await plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["proj/alpha"], removed: [] });
+await sleep(300);
+check("nested tag refused in a file name", !!file("Docs/scan[paper].pdf"));
+
 // ---- UI: panel opens and lists the tags; explorer badges appear
 const view = await plugin.openView();
 await sleep(500);
@@ -96,7 +152,11 @@ plugin.badges.refresh();
 await sleep(300);
 check("explorer badges rendered", document.querySelectorAll(".nav-files-container .tag-everything-badge").length > 0);
 
-// ---- edit modal opens with the item's chips (left open: it is what the screenshot shows)
+// ---- edit modal on a note with name + frontmatter tags (left open: it is what the screenshot shows)
+await plugin.applyTags([file("Projects/Alpha/budget[B27 INC].md")], { added: ["q3"], removed: [] });
+await waitFor(() => plugin.index.tagsOf("Projects/Alpha/budget[B27 INC].md").includes("q3"));
 plugin.editTags([file("Projects/Alpha/budget[B27 INC].md")]);
 await sleep(400);
-check("edit modal shows chips", document.querySelectorAll(".tag-everything-modal .tag-everything-chip").length === 2);
+check("edit modal shows merged chips", document.querySelectorAll(".tag-everything-modal .tag-everything-chip").length === 3);
+const wheres = [...document.querySelectorAll(".tag-everything-modal .tag-everything-where")].map((e) => e.textContent);
+check("edit modal says note tags go to frontmatter", wheres.length === 1 && wheres[0].includes("frontmatter"), JSON.stringify(wheres));

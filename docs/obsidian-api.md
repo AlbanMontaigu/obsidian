@@ -35,7 +35,7 @@ export default class MyPlugin extends Plugin {
 | Icons | `setIcon(el, "lucide-name")` | `view.ts` |
 | Rename / move with link updates | `app.fileManager.renameFile(file, newPath)` | `main.ts` |
 | Read / write a note | `vault.read(file)`, `vault.process(file, fn)` (atomic), `vault.modify` | |
-| Frontmatter | `app.fileManager.processFrontMatter(file, fm => {})`, `app.metadataCache.getFileCache(file)` | |
+| Frontmatter | `app.fileManager.processFrontMatter(file, fm => {})`, `app.metadataCache.getFileCache(file)`, `metadataCache.on("changed")` | `tag-everything/src/main.ts`, `index.ts` |
 | Files Obsidian ignores (dot-folders like `.ts`) | `vault.adapter.exists/read/write/list/mkdir/rename/remove` with vault-relative paths | `tag-everything/src/store.ts` |
 | Vault events | `vault.on("create" \| "delete" \| "rename" \| "modify")` | `main.ts`, `index.ts` |
 | Debounce | `debounce(fn, ms, true)` | `index.ts` |
@@ -71,6 +71,15 @@ interface InternalApp { openWithDefaultApp?: (path: string) => void }
   suggest popover takes Enter / arrows while it is open. In your own `keydown` handler, return early on
   `evt.defaultPrevented || evt.isComposing`, and return no suggestions for an empty query, otherwise Enter on an
   empty box picks the first suggestion instead of submitting. Don't dispatch synthetic key events.
+- **Closing a modal from a test (1.15)**: the ✕ button is `.modal-header-button` inside `.modal`, no longer
+  `.modal-close-button`; use `.querySelector(".modal-close-button, .modal-header-button")`. A pending modal (e.g.
+  the vault-trust dialog `.modal.mod-trust-folder`) blocks every other modal from opening, with no error. Never
+  match a core dialog by its text: the UI follows the OS language.
+- **Frontmatter**: write with `fileManager.processFrontMatter` (keeps other properties; it throws on invalid YAML,
+  which is what you want). Right after a write, `metadataCache.getFileCache` can still hold the old values: re-read
+  the file (`getFrontMatterInfo` + `parseYaml`) when you need the current state, and follow live edits with
+  `metadataCache.on("changed", (file, data, cache) => ...)`. Tags may be in `tags` or the older `tag`, as a list or
+  a comma/space string, with or without `#`.
 - **Dot-folders are invisible to the Vault API** (`getAbstractFileByPath(".ts/x")` is null, no events). Use
   `vault.adapter` for them, and remember nothing tells you when another app changes them.
 - **Non-note files are only loaded if *Detect all file extensions* is on** (`showUnsupportedFiles`). Without it,

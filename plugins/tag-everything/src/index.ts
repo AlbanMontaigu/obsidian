@@ -1,14 +1,22 @@
-import { App, Events, TAbstractFile, TFile, TFolder, debounce } from "obsidian";
+import { App, CachedMetadata, Events, TAbstractFile, TFile, TFolder, debounce } from "obsidian";
 import * as ts from "./format.ts";
 
 export interface Entry {
   /** Tags read from the file name. Always empty for folders: folder names are never read for tags. */
   name: string[];
+  /** Tags from a note's frontmatter `tags` property. Empty for anything but Markdown notes. */
+  front: string[];
   /** Tags from `.ts/<file>.json` or, for a folder, `.ts/tsm.json`. */
   side: string[];
 }
 
-const EMPTY: Entry = { name: [], side: [] };
+const EMPTY: Entry = { name: [], front: [], side: [] };
+
+/** Frontmatter tags of a note, from Obsidian's metadata cache. */
+export function cachedFrontTags(app: App, file: TFile, cache?: CachedMetadata | null): string[] {
+  if (file.extension !== "md") return [];
+  return ts.frontmatterTags((cache ?? app.metadataCache.getFileCache(file))?.frontmatter);
+}
 const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i;
 const SCAN_CONCURRENCY = 8;
 
@@ -48,7 +56,7 @@ export class TagIndex extends Events {
 
   tagsOf(path: string): string[] {
     const e = this.entries.get(path);
-    return e ? ts.dedupe([...e.name, ...e.side]) : [];
+    return e ? ts.dedupe([...e.name, ...e.front, ...e.side]) : [];
   }
 
   colorOf(tag: string): string | undefined {
@@ -81,18 +89,26 @@ export class TagIndex extends Events {
   }
 
   private put(path: string, e: Entry): void {
-    if (e.name.length || e.side.length) this.entries.set(path, e);
+    if (e.name.length || e.front.length || e.side.length) this.entries.set(path, e);
     else this.entries.delete(path);
   }
 
   setSide(path: string, side: readonly string[]): void {
-    this.put(path, { name: this.get(path).name, side: [...side] });
+    this.put(path, { ...this.get(path), side: [...side] });
+    this.notify();
+  }
+
+  /** Called on metadata-cache changes and after this plugin writes a note's frontmatter. */
+  setFront(path: string, front: readonly string[]): void {
+    const e = this.get(path);
+    if (ts.sameTags(e.front, front)) return;
+    this.put(path, { ...e, front: [...front] });
     this.notify();
   }
 
   private refreshName(item: TAbstractFile): void {
     const name = item instanceof TFile ? ts.parseNameTags(item.name) : [];
-    this.put(item.path, { name, side: this.get(item.path).side });
+    this.put(item.path, { ...this.get(item.path), name });
   }
 
   onCreate(item: TAbstractFile): void {
@@ -137,10 +153,12 @@ export class TagIndex extends Events {
     const colors = new Map<string, string>();
     const folders: TFolder[] = [vault.getRoot()];
 
+    const notes: TFile[] = [];
     for (const item of vault.getAllLoadedFiles()) {
       if (item instanceof TFile) {
         const name = ts.parseNameTags(item.name);
-        if (name.length) entries.set(item.path, { name, side: [] });
+        if (name.length) entries.set(item.path, { name, front: [], side: [] });
+        if (item.extension === "md") notes.push(item);
       } else if (item instanceof TFolder && !item.isRoot()) {
         folders.push(item);
       }
@@ -165,11 +183,18 @@ export class TagIndex extends Events {
         if (!tags.length) continue;
         const target = file === ts.FOLDER_META_FILE ? folder.path : ts.joinPath(folder.path, file.slice(0, -".json".length));
         if (!vault.getAbstractFileByPath(target)) continue; // orphan sidecar
-        const prev = entries.get(target) ?? { name: [], side: [] };
-        entries.set(target, { name: prev.name, side: ts.dedupe(tags.map((t) => t.title.trim())) });
+        const prev = entries.get(target) ?? EMPTY;
+        entries.set(target, { ...prev, side: ts.dedupe(tags.map((t) => t.title.trim())) });
         for (const t of tags) if (typeof t.color === "string" && COLOR_RE.test(t.color)) colors.set(t.title.trim(), t.color);
       }
     });
+
+    // Frontmatter last and synchronously, right before the swap: a metadata-cache change during the async folder
+    // scan would otherwise land in the old map and be lost. Later changes arrive through setFront().
+    for (const note of notes) {
+      const front = cachedFrontTags(this.app, note);
+      if (front.length) entries.set(note.path, { ...(entries.get(note.path) ?? EMPTY), front });
+    }
 
     this.entries = entries;
     this.colorMap = colors;

@@ -43,7 +43,7 @@ export class ExplorerBadges {
           const host = items[path]?.selfEl;
           if (!host) continue;
           const entry = index.get(path);
-          const tags = settings.badgeScope === "sidecar" ? entry.side.filter((t) => !entry.name.includes(t)) : index.tagsOf(path);
+          const tags = settings.badgeScope === "sidecar" ? index.tagsOf(path).filter((t) => !entry.name.includes(t)) : index.tagsOf(path);
           if (tags.length) this.decorate(host, tags);
         }
       }

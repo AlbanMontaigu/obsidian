@@ -1,11 +1,11 @@
-import { Menu, Notice, Plugin, TAbstractFile, TFile, TFolder, debounce } from "obsidian";
+import { Menu, Notice, Plugin, TAbstractFile, TFile, TFolder, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
-import { TagIndex } from "./index.ts";
+import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
-import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab } from "./settings.ts";
+import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, targetFor } from "./settings.ts";
 
 export default class TagEverythingPlugin extends Plugin {
   settings: TagEverythingSettings = { ...DEFAULT_SETTINGS };
@@ -75,6 +75,10 @@ export default class TagEverythingPlugin extends Plugin {
     this.register(() => this.badges.clear());
     this.registerEvent(this.index.on("changed", refreshBadges));
     this.registerEvent(this.app.workspace.on("layout-change", refreshBadges));
+    // Note frontmatter tags follow Obsidian's metadata cache live (edits in the editor, in Properties, outside).
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file, _data, cache) => this.index.setFront(file.path, cachedFrontTags(this.app, file, cache))),
+    );
 
     this.app.workspace.onLayoutReady(() => {
       this.registerEvent(this.app.vault.on("create", (f) => this.index.onCreate(f)));
@@ -168,9 +172,13 @@ export default class TagEverythingPlugin extends Plugin {
     if (!(item instanceof TFile)) return false;
 
     const nameTags = ts.parseNameTags(item.name);
-    const desired = ts.mergeEdit(ts.dedupe([...nameTags, ...side]), edit.added, edit.removed);
-    const plan = ts.planTags({ nameTags, sideTags: side }, desired, this.settings.storage);
-    if (!plan.renamed && !plan.sideChanged) return false;
+    const front = await this.readFrontTags(item);
+    const desired = ts.mergeEdit(ts.dedupe([...nameTags, ...front, ...side]), edit.added, edit.removed);
+    const plan = ts.planTags({ nameTags, sideTags: side, frontTags: front }, desired, targetFor(item, this.settings));
+    if (!plan.renamed && !plan.sideChanged && !plan.frontChanged) return false;
+    // A tag picked from the vault (e.g. a nested note tag `a/b`) may not be valid where it is about to go.
+    ts.assertWritable(plan.nameTags.filter((t) => !nameTags.includes(t)), "filename");
+    ts.assertWritable(plan.frontTags.filter((t) => !front.includes(t)), "frontmatter");
 
     const oldPath = item.path;
     let newPath = oldPath;
@@ -180,8 +188,8 @@ export default class TagEverythingPlugin extends Plugin {
       if (clash && clash !== item) throw new Error(`"${ts.baseOf(newPath)}" already exists`);
     }
 
-    // Rename first: if it fails nothing has changed. A sidecar write failing afterwards at worst leaves a
-    // tag in both places, never a tag lost.
+    // Rename first: if it fails nothing has changed. Then the frontmatter, then the sidecar: tags only move from
+    // the sidecar into the name or the frontmatter, so a failure part-way at worst leaves a tag in two places.
     if (newPath !== oldPath) {
       this.ownRenames.add(newPath);
       try {
@@ -191,8 +199,32 @@ export default class TagEverythingPlugin extends Plugin {
         this.ownRenames.delete(newPath);
       }
     }
+    if (plan.frontChanged) {
+      await this.app.fileManager.processFrontMatter(item, (fm: Record<string, unknown>) => ts.setFrontmatterTags(fm, plan.frontTags));
+      this.index.setFront(item.path, plan.frontTags);
+    }
     if (plan.sideChanged) await this.store.writeTags(ts.fileSidecarPath(item.path), plan.sideTags);
     this.index.setSide(item.path, plan.sideTags);
     return true;
+  }
+
+  /**
+   * A note's frontmatter tags, read from the file itself (the metadata cache can lag right after a write).
+   * Throws on frontmatter that isn't valid YAML, so it is never rewritten.
+   */
+  private async readFrontTags(file: TFile): Promise<string[]> {
+    if (file.extension !== "md") return [];
+    const info = getFrontMatterInfo(await this.app.vault.read(file));
+    if (!info.exists) return [];
+    let fm: unknown;
+    try {
+      fm = parseYaml(info.frontmatter);
+    } catch (err) {
+      throw new Error(`the frontmatter is not valid YAML (${(err as Error).message.split("\n")[0]}); left untouched`);
+    }
+    if (fm !== null && fm !== undefined && (typeof fm !== "object" || Array.isArray(fm))) {
+      throw new Error("the frontmatter is not a set of properties; left untouched");
+    }
+    return ts.frontmatterTags(fm);
   }
 }

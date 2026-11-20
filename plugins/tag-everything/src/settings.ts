@@ -1,10 +1,12 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
-import type { StorageMode } from "./format.ts";
+import { App, PluginSettingTab, Setting, TFile } from "obsidian";
+import type { StorageMode, TagTarget } from "./format.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
   storage: StorageMode;
+  /** Markdown notes: new tags go to the frontmatter `tags` property instead of `storage`. */
+  noteTagsInFrontmatter: boolean;
   lowercase: boolean;
   showBadges: boolean;
   /** "sidecar": hide badges for tags already readable in the file name. */
@@ -16,12 +18,18 @@ export interface TagEverythingSettings {
 
 export const DEFAULT_SETTINGS: TagEverythingSettings = {
   storage: "filename",
+  noteTagsInFrontmatter: true,
   lowercase: false,
   showBadges: true,
   badgeScope: "all",
   maxBadges: 4,
   followRenames: true,
 };
+
+/** Where new tags of `file` go. */
+export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarget {
+  return file.extension === "md" && settings.noteTagsInFrontmatter ? "frontmatter" : settings.storage;
+}
 
 export class TagEverythingSettingTab extends PluginSettingTab {
   constructor(
@@ -55,6 +63,19 @@ export class TagEverythingSettingTab extends PluginSettingTab {
             s.storage = v as StorageMode;
             await save();
           }),
+      );
+
+    new Setting(containerEl)
+      .setName("Note tags in frontmatter")
+      .setDesc(
+        "Markdown notes: new tags go to the note's tags property, as Obsidian stores them, and the note is not renamed. " +
+          "Tags already in the note's name are kept and still read. Off: notes follow the setting above.",
+      )
+      .addToggle((t) =>
+        t.setValue(s.noteTagsInFrontmatter).onChange(async (v) => {
+          s.noteTagsInFrontmatter = v;
+          await save();
+        }),
       );
 
     new Setting(containerEl)
@@ -94,7 +115,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       .addDropdown((d) =>
         d
           .addOption("all", "All tags")
-          .addOption("sidecar", "Sidecar and folder tags only (name tags are already visible)")
+          .addOption("sidecar", "Tags not in the name only (frontmatter, sidecar, folder)")
           .setValue(s.badgeScope)
           .onChange(async (v) => {
             s.badgeScope = v as TagEverythingSettings["badgeScope"];

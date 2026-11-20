@@ -12,7 +12,7 @@ and git-ignored.
 
 | Plugin | What it is | Spec |
 |---|---|---|
-| `tag-everything` | **TagEverything**: tag any file or folder from the file explorer; tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecars; tag panel, explorer badges | `plugins/tag-everything/CLAUDE.md` |
+| `tag-everything` | **TagEverything**: tag any file or folder from the file explorer; notes in their frontmatter, other files in the file name (`report[tax receipt].pdf`) or in `.ts` sidecars; tag panel, explorer badges | `plugins/tag-everything/CLAUDE.md` |
 
 ## You can work autonomously here
 
