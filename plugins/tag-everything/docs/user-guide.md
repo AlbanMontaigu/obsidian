@@ -193,6 +193,9 @@ Your vault as a **tree of tags**, in the left sidebar next to Obsidian's file ex
 view): open it with the ribbon `list-tree` icon or the command *Open the tag explorer*. It looks and indents like the
 file explorer.
 
+- At the top, a **filter box**: type part of a tag's name (any case, accents ignored) and the root keeps only the
+  tags containing it; Enter opens the first one, Escape clears the box. Inside an open tag nothing is filtered. The
+  filter is not remembered across restarts.
 - At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are **the other
   tags found with it** on the same files (each opening the same way), then the files and folders carrying **exactly
   the tags of the path**. A file tagged `tax receipt` sits under *tax › receipt* and under *receipt › tax*: one file,

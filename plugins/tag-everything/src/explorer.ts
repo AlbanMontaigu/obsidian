@@ -1,5 +1,5 @@
 import { HoverParent, HoverPopover, ItemView, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
-import { compareItems, tagNode } from "./explore.ts";
+import { compareItems, filterTags, tagNode } from "./explore.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
@@ -45,6 +45,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private expanded = new Map<string, string[]>();
   /** The file open in the editor: highlighted. */
   private activePath: string | null = null;
+  /** The filter box: only the root tags containing it show (not saved: a quick search). */
+  private query = "";
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
   /** Vault events come in bursts (a folder moved, a sync): one redraw once they stop. */
@@ -75,13 +77,35 @@ export class TagExplorerView extends ItemView implements HoverParent {
     root.addClass("tag-everything-explorer");
 
     const bar = root.createDiv({ cls: "tag-everything-explorer-bar" });
-    this.statusEl = bar.createDiv({ cls: "tag-everything-explorer-status" });
+    const search = bar.createEl("input", {
+      type: "search",
+      cls: "tag-everything-explorer-search",
+      attr: { placeholder: "Filter tags…", "aria-label": "Filter tags (Enter opens the first one, Escape clears)" },
+    });
+    search.addEventListener("input", () => {
+      this.query = search.value;
+      this.render();
+    });
+    search.addEventListener("keydown", (evt) => {
+      if (evt.isComposing) return;
+      if (evt.key === "Enter") {
+        const first = this.treeEl.querySelector<HTMLElement>(":scope > .tree-item > .tag-everything-explorer-row.is-tag")?.dataset.tag;
+        evt.preventDefault();
+        if (first && !this.expanded.has(keyOf([first]))) this.toggle([first]);
+      } else if (evt.key === "Escape" && search.value) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        search.value = this.query = "";
+        this.render();
+      }
+    });
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
     clickable(collapse, () => {
       this.expanded.clear();
       this.stateChanged();
     });
+    this.statusEl = root.createDiv({ cls: "tag-everything-explorer-status" });
     this.treeEl = root.createDiv({ cls: "tag-everything-explorer-tree" });
 
     const redraw = (): void => void this.requestRender();
@@ -148,21 +172,31 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.treeEl.empty();
     const root = this.renderNode(this.treeEl, [], index.paths());
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
+    const shown = filterTags(root.tags, this.query).length;
     this.statusEl.setText(
-      !index.ready ? "Reading tags…" : root.tags.length ? `${plural(root.tags.length, "tag")} on ${plural(tagged, "item")}` : "No tags yet. Right-click a file or folder → TagEverything → Edit tags.",
+      !index.ready
+        ? "Reading tags…"
+        : !root.tags.length
+          ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
+          : shown < root.tags.length
+            ? shown
+              ? `${shown} of ${plural(root.tags.length, "tag")} match "${this.query.trim()}"`
+              : `No tag matches "${this.query.trim()}".`
+            : `${plural(root.tags.length, "tag")} on ${plural(tagged, "item")}`,
     );
     this.contentEl.scrollTop = scroll;
   }
 
   /**
    * Draws the node at `trail` into `parent` (its branches, open ones drawn inside, then its items); returns the node.
+   * At the root, only the branches matching the filter box; inside a tag, all of them.
    * Built from Obsidian's own tree classes (`tree-item`, `tree-item-self`, `collapse-icon`, `tree-item-children`,
    * `tree-item-flair`), as the core search and outline are, so it looks and indents like the file explorer.
    */
   private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>): ReturnType<typeof tagNode> {
     const index = this.plugin.index;
     const node = tagNode(paths, (p) => index.ownTagsOf(p), trail);
-    for (const [tag, n] of node.tags) {
+    for (const [tag, n] of trail.length ? node.tags : filterTags(node.tags, this.query)) {
       const branch = [...trail, tag];
       const open = this.expanded.has(keyOf(branch));
       const box = parent.createDiv({ cls: "tree-item" });

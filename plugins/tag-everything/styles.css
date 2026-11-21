@@ -731,8 +731,13 @@
   margin-bottom: var(--size-4-1);
 }
 
-.tag-everything-explorer-status {
+.tag-everything-explorer-search {
   flex: 1;
+  min-width: 0;
+}
+
+.tag-everything-explorer-status {
+  margin-bottom: var(--size-4-1);
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }

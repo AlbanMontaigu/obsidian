@@ -72,7 +72,8 @@ and `docs/user-guide.md` when users see it.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item, a tag's branches and its own items, an item at the
-  end of every path of its tags, from the parent's paths = from the vault, dead end), name order, folders first.
+  end of every path of its tags, from the parent's paths = from the vault, dead end), name order, folders first, the
+  filter box (`filterTags`: case, accents, order, empty).
 - `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
@@ -95,7 +96,8 @@ and `docs/user-guide.md` when users see it.
   frontmatter) plus the fixture's `B27 INC IMAC` are listed with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
   group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
-  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; with `showUnsupportedFiles` off a
+  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the filter box (`KP` keeps the root tags
+  containing it and says how many, Enter opens the first unfiltered inside, no match said, Escape clears); with `showUnsupportedFiles` off a
   created `board[kpi q1].docx` sits under kpi › q1 and q1 › kpi, not under kpi; its row = extension badge, name, pill
   `2` listing its tags on hover, folder icon whose tooltip names `Docs`; open tags saved; a click closes a tag; the
   TagEverything menu item and the folder icon show a note in the file explorer; a click opens a note, highlighted, the
@@ -142,7 +144,7 @@ Deliberate exceptions, each for a reason:
   Not measured on the owner's 9 500-file vault (the root scans every indexed path, each open node its parent's).
   A file with n tags shows in n! places once all are opened (only what is opened is drawn). Untagged files are not
   in the tree. Showing a file the core explorer hides in the file explorer only opens its folder.
-- Explorer ideas: a filter box for tags at the root, reveal the active file in the tree, keyboard arrows between rows,
+- Explorer ideas: reveal the active file in the tree, keyboard arrows between rows,
   extension tags as branches (an option).
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.
 - Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded); they do follow a

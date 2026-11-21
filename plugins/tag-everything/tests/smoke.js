@@ -852,6 +852,30 @@ const childrenOf = (row) => {
 const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 const ownTags = [...plugin.index.counts(undefined, true).keys()].sort(byName);
 check("explorer: the root lists every stored tag by name, no extension tag, no file", exTop().join() === ownTags.join() && !exTop().includes("md"), exTop().join(" | "));
+// the filter box: only the root tags containing the text (any case); Enter opens the first, Escape clears
+const exSearch = exEl.querySelector(".tag-everything-explorer-search");
+const exType = (text) => {
+  exSearch.value = text;
+  exSearch.dispatchEvent(new Event("input"));
+};
+const exKey2 = (key) => exSearch.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+exType("KP");
+const kpTags = ownTags.filter((t) => t.toLowerCase().includes("kp"));
+const exStatus = () => exEl.querySelector(".tag-everything-explorer-status")?.textContent ?? "";
+check(
+  "explorer: the filter box keeps only the root tags containing the text, any case, and says so",
+  kpTags.length > 0 && kpTags.length < ownTags.length && exTop().join() === kpTags.join() && exStatus().startsWith(`${kpTags.length} of `),
+  `${exTop().join(" | ")} / ${exStatus()}`,
+);
+exKey2("Enter");
+await sleep(100);
+check("explorer: Enter in the filter box opens the first matching tag, its inside unfiltered", childrenOf(tagRow(kpTags[0])) === "q1", childrenOf(tagRow(kpTags[0])));
+exType("zzz-none");
+check("explorer: no matching tag is said", exTop().length === 0 && exStatus() === 'No tag matches "zzz-none".', exStatus());
+exKey2("Escape");
+check("explorer: Escape clears the filter box, every tag back", exSearch.value === "" && exTop().join() === ownTags.join());
+exEl.querySelector(".tag-everything-explorer-collapse").click();
+await sleep(100);
 tagRow("kpi").click();
 await sleep(100);
 check("explorer: opening a tag shows the tags found with it, not the file carrying more tags", childrenOf(tagRow("kpi")) === "q1" && tagRow("kpi").getAttribute("aria-expanded") === "true" && !tagRow("kpi").querySelector(".collapse-icon").hasClass("is-collapsed"), childrenOf(tagRow("kpi")));

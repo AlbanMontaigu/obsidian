@@ -49,3 +49,15 @@ export function tagNode(paths: Iterable<string>, tagsOf: (path: string) => reado
   }
   return { paths: matched, tags: [...counts].sort((a, b) => compareNames(a[0], b[0])), items };
 }
+
+/** Lower case without accents, so a search for `ete` finds `Été`. */
+const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/**
+ * The explorer's filter box: the tags whose name contains `query` (case and accents ignored), in the order given.
+ * An empty query keeps them all.
+ */
+export function filterTags<T extends readonly [string, ...unknown[]]>(tags: readonly T[], query: string): T[] {
+  const q = fold(query.trim());
+  return q ? tags.filter(([t]) => fold(t).includes(q)) : [...tags];
+}

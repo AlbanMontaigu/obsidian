@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareItems, compareNames, tagNode } from "../src/explore.ts";
+import { compareItems, compareNames, filterTags, tagNode } from "../src/explore.ts";
 
 const vault = new Map<string, string[]>([
   ["Taxes/2024[tax].pdf", ["tax"]],
@@ -48,4 +48,13 @@ test("compareItems: folders first, then by name", () => {
     { name: "beta", folder: true },
   ];
   assert.deepEqual(items.sort(compareItems).map((i) => i.name), ["beta", "Zeta", "a.md"]);
+});
+
+test("filterTags: the tags containing the query, case and accents ignored, order kept; empty = all", () => {
+  const tags: [string, number][] = [["Été", 2], ["receipt", 1], ["tax", 3], ["Taxes", 1]];
+  assert.deepEqual(filterTags(tags, " TAX "), [["tax", 3], ["Taxes", 1]]);
+  assert.deepEqual(filterTags(tags, "ete"), [["Été", 2]]);
+  assert.deepEqual(filterTags(tags, "eip"), [["receipt", 1]]);
+  assert.deepEqual(filterTags(tags, "zzz"), []);
+  assert.deepEqual(filterTags(tags, "  "), tags);
 });
