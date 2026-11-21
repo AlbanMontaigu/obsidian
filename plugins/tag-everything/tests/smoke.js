@@ -17,6 +17,12 @@ const fmTags = (p) => app.metadataCache.getFileCache(file(p))?.frontmatter?.tags
 await waitFor(() => app.metadataCache.getFileCache(file("Notes/plan[gamma].md"))?.frontmatter);
 await plugin.index.rebuild();
 
+// Extension tags are on by default; off until their own section below, so the exact tag lists checked here stay short.
+check("extension tags on by default", plugin.settings.extensionTags === true && plugin.index.tagsOf("Docs/scan.pdf")[0] === "pdf", plugin.index.tagsOf("Docs/scan.pdf").join());
+plugin.settings.extensionTags = false;
+plugin.index.setExtensionTags(false);
+check("extension tags off: none left", !plugin.index.tagsOf("Docs/scan.pdf").includes("pdf") && !plugin.index.counts().has("md"));
+
 // Sections up to "UI" exercise the name / sidecar engine on notes: frontmatter storage off for them.
 check("note tags go to frontmatter by default", plugin.settings.noteTagsInFrontmatter === true);
 plugin.settings.noteTagsInFrontmatter = false;
@@ -646,6 +652,49 @@ await waitFor(() => !!file("CLAUDE.md"));
 const rootGuide = file("CLAUDE.md") ? await vault.read(file("CLAUDE.md")) : "";
 check("guide: root guide has no folder section", rootGuide.startsWith("# Tags in this vault") && !rootGuide.includes("## Tags used in"), rootGuide.slice(0, 80));
 for (const p of ["Projects/CLAUDE.md", "Docs/claude.md", "CLAUDE.md"]) if (file(p)) await vault.delete(file(p));
+
+// ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
+plugin.settings.extensionTags = true;
+await plugin.saveSettings();
+await sleep(300);
+const pdfPath = vault.getFiles().find((f) => f.extension === "pdf")?.path;
+check("ext: a file's extension is its first tag", plugin.index.tagsOf(pdfPath)[0] === "pdf" && plugin.index.tagsOf("report.md")[0] === "md", `${plugin.index.tagsOf(pdfPath)} / ${plugin.index.tagsOf("report.md")}`);
+check("ext: counted for every file, not for folders", plugin.index.counts().get("md") === vault.getMarkdownFiles().length && !plugin.index.get("Projects/Alpha").ext.length);
+check("ext: not an own tag (never written, never fixed)", !plugin.index.ownTagsOf("report.md").includes("md") && !plugin.index.counts(undefined, true).has("md"));
+check("ext: saved in data.json", (await plugin.loadData())?.extensionTags === true);
+plugin.editTags([file("report.md")]);
+await sleep(300);
+const extChips = [...document.querySelectorAll(".tag-everything-modal .tag-everything-chip")].map((c) => c.firstChild?.textContent);
+check("ext: not in the tag editor", extChips.length > 0 && !extChips.includes("md"), extChips.join());
+document.querySelector(".tag-everything-modal .modal-close-button, .tag-everything-modal .modal-header-button")?.click();
+await sleep(200);
+// The PDF sits in a collapsed folder: reveal it, its row is only in the page once shown.
+app.workspace.getLeavesOfType("file-explorer")[0]?.view.revealInFolder?.(file(pdfPath));
+await sleep(300);
+plugin.badges.refresh();
+await sleep(300);
+const rowOf = (p) => app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.[p]?.selfEl;
+const pdfRow = rowOf(pdfPath);
+const extChip = pdfRow?.querySelector(":scope > .tag-everything-ext");
+const pdfName = pdfRow?.querySelector(".nav-file-title-content");
+check(
+  "ext: explorer chip before the file name",
+  extChip?.textContent === "pdf" && pdfRow.firstElementChild === extChip && !!pdfName && extChip.getBoundingClientRect().width > 0 && extChip.getBoundingClientRect().right <= pdfName.getBoundingClientRect().left,
+  pdfRow?.innerHTML.slice(0, 300),
+);
+check("ext: note rows get theirs", rowOf("report.md")?.querySelector(":scope > .tag-everything-ext")?.textContent === "md");
+const obsidianLabel = pdfRow?.querySelector(":scope > .nav-file-tag");
+check("ext: Obsidian's own extension label hidden on the row", !!obsidianLabel && getComputedStyle(obsidianLabel).display === "none", obsidianLabel?.outerHTML);
+plugin.settings.extensionTags = false;
+await plugin.saveSettings();
+await sleep(300);
+check(
+  "ext: turned off, gone from the index and the explorer",
+  !plugin.index.tagsOf(pdfPath).includes("pdf") && !document.querySelector(".nav-files-container .tag-everything-ext") && getComputedStyle(obsidianLabel).display !== "none",
+);
+plugin.settings.extensionTags = true;
+await plugin.saveSettings();
+await sleep(300);
 
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.
 document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above

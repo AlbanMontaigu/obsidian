@@ -9,23 +9,29 @@ export interface Entry {
   front: string[];
   /** Tags from `.ts/<file>.json` or, for a folder, `.ts/tsm.json`. */
   side: string[];
+  /** The file's extension tag (setting `extensionTags`): read from the name, never written. Empty for folders. */
+  ext: string[];
 }
 
 /** An entry with its merged tags precomputed: the panel and the badges read them many times per render. */
 interface Stored extends Entry {
+  /** Name, frontmatter and sidecar tags: the ones an edit can change. */
+  own: string[];
+  /** `own` with the extension tag first. */
   all: string[];
   set: ReadonlySet<string>;
 }
 
-const EMPTY: Stored = { name: [], front: [], side: [], all: [], set: new Set() };
+const EMPTY: Stored = { name: [], front: [], side: [], ext: [], own: [], all: [], set: new Set() };
 
 function stored(e: Entry): Stored {
-  const all = ts.dedupe([...e.name, ...e.front, ...e.side]);
-  return { name: e.name, front: e.front, side: e.side, all, set: new Set(all) };
+  const own = ts.dedupe([...e.name, ...e.front, ...e.side]);
+  const all = e.ext.length ? ts.dedupe([...e.ext, ...own]) : own;
+  return { name: e.name, front: e.front, side: e.side, ext: e.ext, own, all, set: new Set(all) };
 }
 
 function isEmpty(e: Entry): boolean {
-  return !e.name.length && !e.front.length && !e.side.length;
+  return !e.name.length && !e.front.length && !e.side.length && !e.ext.length;
 }
 
 /** Frontmatter tags of a note, from Obsidian's metadata cache. */
@@ -95,19 +101,30 @@ export class TagIndex extends Events {
   ready = false;
   /** Mirrors the `autoColors` setting (set by the plugin). */
   autoColors = true;
+  /** Mirrors the `extensionTags` setting: change it with `setExtensionTags`. */
+  private extensionTags: boolean;
   private notify = debounce(() => this.trigger("changed"), 50, true);
 
-  constructor(private app: App) {
+  constructor(
+    private app: App,
+    extensionTags = true,
+  ) {
     super();
+    this.extensionTags = extensionTags;
   }
 
   get(path: string): Entry {
     return this.entries.get(path) ?? EMPTY;
   }
 
-  /** Every tag of the item (name, frontmatter, sidecar), once. Do not mutate. */
+  /** Every tag of the item (extension, name, frontmatter, sidecar), once. Do not mutate. */
   tagsOf(path: string): readonly string[] {
     return (this.entries.get(path) ?? EMPTY).all;
+  }
+
+  /** The tags an edit can change (name, frontmatter, sidecar): `tagsOf` without the extension tag. Do not mutate. */
+  ownTagsOf(path: string): readonly string[] {
+    return (this.entries.get(path) ?? EMPTY).own;
   }
 
   hasTag(path: string, tag: string): boolean {
@@ -132,12 +149,16 @@ export class TagIndex extends Events {
     return this.entries.size;
   }
 
-  /** Tag -> number of items, over `paths` (default: everything, cached until the next change). */
-  counts(paths?: Iterable<string>): ReadonlyMap<string, number> {
-    if (!paths && this.countsCache) return this.countsCache;
+  /**
+   * Tag -> number of items, over `paths` (default: everything, cached until the next change). `own`: stored tags
+   * only (no extension tag), for what lists or fixes the tags written in the vault.
+   */
+  counts(paths?: Iterable<string>, own = false): ReadonlyMap<string, number> {
+    const cache = !paths && !own;
+    if (cache && this.countsCache) return this.countsCache;
     const out = new Map<string, number>();
-    for (const p of paths ?? this.entries.keys()) for (const t of this.tagsOf(p)) out.set(t, (out.get(t) ?? 0) + 1);
-    if (!paths) this.countsCache = out;
+    for (const p of paths ?? this.entries.keys()) for (const t of own ? this.ownTagsOf(p) : this.tagsOf(p)) out.set(t, (out.get(t) ?? 0) + 1);
+    if (cache) this.countsCache = out;
     return out;
   }
 
@@ -175,13 +196,28 @@ export class TagIndex extends Events {
     this.changed();
   }
 
-  /** Re-reads the item's name tags; true if they changed. */
+  private extOf(item: TAbstractFile): string[] {
+    const tag = this.extensionTags && item instanceof TFile ? ts.extensionTag(item.name) : null;
+    return tag ? [tag] : [];
+  }
+
+  /** Re-reads the item's name and extension tags; true if they changed. */
   private refreshName(item: TAbstractFile): boolean {
     const name = item instanceof TFile ? ts.parseNameTags(item.name) : [];
+    const ext = this.extOf(item);
     const e = this.get(item.path);
-    if (ts.sameTags(e.name, name)) return false;
-    this.put(item.path, { ...e, name });
+    if (ts.sameTags(e.name, name) && ts.sameTags(e.ext, ext)) return false;
+    this.put(item.path, { ...e, name, ext });
     return true;
+  }
+
+  /** Turns the extension tags on or off for every file (setting `extensionTags`). */
+  setExtensionTags(on: boolean): void {
+    if (on === this.extensionTags) return;
+    this.extensionTags = on;
+    let changed = false;
+    for (const file of this.app.vault.getFiles()) changed = this.refreshName(file) || changed;
+    if (changed) this.changed();
   }
 
   onCreate(item: TAbstractFile): void {
@@ -271,6 +307,7 @@ export class TagIndex extends Events {
         name: isFile ? ts.parseNameTags(item.name) : [],
         front: isFile ? cachedFrontTags(this.app, item) : [],
         side: sides.get(item.path) ?? [], // a sidecar whose file is gone (orphan) is ignored
+        ext: this.extOf(item),
       };
       if (!isEmpty(e)) entries.set(item.path, stored(e));
     }

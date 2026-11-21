@@ -16,6 +16,8 @@ export interface TagEverythingSettings {
   tagRule: boolean;
   /** Liaison words refused as tags while `tagRule` is on (space / comma separated). */
   stopWords: string;
+  /** Every file also carries its extension as a tag (`pdf`, `md`), read from its name, never written. */
+  extensionTags: boolean;
   showBadges: boolean;
   /** Tags without a sidecar colour get a stable colour picked from their name. */
   autoColors: boolean;
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   lowercase: false,
   tagRule: true,
   stopWords: DEFAULT_STOP_WORDS,
+  extensionTags: true,
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
@@ -65,6 +68,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     lowercase: bool("lowercase"),
     tagRule: bool("tagRule"),
     stopWords: typeof r.stopWords === "string" && r.stopWords.trim() ? r.stopWords : d.stopWords,
+    extensionTags: bool("extensionTags"),
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,

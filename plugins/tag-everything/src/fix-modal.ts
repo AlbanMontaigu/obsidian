@@ -32,7 +32,7 @@ export class TagFixModal extends Modal {
     const { contentEl } = this;
     this.modalEl.addClass("tag-everything-fix-modal");
     this.setTitle(`${PLUGIN_NAME}: check tag names`);
-    const counts = this.plugin.index.counts();
+    const counts = this.plugin.index.counts(undefined, true); // extension tags are not written anywhere: nothing to fix
     const issues = auditTags(counts, this.rule);
     contentEl.createDiv({
       cls: "tag-everything-where",

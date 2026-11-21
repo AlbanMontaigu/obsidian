@@ -49,7 +49,9 @@ tags:
 ---
 ```
 
-- **Reading** merges everything: a note's tags = name tags ∪ frontmatter tags ∪ sidecar tags (in that order).
+- **Reading** merges everything: a note's tags = name tags ∪ frontmatter tags ∪ sidecar tags (in that order). With
+  the setting *File extension as a tag*, the plugin adds the file's extension in front (`extensionTag`); it is
+  derived from the name and never written anywhere, so it is not part of the format.
   `tags` and the older `tag` key are read, as a list or a comma/space string, with or without `#`.
 - **Writing** (setting *Note tags in frontmatter*, on by default) goes through Obsidian (`processFrontMatter`): one
   `tags` list; every other property is kept, a kept item keeps its spelling (`"#beta"` stays), a `tag` key is folded

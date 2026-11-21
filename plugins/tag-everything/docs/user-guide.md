@@ -30,6 +30,10 @@ flowchart TD
 Tags are always **read from every place and merged**: a note's tags are the tags in its name, plus its frontmatter
 tags, plus its sidecar tags. A note named `budget[b27 inc].md` with `tags: [q3]` shows `b27 inc q3`. When you edit it,
 the name tags you keep stay in the name and new tags go to the frontmatter. Folder names are never read for tags.
+**Extension tags** (setting *File extension as a tag*, on by default): every file also carries its extension,
+lower-cased, as a tag (`pdf`, `docx`, `md`), shown first. It is read from the name and stored nowhere, so the tag
+editor doesn't show it, *Check tag names* ignores it, and the AI assistant guide explains it instead of listing it.
+A name with no plain extension (`README`, more than 10 characters, or not only letters and digits) has none.
 Other fields of a sidecar or `tsm.json` (id, description, colours…) and other note properties are kept.
 
 ## 2. Tag files and folders
@@ -144,6 +148,8 @@ Under the filter box: a tab **All** (every group and tag), then your own named t
   two tags can share one.
 - **Badges** show tags next to names in the file explorer, in the tag colours; clicking one opens the panel on that
   tag. More tags than the limit show as `+N` (hover it to read them).
+- The **extension tag** shows **before** the name (`pdf scan[tax].pdf`), outside the badge limit; Obsidian's own
+  grey extension label after the name is hidden on those rows. *Badges for: tags not in the name only* keeps it.
 
 ## 9. A guide for AI assistants (CLAUDE.md)
 
@@ -177,6 +183,7 @@ its parents) does not know how TagEverything stores tags. Give it a guide:
 | Liaison words | French + English list | Words never used as tags while the rule is on; empty the box to restore the list |
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along |
+| File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer |
 | Colour tags automatically | On | Section 8 |
 | Show tag badges / Badges for / Maximum badges per item | On / All tags / 4 | Explorer badges (Section 8); *Badges for* can hide tags already readable in the name |
 | Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |

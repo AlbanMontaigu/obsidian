@@ -68,7 +68,7 @@ export default class TagEverythingPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    this.index = new TagIndex(this.app);
+    this.index = new TagIndex(this.app, this.settings.extensionTags);
     this.index.autoColors = this.settings.autoColors;
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
@@ -153,6 +153,7 @@ export default class TagEverythingPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.index.autoColors = this.settings.autoColors;
+    this.index.setExtensionTags(this.settings.extensionTags);
     this.index.trigger("changed"); // panel and badges redraw with the new colours
   }
 
@@ -204,7 +205,7 @@ export default class TagEverythingPlugin extends Plugin {
     if (!mapping.size) return { items: 0, failed: 0 };
     const items: TAbstractFile[] = [];
     for (const path of this.index.paths()) {
-      if (!this.index.tagsOf(path).some((t) => mapping.has(t))) continue;
+      if (!this.index.ownTagsOf(path).some((t) => mapping.has(t))) continue;
       const item = this.app.vault.getAbstractFileByPath(path);
       if (item) items.push(item);
     }
@@ -244,7 +245,7 @@ export default class TagEverythingPlugin extends Plugin {
       }
       const prefix = folder.isRoot() ? "" : `${folder.path}/`;
       const under = this.index.paths().filter((p) => p === folder.path || p.startsWith(prefix));
-      const { storage, noteTagsInFrontmatter, tagRule, lowercase, stopWords } = this.settings;
+      const { storage, noteTagsInFrontmatter, tagRule, lowercase, stopWords, extensionTags } = this.settings;
       const text = claudeGuide({
         folder: folder.path,
         storage,
@@ -252,8 +253,10 @@ export default class TagEverythingPlugin extends Plugin {
         tagRule,
         lowercase,
         stopWords,
-        folderTags: this.index.counts(under),
-        vaultTags: this.index.counts(),
+        extensionTags,
+        // the tags written in the vault: extension tags are explained, not listed
+        folderTags: this.index.counts(under, true),
+        vaultTags: this.index.counts(undefined, true),
         date: new Date().toISOString().slice(0, 10),
       });
       await this.app.vault.create(path, text); // fails if the file appeared meanwhile: never overwrites

@@ -12,6 +12,7 @@ import {
   setNameTags,
   sidecarTags,
   splitExtension,
+  extensionTag,
   splitTagInput,
   parseTagInput,
   assertWritable,
@@ -35,6 +36,14 @@ test("splitExtension handles dotfiles, no extension and double extensions", () =
   assert.deepEqual(splitExtension("backup.tar.gz"), ["backup", ".tar.gz"]);
   assert.deepEqual(splitExtension(".gitignore"), [".gitignore", ""]);
   assert.deepEqual(splitExtension("README"), ["README", ""]);
+});
+
+test("extensionTag: the last extension, lower-cased; none when not a plain one", () => {
+  assert.equal(extensionTag("Scan[tax receipt].PDF"), "pdf");
+  assert.equal(extensionTag("report.md"), "md");
+  assert.equal(extensionTag("backup.tar.gz"), "gz");
+  assert.equal(extensionTag("photo.jpeg2000"), "jpeg2000");
+  for (const name of ["README", ".gitignore", "Mr. Smith", "a.", "x.code-workspace", "a.verylongextension"]) assert.equal(extensionTag(name), null, name);
 });
 
 test("setNameTags adds a group before the extension", () => {

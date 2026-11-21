@@ -19,6 +19,8 @@ export interface GuideInput {
   tagRule: boolean;
   lowercase: boolean;
   stopWords: string;
+  /** Each file's extension counts as a tag in Obsidian (read from the name, never written). */
+  extensionTags: boolean;
   /** Tag -> items, over the folder and everything under it (ignored at the vault root). */
   folderTags: ReadonlyMap<string, number>;
   /** Tag -> items, over the whole vault. */
@@ -75,6 +77,12 @@ export function claudeGuide(g: GuideInput): string {
     "An item's tags are **all** of these merged, wherever they are: the `[...]` group of its name, a note's frontmatter",
     "`tags` (or the older `tag`, a list or a comma / space string, `#` optional) and its sidecar",
     "`<folder>/.ts/<file name>.json` (`tags[].title`). Inline `#tags` in a note's text are **not** tags here.",
+    ...(g.extensionTags
+      ? [
+          "In Obsidian each file also carries its extension as a tag, lower-cased (`pdf`, `md`): it is read from the",
+          "name, so never write it as a tag; it is left out of the lists below.",
+        ]
+      : []),
     "",
     "- **Name tags**: the text between the first `[` and the first `]` after it, anywhere in the name, separated by",
     "  one space: `2024-07-18 - [imac] steerco.md` carries `imac`; `B27_Board[b27 inc].docx` carries `b27` and `inc`.",

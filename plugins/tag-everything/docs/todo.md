@@ -11,3 +11,7 @@ Offer an integration with claude code to help user to generate tags automaticall
 (showing by default any kind of file) that is proposing either the normal view (folder) with tags and follow the file  clicked in the other panel. Ten other mode full that navigator where folders as shown rather from tag perspective. At the root all tags, but then when click on it we see tags are together widh in the files.
 
 # Hide tag name in the file or folder name in explorer when tags badges are shown
+
+# Folder names as tag ?
+
+Inherit on the child files ?

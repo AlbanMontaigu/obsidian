@@ -152,6 +152,16 @@
   color: var(--text-muted);
 }
 
+/* the extension tag, before the file name; Obsidian's own extension label after the name is then redundant */
+.tag-everything-badge.tag-everything-ext {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.tag-everything-has-ext > .nav-file-tag {
+  display: none;
+}
+
 /* ---- sidebar panel */
 
 .tag-everything-view {

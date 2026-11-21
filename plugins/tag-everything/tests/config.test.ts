@@ -34,6 +34,9 @@ test("normalizeSettings: naming rule on by default, stop words repaired", () => 
   assert.equal(DEFAULT_SETTINGS.tagRule, true);
   assert.equal(normalizeSettings({ tagRule: false }).tagRule, false);
   assert.equal(normalizeSettings({ tagRule: "no" }).tagRule, true);
+  // extension tags: on by default (also for a data.json written before the setting existed), off kept
+  assert.equal(normalizeSettings({ tagRule: false }).extensionTags, true);
+  assert.equal(normalizeSettings({ extensionTags: false }).extensionTags, false);
   assert.equal(normalizeSettings({ stopWords: "foo bar" }).stopWords, "foo bar");
   assert.equal(normalizeSettings({ stopWords: "  " }).stopWords, DEFAULT_SETTINGS.stopWords);
   assert.equal(normalizeSettings({ stopWords: 3 }).stopWords, DEFAULT_SETTINGS.stopWords);

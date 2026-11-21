@@ -10,7 +10,8 @@ tags in the frontmatter `tags` property (Obsidian-native, setting `noteTagsInFro
 files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSON files; mostly compatible with
 TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
 tags (AND), with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
-and groups bookmarked in them; badges show tags in the explorer. *Write AI assistant guide* (folder menu, or a command
+and groups bookmarked in them; badges show tags in the explorer. Every file also carries its extension as a derived, never-written tag (`pdf`,
+`md`; setting `extensionTags`, on by default), shown before its name in the explorer. *Write AI assistant guide* (folder menu, or a command
 for the vault root) writes a `CLAUDE.md` telling an AI assistant how tags are stored and which exist; never over an
 existing one. A **tag naming rule** (on by default) makes every
 new tag one lower-case plain word, no liaison word; the command *Check tag names* audits the vault and fixes the tags
@@ -34,7 +35,9 @@ and `docs/user-guide.md` when users see it.
 ## Invariants (keep them)
 
 1. A file's tags = name tags ∪ frontmatter tags (`.md` only) ∪ sidecar tags, whatever the settings. A folder's
-   tags = `tsm.json` tags only.
+   tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
+   `tagsOf`: derived from the name, **never written**. What edits or lists stored tags (editor, `replaceTags`,
+   *Check tag names*, the guide's lists) uses `ownTagsOf` / `counts(paths, true)`.
 2. The format stays compatible with `docs/format.md`. Never write `tsi.json` / `tsl.json`.
 3. Never lose a tag: rename, then frontmatter, then sidecar. Kept tags never move between name and frontmatter; tags
    only move out of the sidecar, so a failure part-way can leave a tag in two places, never in neither.
@@ -49,8 +52,8 @@ and `docs/user-guide.md` when users see it.
 
 ## Tests
 
-- `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals, `parseTagInput`.
-- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule and liaison words included), message texts.
+- `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals, `parseTagInput`, `extensionTag`.
+- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`), message texts.
 - `tests/naming.test.ts`: the rule (accents, digits, nested), problems, fixes (compounds, elisions, acronyms, nested, no obvious fix), every fix follows the rule, liaison word list, editor input, audit, `replacePlan` (in place, no duplicate), `parseReplacement`, formula / group / tab follow-up.
 - `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic.
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
@@ -59,8 +62,11 @@ and `docs/user-guide.md` when users see it.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
 - `tests/guide.test.ts`: guide path and existing-guide detection (any case), tag lists (order, cap), content per
-  settings (storage, frontmatter, rule on / off, liaison words), no folder section at the root.
-- `tests/smoke.js` + `tests/fixtures/vault/`: ~150 in-app checks. Menus: the plugin's items in one *TagEverything* submenu (fake menus, and the real explorer menu, which proves the internal `setSubmenu` still exists); the editor title, a notice and the panel name start with the plugin's name. The first part runs the name / sidecar engine on
+  settings (storage, frontmatter, rule on / off, liaison words, extension tags explained or not), no folder section at the root.
+- `tests/smoke.js` + `tests/fixtures/vault/`: ~160 in-app checks. Extension tags are checked on by default, then
+  turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
+  tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
+  name of a revealed PDF row with Obsidian's label hidden, setting off removes them). Menus: the plugin's items in one *TagEverything* submenu (fake menus, and the real explorer menu, which proves the internal `setSubmenu` still exists); the editor title, a notice and the panel name start with the plugin's name. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); robustness (a sidecar edit and a folder rename during `rebuild()` are kept, two
@@ -107,7 +113,10 @@ Deliberate exceptions, each for a reason:
 
 - `.ts` changes made outside Obsidian need a rebuild (no watcher on dot-folders). A file-system watcher on the
   vault base path (desktop `fs.watch`) would fix it.
-- Badges rely on internal explorer markup.
+- Badges rely on internal explorer markup (the extension chip also on Obsidian's `.nav-file-tag` class, to hide it).
+- Extension tags: a name tag equal to the extension (`x[pdf].pdf`) is allowed (stored, shown once). With `md` on
+  every note, the index holds every file of the vault, so badges and the panel's search loop over all of them
+  (not measured on the owner's 9 500-file vault).
 - The owner's main vault has *Detect all file extensions* off, so PDFs and Office files are invisible to the plugin
   until they turn it on.
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.

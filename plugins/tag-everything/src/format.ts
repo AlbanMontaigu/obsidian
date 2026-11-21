@@ -75,6 +75,16 @@ export function parseNameTags(name: string): string[] {
   );
 }
 
+/**
+ * The extension tag of a file name, lower-cased: `Scan[tax].PDF` -> "pdf", `backup.tar.gz` -> "gz". Null when there
+ * is no plain extension (`README`, `.gitignore`, `Mr. Smith`): one to ten letters or digits after the last dot.
+ */
+export function extensionTag(name: string): string | null {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  return /^[\p{L}\p{N}]{1,10}$/u.test(ext) ? ext : null;
+}
+
 /** `report.tar.gz` -> ["report", ".tar.gz"]; `.gitignore` / `README` -> [name, ""]. */
 export function splitExtension(name: string): [string, string] {
   const lower = name.toLowerCase();

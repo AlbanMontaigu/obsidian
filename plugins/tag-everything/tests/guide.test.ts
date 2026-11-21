@@ -9,6 +9,7 @@ const base: GuideInput = {
   tagRule: true,
   lowercase: false,
   stopWords: "de, la  the",
+  extensionTags: true,
   folderTags: new Map([["b27", 4], ["inc", 1]]),
   vaultTags: new Map([["tax", 2], ["b27", 9], ["alpha", 2]]),
   date: "2026-11-21",
@@ -39,6 +40,7 @@ test("claudeGuide: folder and vault tags, date, settings as they are", () => {
   assert.match(g, /Liaison words:\n  de la the\./);
   assert.match(g, /Rename `report\.pdf` → `report\[tax receipt\]\.pdf`/);
   assert.match(g, /does \*\*not\*\* update links/);
+  assert.match(g, /carries its extension as a tag[^\n]*\n[^\n]*never write it as a tag/);
 });
 
 test("claudeGuide: vault root has no folder section", () => {
@@ -56,4 +58,5 @@ test("claudeGuide: sidecar storage, notes like other files, rule off", () => {
   assert.doesNotMatch(g, /Rename `report\.pdf`/);
   assert.doesNotMatch(g, /Naming rule/);
   assert.match(g, /No naming rule is enforced, but new tags are lower-case/);
+  assert.doesNotMatch(claudeGuide({ ...base, extensionTags: false }), /extension as a tag/);
 });

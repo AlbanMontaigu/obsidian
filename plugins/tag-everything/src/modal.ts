@@ -61,7 +61,8 @@ export class TagEditorModal extends Modal {
     private rule: NamingRule | null = null,
   ) {
     super(app);
-    for (const item of items) for (const t of index.tagsOf(item.path)) this.initial.set(t, (this.initial.get(t) ?? 0) + 1);
+    // Extension tags are read from the name: not shown, so they can't be removed.
+    for (const item of items) for (const t of index.ownTagsOf(item.path)) this.initial.set(t, (this.initial.get(t) ?? 0) + 1);
     this.chips = [...this.initial].map(([tag, count]) => ({ tag, count }));
   }
 
@@ -212,7 +213,7 @@ export class TagEditorModal extends Modal {
     const item = this.items[0];
     if (!this.previewEl || !(item instanceof TFile)) return;
     const { added, removed } = this.edit();
-    const desired = ts.mergeEdit(this.index.tagsOf(item.path), added, removed);
+    const desired = ts.mergeEdit(this.index.ownTagsOf(item.path), added, removed);
     const entry = this.index.get(item.path);
     const plan = ts.planTags(
       { nameTags: ts.parseNameTags(item.name), sideTags: entry.side, frontTags: entry.front },

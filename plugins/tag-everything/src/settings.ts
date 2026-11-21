@@ -71,6 +71,12 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         control: { type: "toggle", key: "followRenames" },
       },
       {
+        name: "File extension as a tag",
+        desc: "Every file also carries its extension (pdf, md…) as a tag, shown before its name in the file explorer. Read from the name, never written.",
+        aliases: ["extension", "file type"],
+        control: { type: "toggle", key: "extensionTags" },
+      },
+      {
         name: "Colour tags automatically",
         desc: "Each tag gets a theme colour picked from its name; a colour stored in a .ts sidecar wins.",
         aliases: ["color"],
