@@ -1,19 +1,56 @@
-import { Menu, Notice, Plugin, TAbstractFile, TFile, TFolder, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
+import { Menu, MenuItem, Notice, Plugin, TAbstractFile, TFile, TFolder, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
 import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
-import { failureMessage, plural, progressMessage } from "./messages.ts";
+import { PLUGIN_NAME, failureMessage, plural, progressMessage } from "./messages.ts";
 import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts";
 import { TagFixModal } from "./fix-modal.ts";
 import { replaceTagsInGroups } from "./groups.ts";
 import { replaceTagsInTabs } from "./tabs.ts";
+import { claudeGuide, guidePath, hasGuide } from "./guide.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
 type Planner = (state: ts.TagState, target: ts.TagTarget) => ts.TagPlan;
+
+/** One entry of the plugin's context submenu. */
+interface MenuEntry {
+  title: string;
+  icon: string;
+  run: () => void;
+}
+
+/** `MenuItem.setSubmenu()`: in the app, not in the typed API (docs/obsidian-api.md, internal APIs). */
+interface SubmenuItem {
+  setSubmenu?: () => Menu;
+}
+
+/**
+ * Adds the plugin's entries to a context menu under one "TagEverything" item, so the user sees where they come
+ * from. Without submenus (internal API gone), they are added flat, each prefixed with the plugin's name.
+ */
+function addPluginMenu(menu: Menu, entries: readonly MenuEntry[]): void {
+  if (!entries.length) return;
+  let sub: Menu | undefined;
+  menu.addItem((item) => {
+    try {
+      sub = (item as unknown as SubmenuItem).setSubmenu?.();
+    } catch (err) {
+      console.warn("[tag-everything] context submenu unavailable", err);
+    }
+    if (sub) item.setTitle(PLUGIN_NAME).setIcon("tags").setSection("action");
+    else flatItem(item, entries[0]);
+  });
+  if (sub) for (const e of entries) sub.addItem((i) => i.setTitle(e.title).setIcon(e.icon).onClick(e.run));
+  else for (const e of entries.slice(1)) menu.addItem((i) => flatItem(i, e));
+}
+
+function flatItem(item: MenuItem, e: MenuEntry): void {
+  item.setTitle(`${PLUGIN_NAME}: ${e.title}`).setIcon(e.icon).setSection("action").onClick(e.run);
+}
 
 /** Every file and folder can be tagged, except the vault root. */
 const taggable = (f: TAbstractFile): boolean => !(f instanceof TFolder && f.isRoot());
@@ -38,11 +75,12 @@ export default class TagEverythingPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE, (leaf) => new TagEverythingView(leaf, this));
     // Ctrl/Cmd + hover on a result of the panel shows Obsidian's page preview.
-    this.registerHoverLinkSource(VIEW_TYPE, { display: "File tags", defaultMod: true });
+    this.registerHoverLinkSource(VIEW_TYPE, { display: PLUGIN_NAME, defaultMod: true });
     this.addSettingTab(new TagEverythingSettingTab(this.app, this));
-    this.addRibbonIcon("tags", "Open file tags panel", () => void this.openView());
+    this.addRibbonIcon("tags", `${PLUGIN_NAME}: open the tags panel`, () => void this.openView());
 
-    this.addCommand({ id: "open-panel", name: "Open file tags panel", callback: () => void this.openView() });
+    // Obsidian shows commands as "TagEverything: <name>", so the names don't repeat it.
+    this.addCommand({ id: "open-panel", name: "Open the tags panel", callback: () => void this.openView() });
     this.addCommand({
       id: "edit-active-file-tags",
       name: "Edit tags of the current file",
@@ -63,30 +101,24 @@ export default class TagEverythingPlugin extends Plugin {
       name: "Re-read all tags (after editing them outside Obsidian)",
       callback: () => void this.reindex(),
     });
+    this.addCommand({
+      id: "write-guide-root",
+      name: "Write AI assistant guide in the vault root",
+      callback: () => void this.writeGuide(this.app.vault.getRoot()),
+    });
 
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
-        if (!taggable(file)) return;
-        menu.addItem((item) =>
-          item
-            .setTitle("Edit tags")
-            .setIcon("tags")
-            .setSection("action")
-            .onClick(() => this.editTags([file])),
-        );
+        const entries: MenuEntry[] = [];
+        if (taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
+        if (file instanceof TFolder) entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void this.writeGuide(file) });
+        addPluginMenu(menu, entries);
       }),
     );
     this.registerEvent(
       this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => {
         const items = files.filter(taggable);
-        if (!items.length) return;
-        menu.addItem((item) =>
-          item
-            .setTitle(`Edit tags of ${items.length} items`)
-            .setIcon("tags")
-            .setSection("action")
-            .onClick(() => this.editTags(items)),
-        );
+        if (items.length) addPluginMenu(menu, [{ title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) }]);
       }),
     );
 
@@ -113,7 +145,7 @@ export default class TagEverythingPlugin extends Plugin {
       raw = await this.loadData();
     } catch (err) {
       console.error("[tag-everything] settings unreadable, using the defaults", err);
-      new Notice("File tags: the settings file (data.json) could not be read; default settings are used.", 10000);
+      new Notice("TagEverything: the settings file (data.json) could not be read; default settings are used.", 10000);
     }
     this.settings = normalizeSettings(raw ?? DEFAULT_SETTINGS); // wrong types and ranges repaired, never throws
   }
@@ -150,7 +182,7 @@ export default class TagEverythingPlugin extends Plugin {
   /** Re-reads every tag (sidecars, names, frontmatter) and says how many items carry one. */
   async reindex(): Promise<void> {
     await this.index.rebuild();
-    new Notice(`File tags: ${plural(this.index.size, "tagged item")}`);
+    new Notice(`TagEverything: ${plural(this.index.size, "tagged item")}`);
   }
 
   /**
@@ -199,6 +231,41 @@ export default class TagEverythingPlugin extends Plugin {
     return { items: items.length, failed };
   }
 
+  /**
+   * Writes the AI assistant guide (`CLAUDE.md`, src/guide.ts) into `folder`, with the tags used under it and in the
+   * vault. An existing guide is never overwritten: it is skipped. Resolves to the path written, or null.
+   */
+  async writeGuide(folder: TFolder): Promise<string | null> {
+    const path = guidePath(folder.path);
+    try {
+      if (hasGuide(folder.children.map((c) => c.name)) || (await this.app.vault.adapter.exists(path))) {
+        new Notice(`TagEverything: ${path} already exists; left untouched.`);
+        return null;
+      }
+      const prefix = folder.isRoot() ? "" : `${folder.path}/`;
+      const under = this.index.paths().filter((p) => p === folder.path || p.startsWith(prefix));
+      const { storage, noteTagsInFrontmatter, tagRule, lowercase, stopWords } = this.settings;
+      const text = claudeGuide({
+        folder: folder.path,
+        storage,
+        noteTagsInFrontmatter,
+        tagRule,
+        lowercase,
+        stopWords,
+        folderTags: this.index.counts(under),
+        vaultTags: this.index.counts(),
+        date: new Date().toISOString().slice(0, 10),
+      });
+      await this.app.vault.create(path, text); // fails if the file appeared meanwhile: never overwrites
+      new Notice(`TagEverything: AI assistant guide written to ${path}`);
+      return path;
+    } catch (err) {
+      console.error(`[tag-everything] writing the guide failed  path=${path}`, err);
+      new Notice(`TagEverything: ${path} could not be written (${(err as Error).message}).`);
+      return null;
+    }
+  }
+
   async openView(): Promise<TagEverythingView | null> {
     const { workspace } = this.app;
     try {
@@ -213,7 +280,7 @@ export default class TagEverythingPlugin extends Plugin {
       return leaf.view instanceof TagEverythingView ? leaf.view : null;
     } catch (err) {
       console.error("[tag-everything] opening the panel failed", err);
-      new Notice("File tags: the panel could not be opened.");
+      new Notice("TagEverything: the panel could not be opened.");
       return null;
     }
   }
@@ -235,7 +302,7 @@ export default class TagEverythingPlugin extends Plugin {
     const rule = this.rule;
     const broken = rule ? edit.added.map((t) => ruleMessage(t, rule)).filter((m): m is string => !!m) : [];
     if (broken.length) {
-      new Notice(["Tags not changed: tags are lower-case single words.", ...broken.slice(0, 5)].join("\n"), 10000);
+      new Notice([`${PLUGIN_NAME}: tags not changed: tags are lower-case single words.`, ...broken.slice(0, 5)].join("\n"), 10000);
       return Promise.resolve();
     }
     const run = this.enqueue(items, (state, target) => {
@@ -282,7 +349,7 @@ export default class TagEverythingPlugin extends Plugin {
     if (failures.length) {
       new Notice(failureMessage(failures, items.length), 10000);
     } else if (items.length > 1) {
-      new Notice(`Tags updated on ${changed} of ${describe(items)}`);
+      new Notice(`${PLUGIN_NAME}: tags updated on ${changed} of ${describe(items)}`);
     }
     return failures.length;
   }

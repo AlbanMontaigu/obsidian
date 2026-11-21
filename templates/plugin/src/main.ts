@@ -16,7 +16,7 @@ export default class __CLASS__ extends Plugin {
     this.addCommand({
       id: "say-hello",
       name: "Say hello",
-      callback: () => new Notice(greeting(this.settings.name)),
+      callback: () => new Notice(`__NAME__: ${greeting(this.settings.name)}`), // notices name the plugin
     });
   }
 

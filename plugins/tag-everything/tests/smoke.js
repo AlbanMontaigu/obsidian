@@ -22,15 +22,28 @@ check("note tags go to frontmatter by default", plugin.settings.noteTagsInFrontm
 plugin.settings.noteTagsInFrontmatter = false;
 
 // ---- context menus: single item and multi-selection
-const single = fakeMenu();
-app.workspace.trigger("file-menu", single, file("report.md"), "file-explorer");
-check("file-menu has Edit tags", single.titles().includes("Edit tags"), single.titles().join(" | "));
-const multi = fakeMenu();
-app.workspace.trigger("files-menu", multi, [file("report.md"), file("Docs")], "file-explorer");
-check("files-menu has bulk edit", multi.titles().includes("Edit tags of 2 items"), multi.titles().join(" | "));
+// Every item of the plugin sits in one "TagEverything" submenu, so the user sees where it comes from.
+const fileMenu = fakeMenu();
+app.workspace.trigger("file-menu", fileMenu, file("report.md"), "file-explorer");
+const single = fileMenu.sub("TagEverything");
+check("file-menu: one TagEverything submenu, nothing else", fileMenu.titles().filter((t) => /tag|guide/i.test(t)).join() === "TagEverything", fileMenu.titles().join(" | "));
+check("file-menu: Edit tags in the submenu, no guide for a file", single?.titles().join() === "Edit tags", single?.titles().join(" | "));
+// The submenu is an internal API (MenuItem.setSubmenu): in the real explorer menu, the plugin's entry must be the
+// "TagEverything" submenu, not the flat fallback ("TagEverything: Edit tags").
+const explorerItem = app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.["report.md"]?.selfEl;
+explorerItem?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }));
+await sleep(300);
+const realTitles = [...document.querySelectorAll(".menu .menu-item-title")].map((t) => t.textContent);
+check("file-menu: the real menu has the TagEverything submenu", realTitles.includes("TagEverything") && !realTitles.some((t) => t.startsWith("TagEverything:")), realTitles.join(" | "));
+document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+document.querySelectorAll(".menu").forEach((m) => m.remove());
+const multiMenu = fakeMenu();
+app.workspace.trigger("files-menu", multiMenu, [file("report.md"), file("Docs")], "file-explorer");
+check("files-menu has bulk edit in the submenu", multiMenu.sub("TagEverything")?.titles().join() === "Edit tags of 2 items", multiMenu.titles().join(" | "));
 single.click("Edit tags");
 await sleep(300);
 check("menu item opens the editor", !!document.querySelector(".tag-everything-modal"));
+check("editor title names the plugin", document.querySelector(".tag-everything-modal .modal-title")?.textContent === "TagEverything: report.md", document.querySelector(".tag-everything-modal .modal-title")?.textContent);
 document.querySelector(".tag-everything-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click(); // 1.15 calls the close button .modal-header-button
 await sleep(200);
 check("editor closes", !document.querySelector(".tag-everything-modal"));
@@ -610,6 +623,29 @@ check("fix: checking again lists only what was left", left.join() === "plan_de_c
 fx2.close();
 await plugin.applyTags([file("report.md")], { added: [], removed: ["plan_de_charge"] });
 check("command: Check tag names registered", !!app.commands.commands["tag-everything:check-tag-names"]);
+
+// ---- AI assistant guide: CLAUDE.md written from a folder's menu or at the root, an existing one never overwritten
+const folderMenu = fakeMenu();
+app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
+const guideMenu = folderMenu.sub("TagEverything");
+check("guide: folder submenu has Edit tags and the guide", guideMenu?.titles().join() === "Edit tags,Write AI assistant guide", guideMenu?.titles().join(" | "));
+guideMenu.click("Write AI assistant guide");
+await waitFor(() => !!file("Projects/CLAUDE.md"));
+const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
+check("guide: written with the folder's tags", /## Tags used in `Projects`[^\n]*\n\n[^\n]*`client` 1/.test(guideText) && guideText.includes("## Most used tags in the vault"), guideText.slice(-300));
+await vault.modify(file("Projects/CLAUDE.md"), "mine");
+document.querySelectorAll(".notice").forEach((n) => n.remove());
+check("guide: an existing guide is skipped", (await plugin.writeGuide(file("Projects"))) === null && (await vault.read(file("Projects/CLAUDE.md"))) === "mine");
+check("branding: notices start with TagEverything:", [...document.querySelectorAll(".notice")].some((n) => n.textContent.startsWith("TagEverything: Projects/CLAUDE.md already exists")));
+check("branding: the panel is named TagEverything", app.workspace.getLeavesOfType("tag-everything-view")[0]?.view.getDisplayText() === "TagEverything");
+await vault.create("Docs/claude.md", "lower-case");
+check("guide: skipped whatever the case of the name", (await plugin.writeGuide(file("Docs"))) === null && !file("Docs/CLAUDE.md"));
+check("command: guide at the root registered", !!app.commands.commands["tag-everything:write-guide-root"]);
+app.commands.executeCommandById("tag-everything:write-guide-root");
+await waitFor(() => !!file("CLAUDE.md"));
+const rootGuide = file("CLAUDE.md") ? await vault.read(file("CLAUDE.md")) : "";
+check("guide: root guide has no folder section", rootGuide.startsWith("# Tags in this vault") && !rootGuide.includes("## Tags used in"), rootGuide.slice(0, 80));
+for (const p of ["Projects/CLAUDE.md", "Docs/claude.md", "CLAUDE.md"]) if (file(p)) await vault.delete(file(p));
 
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.
 document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above

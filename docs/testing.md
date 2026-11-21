@@ -62,7 +62,7 @@ The file body runs inside an `async` function in the Obsidian window. In scope:
 | `check(name, condition, detail?)` | Records one result; `detail` is printed (handy for debugging values) |
 | `sleep(ms)` | Wait for debounced UI, renames, link updates (300 to 800 ms is usually enough) |
 | `expectError(regex)` | Declares a console error your test provokes on purpose so it does not fail the run |
-| `fakeMenu()` | Stand-in for `Menu`: pass it to `file-menu` / `files-menu` / `editor-menu` handlers, then `.titles()` and `.click(title)` |
+| `fakeMenu()` | Stand-in for `Menu`: pass it to `file-menu` / `files-menu` / `editor-menu` handlers, then `.titles()`, `.click(title)` and `.sub(title)` (the submenu an item opened with `setSubmenu`, itself a fake menu) |
 | `Notice`, `requestUrl`, `moment` | The only Obsidian exports that are globals in the page |
 
 It is plain JavaScript (not TypeScript, not bundled). A thrown error is reported as a failed check.
@@ -84,8 +84,8 @@ Menus: trigger the event with `fakeMenu()`, then inspect or click its items:
 ```js
 const menu = fakeMenu();
 app.workspace.trigger("file-menu", menu, app.vault.getAbstractFileByPath("note.md"), "file-explorer");
-check("menu item", menu.titles().includes("Edit tags"), menu.titles().join(" | "));
-menu.click("Edit tags");                        // runs the item's onClick
+check("menu item", menu.sub("TagEverything")?.titles().includes("Edit tags"), menu.titles().join(" | "));
+menu.sub("TagEverything").click("Edit tags");  // a plugin's items sit in its submenu; click runs onClick
 ```
 
 - Make public (no `private`) any plugin member the smoke test needs (e.g. `badges`, `index`).

@@ -1,4 +1,4 @@
-// Bookmark tabs of the File tags panel: pure logic, no `obsidian` import (unit-tested under node --test).
+// Bookmark tabs of the TagEverything panel: pure logic, no `obsidian` import (unit-tested under node --test).
 // The panel's first tab, "All", shows every group and tag; each bookmark tab, named by the user, shows only the tags
 // and groups bookmarked in it. Tabs live in data.json (settings.tabs). Every function returns a new array.
 

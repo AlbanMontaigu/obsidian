@@ -1,6 +1,6 @@
 import { App, ButtonComponent, Modal, Notice, Setting } from "obsidian";
 import { type NamingRule, type TagIssue, auditTags, parseReplacement } from "./naming.ts";
-import { plural } from "./messages.ts";
+import { PLUGIN_NAME, plural } from "./messages.ts";
 import { paintTag } from "./ui.ts";
 import type TagEverythingPlugin from "./main.ts";
 
@@ -31,7 +31,7 @@ export class TagFixModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     this.modalEl.addClass("tag-everything-fix-modal");
-    this.setTitle("Check tag names");
+    this.setTitle(`${PLUGIN_NAME}: check tag names`);
     const counts = this.plugin.index.counts();
     const issues = auditTags(counts, this.rule);
     contentEl.createDiv({
@@ -128,10 +128,10 @@ export class TagFixModal extends Modal {
     try {
       const { items, failed } = await this.plugin.replaceTags(mapping);
       // Failures already have their own notice (one line per item).
-      if (!failed) new Notice(`File tags: ${plural(mapping.size, "tag")} fixed on ${plural(items, "item")}.`);
+      if (!failed) new Notice(`TagEverything: ${plural(mapping.size, "tag")} fixed on ${plural(items, "item")}.`);
     } catch (err) {
       console.error("[tag-everything] fixing tag names failed", err);
-      new Notice("File tags: fixing the tag names failed; details in the developer console.");
+      new Notice("TagEverything: fixing the tag names failed; details in the developer console.");
     }
   }
 }

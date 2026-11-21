@@ -1,4 +1,4 @@
-// Small dialogs of the File tags panel: a name (group, bookmark tab) and a group's search formula.
+// Small dialogs of the TagEverything panel: a name (group, bookmark tab) and a group's search formula.
 
 import { AbstractInputSuggest, App, Modal } from "obsidian";
 import * as fx from "./formula.ts";

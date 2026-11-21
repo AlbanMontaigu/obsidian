@@ -12,7 +12,7 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
   return file.extension === "md" && settings.noteTagsInFrontmatter ? "frontmatter" : settings.storage;
 }
 
-/** Settings edited in the File tags panel, never by a control of this tab. */
+/** Settings edited in the TagEverything panel, never by a control of this tab. */
 const PANEL_KEYS: readonly string[] = ["groups", "tabs"];
 type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs">;
 
@@ -101,7 +101,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
           },
           {
             name: "PDFs, Office files and other non-note files are hidden in the file explorer",
-            desc: "Turn on Files and links → Detect all file extensions to right-click them there; the File tags panel already edits them.",
+            desc: "Turn on Files and links → Detect all file extensions to right-click them there; the TagEverything panel already edits them.",
             searchable: false,
             visible: () => this.detectAllExtensions() === false,
           },

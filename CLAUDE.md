@@ -12,7 +12,7 @@ and git-ignored.
 
 | Plugin | What it is | Spec |
 |---|---|---|
-| `tag-everything` | **TagEverything**: tag any file or folder from the file explorer; notes in their frontmatter, other files in the file name (`report[tax receipt].pdf`) or in `.ts` sidecars; tag panel, explorer badges | `plugins/tag-everything/CLAUDE.md` |
+| `tag-everything` | **TagEverything**: tag any file or folder from the file explorer; notes in their frontmatter, other files in the file name (`report[tax receipt].pdf`) or in `.ts` sidecars; tag panel, explorer badges, a `CLAUDE.md` guide for AI assistants | `plugins/tag-everything/CLAUDE.md` |
 
 ## You can work autonomously here
 
@@ -93,6 +93,10 @@ end, full run only for a minor/major version, on request or when long overdue; e
   tell the user with a `Notice`.
 - **Register everything** (`registerEvent`, `registerDomEvent`, `register(() => cleanup)`, `addCommand`) so disabling
   the plugin leaves nothing behind.
+- **Say it is the plugin**: whatever a plugin adds to Obsidian's own UI names it. Its context-menu items go in one
+  submenu named after the plugin (`tag-everything` `addPluginMenu`: *TagEverything → Edit tags*), notices start with
+  `<Name>: `, views and dialogs carry the name in their title. Commands need nothing: Obsidian shows
+  *<Name>: <command>*, so command names don't repeat it.
 - **Names**: no third-party brand in a plugin id, name, UI string or manifest. Mentioning compatibility with
   another app in docs is fine.
 - **Docs**: Mermaid only for diagrams; one fact in one place (link, don't copy); docs change in the same commit as

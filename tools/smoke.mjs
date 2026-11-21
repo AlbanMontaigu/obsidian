@@ -181,12 +181,13 @@ try {
         const chain = (rec) => new Proxy({}, { get: (_t, key) => (...a) => {
           if (key === "setTitle") rec.title = String(a[0]);
           if (key === "onClick") rec.onClick = a[0];
-          if (key === "setSubmenu") return fakeMenu();
+          if (key === "setSubmenu") return (rec.submenu = fakeMenu());
           return chain(rec);
         } });
         const menu = new Proxy({ items }, { get: (t, key) => {
           if (key === "items") return items;
           if (key === "titles") return () => items.map((i) => i.title);
+          if (key === "sub") return (title) => items.find((i) => i.title === title)?.submenu;
           if (key === "click") return (title) => items.find((i) => i.title === title)?.onClick?.(new MouseEvent("click"));
           if (key === "addItem") return (cb) => { const rec = {}; items.push(rec); cb(chain(rec)); return menu; };
           return () => menu;

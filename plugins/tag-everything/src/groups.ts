@@ -1,4 +1,4 @@
-// Tag groups of the File tags panel: pure logic, no `obsidian` import (unit-tested under node --test).
+// Tag groups of the TagEverything panel: pure logic, no `obsidian` import (unit-tested under node --test).
 // Groups live in the plugin's data.json (settings.groups). Every function returns a new array and never mutates.
 // A group without a formula searches for all its tags (AND); with one, its tags are exactly the formula's tags.
 

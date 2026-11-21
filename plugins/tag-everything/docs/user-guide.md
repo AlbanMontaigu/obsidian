@@ -34,8 +34,8 @@ Other fields of a sidecar or `tsm.json` (id, description, colours…) and other 
 
 ## 2. Tag files and folders
 
-- **Right-click → Edit tags** on a file or folder; on a multi-selection, **Edit tags of N items**; or the command
-  *Edit tags of the current file*.
+- **Right-click → TagEverything → Edit tags** on a file or folder; on a multi-selection, **TagEverything → Edit
+  tags of N items**; or the command *Edit tags of the current file*.
 - Type a tag and press **Enter**, space or comma. Suggestions come from every tag of the vault, most used first.
 - With several items, a tag only some of them carry shows as `3/5`: leave it (those items keep it), click it to give
   it to all, or remove it from all.
@@ -75,9 +75,9 @@ Command *Check tag names (naming rule) and fix them*, or *Settings → Tag maint
 Run it again to see what is left. A nested tag whose parent level holds several words (`my-proj/alpha`) has no
 automatic fix: type one.
 
-## 5. The File tags panel
+## 5. The TagEverything panel
 
-Open it with the ribbon `tags` icon or the command *Open file tags panel*.
+Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 
 - Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size).
 - **Click tags** to list the files and folders carrying all of them (AND).
@@ -145,14 +145,29 @@ Under the filter box: a tab **All** (every group and tag), then your own named t
 - **Badges** show tags next to names in the file explorer, in the tag colours; clicking one opens the panel on that
   tag. More tags than the limit show as `+N` (hover it to read them).
 
-## 9. Commands and settings
+## 9. A guide for AI assistants (CLAUDE.md)
+
+An AI coding assistant working in your vault (Claude Code reads `CLAUDE.md` from the folder it starts in and from
+its parents) does not know how TagEverything stores tags. Give it a guide:
+
+- **Right-click a folder → TagEverything → Write AI assistant guide**, or the command *Write AI assistant guide in the vault root*.
+- It writes `CLAUDE.md` in that folder: where tags live with your current settings, how to read them, the naming rule
+  and its liaison words, how to add a tag without breaking anything (sidecar moved along on a rename, links to fix,
+  `.ts` files to keep), the tags used in that folder and the most used tags of the vault, so the assistant reuses them.
+- A `CLAUDE.md` already there (any case) is **never overwritten**: it is skipped with a notice. To refresh a guide
+  (new tags, changed settings), delete it and write it again.
+- One guide at the vault root covers every folder; add one in a folder when you want the assistant to see the tags of
+  that folder in particular.
+
+## 10. Commands and settings
 
 | Command | What it does |
 |---|---|
 | Edit tags of the current file | Opens the tag editor on the active file |
-| Open file tags panel | Shows the panel in the right sidebar |
+| Open the tags panel | Shows the panel in the right sidebar |
 | Check tag names (naming rule) and fix them | Section 4 |
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
+| Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -166,9 +181,13 @@ Under the filter box: a tab **All** (every group and tag), then your own named t
 | Show tag badges / Badges for / Maximum badges per item | On / All tags / 4 | Explorer badges (Section 8); *Badges for* can hide tags already readable in the name |
 | Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |
 
+Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
+read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel and dialogs
+are titled *TagEverything*.
+
 The settings also show up in Obsidian's settings search (e.g. type "badges" or "sidecar").
 
-## 10. Limits and troubleshooting
+## 11. Limits and troubleshooting
 
 - **PDFs and Office files don't show up**: turn on *Settings → Files and links → Detect all file extensions*. Only
   files Obsidian has loaded can be tagged. Folders in *Excluded files* are still loaded (that setting only hides them

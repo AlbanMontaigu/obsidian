@@ -5,12 +5,14 @@ reference) before changing code. Users' view: `docs/user-guide.md`. Storage form
 
 ## What it does
 
-Tag any file or folder of a vault from the file explorer (right-click, multi-selection, command). Markdown notes:
+Tag any file or folder of a vault from the file explorer (right-click → *TagEverything* submenu, multi-selection, command). Markdown notes:
 tags in the frontmatter `tags` property (Obsidian-native, setting `noteTagsInFrontmatter`, on by default). Other
 files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSON files; mostly compatible with
 TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
 tags (AND), with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
-and groups bookmarked in them; badges show tags in the explorer. A **tag naming rule** (on by default) makes every
+and groups bookmarked in them; badges show tags in the explorer. *Write AI assistant guide* (folder menu, or a command
+for the vault root) writes a `CLAUDE.md` telling an AI assistant how tags are stored and which exist; never over an
+existing one. A **tag naming rule** (on by default) makes every
 new tag one lower-case plain word, no liaison word; the command *Check tag names* audits the vault and fixes the tags
 that break it, where they are.
 
@@ -18,11 +20,12 @@ that break it, where they are.
 
 | Change | Start in | Also update |
 |---|---|---|
-| How tags are parsed / written in names, sidecars, frontmatter | `format.ts` (pure) | `docs/format.md`; run `tools/check-vault.ts` |
+| How tags are parsed / written in names, sidecars, frontmatter | `format.ts` (pure) | `docs/format.md`; the AI assistant guide text (`guide.ts`), which restates the format for vaults; run `tools/check-vault.ts` |
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
 | Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts`, `dialogs.ts` | user guide §5-7 |
-| A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §9 |
+| A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §10 |
+| The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -55,7 +58,9 @@ and `docs/user-guide.md` when users see it.
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
-- `tests/smoke.js` + `tests/fixtures/vault/`: ~140 in-app checks. The first part runs the name / sidecar engine on
+- `tests/guide.test.ts`: guide path and existing-guide detection (any case), tag lists (order, cap), content per
+  settings (storage, frontmatter, rule on / off, liaison words), no folder section at the root.
+- `tests/smoke.js` + `tests/fixtures/vault/`: ~150 in-app checks. Menus: the plugin's items in one *TagEverything* submenu (fake menus, and the real explorer menu, which proves the internal `setSubmenu` still exists); the editor title, a notice and the panel name start with the plugin's name. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); robustness (a sidecar edit and a folder rename during `rebuild()` are kept, two
@@ -72,7 +77,7 @@ and `docs/user-guide.md` when users see it.
   (`Tax-Receipt` in a PDF name, `plan_de_charge` / `de` in a frontmatter) plus the fixture's `B27 INC IMAC` are listed
   with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, frontmatter tag dropped, unticked one kept,
-  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**). It ends on the panel, in the bookmark tab "Work", with a formula
+  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after). It ends on the panel, in the bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
 - `tools/check-vault.ts "<vault>"`: **read-only**, folder listings only (no file content, so OneDrive
@@ -114,6 +119,9 @@ Deliberate exceptions, each for a reason:
 - Deleting a file in Obsidian leaves its `.ts` sidecar (orphan, ignored by the scan); a file created later with the
   same name would pick its tags up at the next rebuild. Not deleted on purpose (never delete metadata unasked).
 - The panel re-renders on every index change even when hidden (cheap: counts are cached and the search runs once per render).
+- The AI assistant guide is a snapshot (tag lists, settings) and is never overwritten, so it goes stale: the owner
+  deletes and rewrites it. A refresh that rewrites only a marked section of an existing `CLAUDE.md` would fix it, but
+  touches a file the owner may have edited (not done: never overwrite).
 - Ideas: rename / merge a tag everywhere (the engine exists: `plugin.replaceTags(new Map([[old, [new]]]))`; only a
   UI is missing, e.g. a tag menu item *Rename tag…*); colours editable in settings; tag search in the quick
   switcher; a command to move a note's name tags into its frontmatter (renames the note, so opt-in).

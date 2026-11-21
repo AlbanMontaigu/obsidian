@@ -68,5 +68,5 @@ Run through it on every change, and once in a while over a whole plugin (see `do
 4. Size: a file over ~500 lines, or a function you can't summarize in one sentence?
 5. Purity: logic that could be pure and tested, but sits in a module importing `obsidian`?
 6. Comments: missing *why*, or comments that repeat the code?
-7. Conventions from `CLAUDE.md`: `register*` for everything, `instanceof` checks, theme variables, `[<id>]` logs.
+7. Conventions from `CLAUDE.md`: UI says it is the plugin (submenu, `<Name>: ` notices), `register*` for everything, `instanceof` checks, theme variables, `[<id>]` logs.
 8. Docs: does `docs/` (user guide, architecture, format) still describe the code? See `docs/README.md`.

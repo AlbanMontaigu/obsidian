@@ -9,14 +9,16 @@ TagSpaces.
 
 ## What you can do
 
-- **Edit tags** of a file, a folder or a multi-selection (right-click), with autocomplete and a preview of the new
+- **Edit tags** of a file, a folder or a multi-selection (right-click → **TagEverything**), with autocomplete and a preview of the new
   file name. Renames go through Obsidian, so links in notes are updated.
 - Keep tags tidy with the **naming rule** (one lower-case word per tag, no liaison word), and fix the whole vault with
   **Check tag names**.
-- Search in the **File tags panel**: click tags (AND), exclude some (NOT), open, preview or drag the results.
+- Search in the **TagEverything panel**: click tags (AND), exclude some (NOT), open, preview or drag the results.
 - Save searches as **tag groups**, with **formulas** (`(b27 OR inc) AND NOT draft`), and sort them into **bookmark
   tabs**.
 - See tags as coloured **badges** in the file explorer.
+- Write a **guide for AI assistants** (`CLAUDE.md`) into a folder, so an assistant working in the vault tags files the
+  way TagEverything reads them and reuses your tags.
 
 ## Install
 
@@ -35,7 +37,7 @@ Office files, turn on **Settings → Files and links → Detect all file extensi
 
 ```powershell
 npm test -- tag-everything                      # unit tests of the pure modules
-npm run smoke -- tag-everything                 # ~140 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # ~150 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -59,13 +61,14 @@ src/config.ts      settings: shape, defaults, loading a damaged data.json (pure,
 src/cloud.ts       tag cloud sizing by use (pure, tested)
 src/colors.ts      automatic tag colours (pure, tested)
 src/messages.ts    notice texts (pure, tested)
+src/guide.ts       the AI assistant guide (CLAUDE.md) text (pure, tested)
 src/ui.ts          small DOM helpers shared by the UI modules (autocomplete ranking tested)
 src/index.ts       in-memory tag index of the vault (name tags live, sidecars scanned)
 src/store.ts       sidecar read/write and moves through the vault adapter
 src/main.ts        plugin wiring: menus, commands, rename handling, applying edits
 src/modal.ts       tag editor (chips + autocomplete)
 src/fix-modal.ts   Check tag names dialog
-src/view.ts        File tags panel: cloud, search, groups, bookmark tabs, results
+src/view.ts        TagEverything panel: cloud, search, groups, bookmark tabs, results
 src/dialogs.ts     the panel's name and formula dialogs
 src/settings.ts    settings tab
 src/badges.ts      explorer badges

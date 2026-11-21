@@ -23,7 +23,7 @@ export default class MyPlugin extends Plugin {
 
 | Need | API | Example in this repo |
 |---|---|---|
-| Right-click on a file / folder / multi-selection | `workspace.on("file-menu" \| "files-menu")`, `menu.addItem(i => i.setTitle().setIcon().setSection("action").onClick())` | `tag-everything/src/main.ts` |
+| Right-click on a file / folder / multi-selection | `workspace.on("file-menu" \| "files-menu")`, `menu.addItem(i => i.setTitle().setIcon().setSection("action").onClick())`, in the plugin's submenu (root `CLAUDE.md` → *Say it is the plugin*) | `tag-everything/src/main.ts` `addPluginMenu` |
 | Command (palette + hotkey) | `addCommand({ id, name, callback \| checkCallback \| editorCallback })` | `tag-everything/src/main.ts` |
 | Settings tab | **Declarative (1.13+)**: `PluginSettingTab.getSettingDefinitions()` returns rows `{ name, desc, control: { type: "toggle" \| "dropdown" \| "text" \| "slider"..., key } }` and groups `{ type: "group", heading, items }`; the rows appear in Obsidian's settings search. A control reads `plugin.settings[key]` and saves with `saveData`; override `getControlValue` / `setControlValue` to validate or react, then call `refreshDomState()` for `disabled` / `visible` predicates (`update()` when rows are added or removed). No `display()` (deprecated). `this.icon` sets the sidebar icon. `new Setting(el)` stays the way to build rows **inside a modal**. | `tag-everything/src/settings.ts`, template |
 | Dialog | `Modal` (`this.setTitle()`, `this.contentEl`, `onOpen` / `onClose`) | `tag-everything/src/modal.ts` |
@@ -57,6 +57,7 @@ They work in 1.15 but can change: always guard (`?.`, `try/catch`) and degrade g
 | Drag a file from your own view into a note (link) | `app.dragManager.dragFile(evt, file)` / `dragFolder(evt, folder)`, then `app.dragManager.onDragStart(evt, data)` in `dragstart` | `tag-everything` panel results |
 | Page-preview sources (tests) | `app.workspace.hoverLinkSources[id]` after `registerHoverLinkSource` | `tag-everything` smoke |
 | A plugin's settings tab (tests) | `app.setting.pluginTabs.find(t => t.id === id)`: `.settingItems` (the declarative rows), `.setControlValue(key, v)`; the real UI with `app.setting.open()` + `app.setting.openTabById(id)`, rows in the tab's `containerEl` (`.setting-item`, `.is-disabled`), then `app.setting.close()` | `tag-everything` smoke, template |
+| Context submenu | `menuItem.setSubmenu()` returns a `Menu` (not in the types): one plugin item holding the others | `tag-everything` `addPluginMenu` (flat, prefixed items if missing; the smoke test checks the real explorer menu) |
 | Enable a plugin (tests only) | `app.plugins.setEnable(true)`, `app.plugins.enablePluginAndSave(id)`, `app.plugins.plugins[id]` | `tools/smoke.mjs` |
 
 Pattern for internals the types do not know:

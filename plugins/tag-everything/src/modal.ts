@@ -3,7 +3,7 @@ import * as ts from "./format.ts";
 import type { TagIndex } from "./index.ts";
 import { TagEverythingSettings, targetFor } from "./settings.ts";
 import { type NamingRule, followsRule, parseTypedTags, ruleMessage, suggestFix } from "./naming.ts";
-import { plural } from "./messages.ts";
+import { PLUGIN_NAME, plural } from "./messages.ts";
 import { matchTags, paintTag, renderTagSuggestion } from "./ui.ts";
 
 export interface TagEdit {
@@ -68,7 +68,7 @@ export class TagEditorModal extends Modal {
   onOpen(): void {
     const { contentEl, items } = this;
     this.modalEl.addClass("tag-everything-modal");
-    this.setTitle(items.length === 1 ? `Tags: ${items[0].name}` : `Tags: ${items.length} items`);
+    this.setTitle(items.length === 1 ? `${PLUGIN_NAME}: ${items[0].name}` : `${PLUGIN_NAME}: ${items.length} items`);
 
     contentEl.createDiv({ cls: "tag-everything-where", text: this.whereText() });
 

@@ -24,9 +24,9 @@ export interface TagEverythingSettings {
   maxBadges: number;
   /** Move `.ts/<name>.json` and `.ts/<name>.jpg` along when a file is renamed or moved in Obsidian. */
   followRenames: boolean;
-  /** Tag groups of the File tags panel (src/groups.ts). Edited in the panel, not in the settings tab. */
+  /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
-  /** Bookmark tabs of the File tags panel (src/tabs.ts). Edited in the panel. */
+  /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
   tabs: BookmarkTab[];
 }
 

@@ -4,7 +4,7 @@ import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
 import * as tb from "./tabs.ts";
-import { plural } from "./messages.ts";
+import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { FormulaModal, NameModal } from "./dialogs.ts";
@@ -77,7 +77,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   getDisplayText(): string {
-    return "File tags";
+    return PLUGIN_NAME;
   }
 
   getIcon(): string {
@@ -201,7 +201,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       await this.plugin.saveData(this.plugin.settings);
     } catch (err) {
       console.error("[tag-everything] saving tag groups / tabs failed", err);
-      new Notice("File tags: the tag groups and tabs could not be saved.");
+      new Notice("TagEverything: the tag groups and tabs could not be saved.");
     }
   }
 

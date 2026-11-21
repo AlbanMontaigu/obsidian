@@ -49,9 +49,9 @@ test("normalizeSettings never shares the default groups array", () => {
 test("messages", () => {
   assert.equal(plural(1, "item"), "1 item");
   assert.equal(plural(0, "item"), "0 items");
-  assert.equal(progressMessage(3, 40), "Tagging 3 of 40 items…");
+  assert.equal(progressMessage(3, 40), "TagEverything: tagging 3 of 40 items…");
   const few = failureMessage(["a: x", "b: y"], 3);
-  assert.equal(few, "Tags not changed on 2 of 3 items:\na: x\nb: y");
+  assert.equal(few, "TagEverything: tags not changed on 2 of 3 items:\na: x\nb: y");
   const many = failureMessage(Array.from({ length: 8 }, (_, i) => `f${i}`), 10);
   assert.match(many, /f4\n…and 3 more/);
   assert.doesNotMatch(many, /f5/);
