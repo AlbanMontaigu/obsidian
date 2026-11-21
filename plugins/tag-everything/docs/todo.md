@@ -16,4 +16,5 @@ On tag search engine, include a criteria of date of create (optional) and anothe
 Propose a way with claude to optimise tags by detecting potential duplicate or very similar and group them. By the way general rule, one tag one key works point.
 
 # Tag sliders (min max)
+
 Propose a way to filter by number of occurence of the tag in an easy way (slider ?) Goal is to allow to be focussed on what matter the most. Like by default < 100 and > 10 (can be parametrized in settings)
