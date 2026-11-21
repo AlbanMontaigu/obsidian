@@ -112,22 +112,28 @@ export class ExplorerBadges {
       host.prepend(this.chip(host, ext, EXT_CLS));
       host.addClass(HAS_EXT_CLS);
     }
-    if (tags.length) {
-      const pill = host.createSpan({ cls: `tag-everything-badge ${COUNT_CLS}`, text: String(tags.length) });
-      pill.addEventListener("mouseenter", () => this.showList(pill, tags));
-      pill.addEventListener("mouseleave", () => this.hideSoon());
-      // A click shows the list too (no hover on a touch screen) and doesn't open the file under the pill.
-      pill.addEventListener("click", (evt) => {
-        evt.preventDefault();
-        evt.stopPropagation();
-        this.showList(pill, tags);
-      });
-    }
+    if (tags.length) this.addPill(host, tags);
     this.decorated.set(host, signature);
   }
 
+  /**
+   * Appends the round pill with the number of `tags` to `host`; hovering or clicking it lists them. Also used by the
+   * TagEverything explorer's rows.
+   */
+  addPill(host: HTMLElement, tags: readonly string[]): void {
+    const pill = host.createSpan({ cls: `tag-everything-badge ${COUNT_CLS}`, text: String(tags.length) });
+    pill.addEventListener("mouseenter", () => this.showList(pill, tags));
+    pill.addEventListener("mouseleave", () => this.hideSoon());
+    // A click shows the list too (no hover on a touch screen) and doesn't open the file under the pill.
+    pill.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.showList(pill, tags);
+    });
+  }
+
   /** The row's tags, one per line, under the pill (above it near the bottom of the window). */
-  private showList(pill: HTMLElement, tags: string[]): void {
+  private showList(pill: HTMLElement, tags: readonly string[]): void {
     this.hideList();
     const doc = pill.ownerDocument;
     const win = doc.defaultView ?? window;

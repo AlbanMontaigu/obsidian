@@ -14,6 +14,9 @@ TagSpaces.
 - Keep tags tidy with the **naming rule** (one lower-case word per tag, no liaison word), and fix the whole vault with
   **Check tag names**.
 - Search in the **TagEverything panel**: click tags (AND), exclude some (NOT), open, preview or drag the results.
+- Browse in the **TagEverything explorer** (left sidebar), a tree of tags that looks like the file explorer: every tag
+  at the root, inside a tag the tags found with it, then the files carrying exactly those tags (even files Obsidian's
+  explorer hides); hover a file's folder icon to see where it really is, click it to show it in the file explorer.
 - Save searches as **tag groups**, with **formulas** (`(b27 OR inc) AND NOT draft`), and sort them into **bookmark
   tabs**.
 - See how many tags each item has in the file explorer (hover the number to list them); each file's extension (`pdf`, `md`) is a tag too, shown before its name.
@@ -74,6 +77,9 @@ src/modal.ts       tag editor (chips + autocomplete)
 src/fix-modal.ts   Check tag names dialog
 src/suggest-modal.ts  the suggestions dialog: runs Claude Code, chips to leave tags out, adds the rest
 src/view.ts        TagEverything panel: cloud, search, groups, bookmark tabs, results
+src/explorer.ts    TagEverything explorer: the tree of tags
+src/explore.ts     the explorer's tree nodes and row order (pure, tested)
+src/items.ts       what a file row does in both views: open, preview, drag, file menu
 src/dialogs.ts     the panel's name and formula dialogs
 src/settings.ts    settings tab
 src/badges.ts      explorer badges

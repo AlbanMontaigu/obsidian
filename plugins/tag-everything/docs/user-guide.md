@@ -185,14 +185,49 @@ read your files and suggest tags for them:
   dialog while Claude Code is still reading stops it.
 - It takes a few seconds to a few minutes, and uses your Claude plan (the dialog shows the time and the API price of the
   run, about $0.05 for a few notes). For a large folder, run it on subfolders, or pick a cheaper **Model** in the
-  settings (Section 10).
+  settings (Section 11).
 
-## 10. Commands and settings
+## 10. The TagEverything explorer
+
+Your vault as a **tree of tags**, in the left sidebar next to Obsidian's file explorer (which keeps the folder
+view): open it with the ribbon `list-tree` icon or the command *Open the tag explorer*. It looks and indents like the
+file explorer.
+
+- At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are **the other
+  tags found with it** on the same files (each opening the same way), then the files and folders carrying **exactly
+  the tags of the path**. A file tagged `tax receipt` sits under *tax › receipt* and under *receipt › tax*: one file,
+  several places, like a shortcut.
+- Extension tags (`pdf`, `md`) are not branches: every file has one. They stay as the badge before the file name.
+- A file row is its extension badge and its name, then on the right the round **pill** with the number of its tags
+  (hover it: the list) and a **folder icon**: hover it to see the folder the file is really in, click it to show the
+  file there in the file explorer. Right-click → *TagEverything → Show in the file explorer* does the same (also on
+  the panel's results).
+- It shows **every file**, even those Obsidian's explorer hides while *Detect all file extensions* is off (Office
+  files and other types Obsidian can't open); right-click → *TagEverything → Edit tags* tags them. Shown in the file
+  explorer, such a file only opens its folder there, since the file explorer hides it.
+- The file open in the editor is highlighted wherever it shows. The button at the top closes every tag; open tags
+  are remembered across restarts.
+
+```mermaid
+flowchart LR
+  root[All tags] --> tax[tax]
+  root --> receipt[receipt]
+  tax --> f1["2024[tax].pdf"]
+  tax --> tr[receipt] --> f2["2025[tax receipt].pdf"]
+  receipt --> rt[tax] --> f2b["2025[tax receipt].pdf"]
+```
+
+Files behave as in the panel's results: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files in
+their default app; a tagged folder is shown in the file explorer), Ctrl/Cmd + hover for a preview, drag into a note
+to link it, right-click for the file menu. A tag lists at most 500 files.
+
+## 11. Commands and settings
 
 | Command | What it does |
 |---|---|
 | Edit tags of the current file | Opens the tag editor on the active file |
 | Open the tags panel | Shows the panel in the right sidebar |
+| Open the tag explorer (a tree of tags) | Section 10: shows the TagEverything explorer in the left sidebar |
 | Check tag names (naming rule) and fix them | Section 4 |
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
 | Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
@@ -214,16 +249,17 @@ read your files and suggest tags for them:
 | Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |
 
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
-read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel and dialogs
-are titled *TagEverything*.
+read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer and
+dialogs are titled *TagEverything*.
 
 The settings also show up in Obsidian's settings search (e.g. type "badges" or "sidecar").
 
-## 11. Limits and troubleshooting
+## 12. Limits and troubleshooting
 
-- **PDFs and Office files don't show up**: turn on *Settings → Files and links → Detect all file extensions*. Only
-  files Obsidian has loaded can be tagged. Folders in *Excluded files* are still loaded (that setting only hides them
-  from search).
+- **Office files (and other types Obsidian can't open) don't show in the file explorer**: Obsidian loads them but its
+  explorer hides them while *Settings → Files and links → Detect all file extensions* is off. The TagEverything
+  explorer (Section 10) and the panel show them, and tag them, either way; turn the setting on to see them in
+  Obsidian's explorer too.
 - **Tags changed in another app don't show**: Obsidian does not watch `.ts` folders. Use *Re-read all tags* (panel ↻,
   command or settings), or *Check tag names* (it re-reads first); it also happens at each start. Name and frontmatter
   tags update live.

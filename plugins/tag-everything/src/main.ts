@@ -1,9 +1,11 @@
-import { FileSystemAdapter, Menu, MenuItem, Notice, Plugin, TAbstractFile, TFile, TFolder, Vault, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
+import { FileSystemAdapter, Menu, MenuItem, Notice, Plugin, addIcon, TAbstractFile, TFile, TFolder, Vault, View, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
 import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
+import { EXPLORER_ICON, EXPLORER_ICON_SVG, EXPLORER_VIEW_TYPE, TagExplorerView } from "./explorer.ts";
+import { revealInExplorer } from "./items.ts";
 import { ExplorerBadges } from "./badges.ts";
 import { PLUGIN_NAME, failureMessage, plural, progressMessage } from "./messages.ts";
 import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts";
@@ -94,13 +96,18 @@ export default class TagEverythingPlugin extends Plugin {
     this.badges = new ExplorerBadges(this);
 
     this.registerView(VIEW_TYPE, (leaf) => new TagEverythingView(leaf, this));
-    // Ctrl/Cmd + hover on a result of the panel shows Obsidian's page preview.
+    addIcon(EXPLORER_ICON, EXPLORER_ICON_SVG);
+    this.registerView(EXPLORER_VIEW_TYPE, (leaf) => new TagExplorerView(leaf, this));
+    // Ctrl/Cmd + hover on a row of the panel or the explorer shows Obsidian's page preview.
     this.registerHoverLinkSource(VIEW_TYPE, { display: PLUGIN_NAME, defaultMod: true });
+    this.registerHoverLinkSource(EXPLORER_VIEW_TYPE, { display: `${PLUGIN_NAME} explorer`, defaultMod: true });
     this.addSettingTab(new TagEverythingSettingTab(this.app, this));
     this.addRibbonIcon("tags", `${PLUGIN_NAME}: open the tags panel`, () => void this.openView());
+    this.addRibbonIcon(EXPLORER_ICON, `${PLUGIN_NAME}: open the tag explorer`, () => void this.openExplorer());
 
     // Obsidian shows commands as "TagEverything: <name>", so the names don't repeat it.
     this.addCommand({ id: "open-panel", name: "Open the tags panel", callback: () => void this.openView() });
+    this.addCommand({ id: "open-explorer", name: "Open the tag explorer (a tree of tags)", callback: () => void this.openExplorer() });
     this.addCommand({
       id: "edit-active-file-tags",
       name: "Edit tags of the current file",
@@ -138,8 +145,12 @@ export default class TagEverythingPlugin extends Plugin {
     });
 
     this.registerEvent(
-      this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
+      this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile, source: string) => {
         const entries: MenuEntry[] = [];
+        // From the plugin's own views (explorer, panel results): the item in its real place.
+        if ((source === EXPLORER_VIEW_TYPE || source === VIEW_TYPE) && taggable(file)) {
+          entries.push({ title: "Show in the file explorer", icon: "folder-search", run: () => revealInExplorer(this.app, file) });
+        }
         if (taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
         entries.push({ title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags([file]) });
         if (file instanceof TFolder) entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void this.writeGuide(file) });
@@ -304,21 +315,34 @@ export default class TagEverythingPlugin extends Plugin {
     }
   }
 
+  /** Shows the tags panel (right sidebar), opening it if needed. */
   async openView(): Promise<TagEverythingView | null> {
+    const view = await this.revealView(VIEW_TYPE, "right", "the panel");
+    return view instanceof TagEverythingView ? view : null;
+  }
+
+  /** Shows the TagEverything explorer (left sidebar, next to the file explorer), opening it if needed. */
+  async openExplorer(): Promise<TagExplorerView | null> {
+    const view = await this.revealView(EXPLORER_VIEW_TYPE, "left", "the explorer");
+    return view instanceof TagExplorerView ? view : null;
+  }
+
+  /** The first view of `type`, revealed; created in a new tab of the `side` sidebar when there is none. */
+  private async revealView(type: string, side: "left" | "right", what: string): Promise<View | null> {
     const { workspace } = this.app;
     try {
-      let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
+      let leaf = workspace.getLeavesOfType(type)[0];
       if (!leaf) {
-        const right = workspace.getRightLeaf(false);
-        if (!right) return null;
-        await right.setViewState({ type: VIEW_TYPE, active: true });
-        leaf = right;
+        const created = side === "left" ? workspace.getLeftLeaf(false) : workspace.getRightLeaf(false);
+        if (!created) return null;
+        await created.setViewState({ type, active: true });
+        leaf = created;
       }
       await workspace.revealLeaf(leaf);
-      return leaf.view instanceof TagEverythingView ? leaf.view : null;
+      return leaf.view;
     } catch (err) {
-      console.error("[tag-everything] opening the panel failed", err);
-      new Notice("TagEverything: the panel could not be opened.");
+      console.error(`[tag-everything] opening ${what} failed`, err);
+      new Notice(`${PLUGIN_NAME}: ${what} could not be opened.`);
       return null;
     }
   }

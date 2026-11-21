@@ -715,3 +715,98 @@
   color: var(--text-faint);
   text-decoration: line-through;
 }
+
+/* ---- TagEverything explorer (src/explorer.ts): a tree of tags. Rows use Obsidian's own tree classes
+   (tree-item, tree-item-self, collapse-icon, tree-item-children, tree-item-flair), so indentation, guides, arrows,
+   hover and the active row look like the file explorer; only what those classes lack is styled here. */
+
+.tag-everything-explorer {
+  padding: var(--size-4-2) var(--size-4-2) var(--size-4-4);
+}
+
+.tag-everything-explorer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  margin-bottom: var(--size-4-1);
+}
+
+.tag-everything-explorer-status {
+  flex: 1;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-explorer-row {
+  align-items: center;
+}
+
+/* the name takes the room: the pill and the folder icon on the right never hide it */
+.tag-everything-explorer-row .tree-item-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tag-everything-explorer-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-everything-explorer-icon {
+  display: flex;
+  flex: none;
+  color: var(--text-faint);
+}
+
+.tag-everything-explorer-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.tag-everything-explorer-row.is-tag .tag-everything-explorer-icon {
+  color: var(--tag-everything-color, var(--text-faint));
+}
+
+.tag-everything-explorer-row .tag-everything-ext {
+  margin-right: 0;
+  flex: none;
+}
+
+.tag-everything-explorer-row .tree-item-flair-outer {
+  gap: 2px;
+}
+
+.tag-everything-explorer-row .tag-everything-count {
+  margin-left: 0;
+}
+
+/* the folder the file is really in: faint until the row is hovered */
+.tag-everything-explorer-where {
+  padding: 0 2px;
+  color: var(--text-faint);
+  opacity: 0.5;
+}
+
+.tag-everything-explorer-row:hover .tag-everything-explorer-where {
+  opacity: 1;
+}
+
+.tag-everything-explorer-where svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.tag-everything-explorer-more {
+  padding: 2px var(--size-4-2);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-explorer-spacer {
+  visibility: hidden;
+}

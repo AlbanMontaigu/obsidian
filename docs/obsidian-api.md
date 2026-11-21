@@ -40,6 +40,7 @@ export default class MyPlugin extends Plugin {
 | Vault events | `vault.on("create" \| "delete" \| "rename" \| "modify")` | `main.ts`, `index.ts` |
 | Debounce | `debounce(fn, ms, true)` | `index.ts` |
 | Page preview on hover (Ctrl/Cmd + hover) in your view | `plugin.registerHoverLinkSource(viewType, { display, defaultMod: true })`; on `mouseover` `workspace.trigger("hover-link", { event, source: viewType, hoverParent: view, targetEl, linktext: file.path })`; the view `implements HoverParent` (`hoverPopover = null`) | `tag-everything/src/view.ts` |
+| Follow the file open in the editor | `workspace.on("file-open", (file) => …)` (null when none), `workspace.getActiveFile()` at open | `tag-everything/src/explorer.ts` |
 | View state across restarts | `getState()` / `setState(state, result)` on the `ItemView` (validate what comes back), `workspace.requestSaveLayout()` after a change | `tag-everything/src/view.ts` |
 | Own event bus | `class X extends Events`, `trigger("changed")`, `this.registerEvent(x.on("changed", cb))` | `index.ts` |
 | Absolute path on disk (desktop) | `(vault.adapter as FileSystemAdapter).getBasePath()` | |
@@ -133,8 +134,11 @@ positives on placeholders and operator words).
   a comma/space string, with or without `#`.
 - **Dot-folders are invisible to the Vault API** (`getAbstractFileByPath(".ts/x")` is null, no events). Use
   `vault.adapter` for them, and remember nothing tells you when another app changes them.
-- **Non-note files are only loaded if *Detect all file extensions* is on** (`showUnsupportedFiles`). Without it,
-  PDFs and Office files are missing from `getFiles()`, menus and events. The owner's main vault has it **off**.
+- ***Detect all file extensions* (`showUnsupportedFiles`) only filters what Obsidian displays**, not what the vault
+  loads: with it off, Office files and other types no view is registered for are still in `getFiles()` and fire vault
+  events (checked on 1.15.1 by starting a vault with it off), but the core explorer hides their rows (its items
+  exist, `shouldDisplay()` is false), so nobody can right-click them there; link suggestions skip them too. A view of
+  your own built from `vault.getRoot()` shows them (`tag-everything` explorer). The owner's main vault has it **off**.
 - **`vault.on("create")` fires for every file at startup**: register vault events inside `onLayoutReady`.
 - **An async scan that swaps in a fresh map loses the events that arrived meanwhile** (renames, your own writes),
   and a folder renamed mid-scan makes `adapter.list(oldPath)` throw ENOENT. Log the events during the scan and

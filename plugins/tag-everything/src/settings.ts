@@ -102,7 +102,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
           },
           {
             name: "PDFs, Office files and other non-note files are hidden in the file explorer",
-            desc: "Turn on Files and links → Detect all file extensions to right-click them there; the TagEverything panel already edits them.",
+            desc: "Turn on Files and links → Detect all file extensions to right-click them there; the TagEverything explorer and panel already show and tag them.",
             searchable: false,
             visible: () => this.detectAllExtensions() === false,
           },

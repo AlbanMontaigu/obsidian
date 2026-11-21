@@ -1,4 +1,4 @@
-import { HoverParent, HoverPopover, ItemView, Keymap, Menu, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
+import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
 import * as ts from "./format.ts";
 import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
@@ -9,24 +9,14 @@ import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { FormulaModal, NameModal } from "./dialogs.ts";
 import { clickable, isNode, paintTag } from "./ui.ts";
+import { wireItemRow } from "./items.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
-const MAX_RESULTS = 500;
+/** Most items listed at once (panel results, a level of the TagEverything explorer). */
+export const MAX_RESULTS = 500;
 /** Drag payloads inside the panel (lower-case: DataTransfer.types lower-cases custom types). */
 const TAG_MIME = "application/x-tag-everything-tag";
 const GROUP_MIME = "application/x-tag-everything-group";
-
-interface InternalApp {
-  viewRegistry?: { isExtensionRegistered?: (ext: string) => boolean };
-  openWithDefaultApp?: (path: string) => void;
-  internalPlugins?: { getPluginById?: (id: string) => { instance?: { revealInFolder?: (f: TAbstractFile) => void } } | null };
-  /** Drag a file into a note to link it, as from the file explorer. */
-  dragManager?: {
-    dragFile?: (evt: DragEvent, file: TFile) => unknown;
-    dragFolder?: (evt: DragEvent, folder: TFolder) => unknown;
-    onDragStart?: (evt: DragEvent, data: unknown) => void;
-  };
-}
 
 /** Draws one tag of a formula; `negated` when it is written `NOT tag`. */
 type TagChipFn = (parent: HTMLElement, tag: string, negated: boolean) => void;
@@ -820,51 +810,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         for (const t of tags) this.chip(chips, t, small(t));
       }
 
-      clickable(row, (evt) => this.openItem(item, evt));
-      row.addEventListener("auxclick", (evt) => {
-        if (evt.button === 1) this.openItem(item, evt); // middle click: new tab
-      });
-      row.addEventListener("contextmenu", (evt) => {
-        evt.preventDefault();
-        const menu = new Menu();
-        this.app.workspace.trigger("file-menu", menu, item, VIEW_TYPE, this.leaf);
-        menu.showAtMouseEvent(evt);
-      });
-      if (item instanceof TFile) {
-        // Ctrl/Cmd + hover: page preview, as in the file explorer (source registered in main.ts)
-        row.addEventListener("mouseover", (evt) => {
-          this.app.workspace.trigger("hover-link", { event: evt, source: VIEW_TYPE, hoverParent: this, targetEl: row, linktext: item.path });
-        });
-      }
-      // Drag into a note to link the item, as from the file explorer (internal API: skipped if missing).
-      row.draggable = true;
-      row.addEventListener("dragstart", (evt) => {
-        try {
-          const dm = (this.app as unknown as InternalApp).dragManager;
-          const data = item instanceof TFile ? dm?.dragFile?.(evt, item) : item instanceof TFolder ? dm?.dragFolder?.(evt, item) : null;
-          if (data) dm?.onDragStart?.(evt, data);
-        } catch (err) {
-          console.warn("[tag-everything] drag unavailable", err);
-        }
-      });
-    }
-  }
-
-  // Not "open": View.open(containerEl) is an internal Obsidian method that this would shadow.
-  private openItem(item: TAbstractFile, evt: MouseEvent | KeyboardEvent): void {
-    const app = this.app as unknown as InternalApp;
-    try {
-      if (item instanceof TFolder) {
-        app.internalPlugins?.getPluginById?.("file-explorer")?.instance?.revealInFolder?.(item);
-        return;
-      }
-      if (!(item instanceof TFile)) return;
-      // A file Obsidian has no view for (Office files...) opens in the system app.
-      const known = app.viewRegistry?.isExtensionRegistered?.(item.extension) ?? true;
-      if (!known && app.openWithDefaultApp) app.openWithDefaultApp(item.path);
-      else void this.app.workspace.getLeaf(Keymap.isModEvent(evt)).openFile(item);
-    } catch (err) {
-      console.error("[tag-everything] open failed", err);
+      wireItemRow(this, row, item); // open, preview, drag, file menu (src/items.ts)
     }
   }
 }

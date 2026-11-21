@@ -824,6 +824,97 @@ await plugin.saveSettings();
 await view.setState(panelState, { history: false });
 await sleep(300);
 
+// ---- TagEverything explorer: a tree of tags. Every file can show (even those the core explorer hides), at the end of
+// each path made of its tags; a file row is its extension chip, its name and the tag-count pill.
+check("explorer: command and page-preview source registered", !!app.commands.commands["tag-everything:open-explorer"] && !!app.workspace.hoverLinkSources?.["tag-everything-explorer"]);
+vault.setConfig("showUnsupportedFiles", false); // as in the owner's vault: the core explorer hides Office files
+const docx = await vault.createBinary("Docs/board[kpi q1].docx", new ArrayBuffer(4));
+await waitFor(() => plugin.index.tagsOf(docx.path).includes("kpi"));
+const explorer = await plugin.openExplorer();
+await sleep(300);
+const exEl = explorer?.contentEl;
+check(
+  "explorer: opens in the left sidebar, named after the plugin, no folder mode",
+  !!explorer && explorer.leaf.getRoot() === app.workspace.leftSplit && explorer.getDisplayText() === "TagEverything explorer" && !exEl.querySelector(".tag-everything-explorer-mode"),
+);
+const exTabIcon = document.querySelector('.workspace-tab-header[data-type="tag-everything-explorer"] svg');
+check("explorer: its own tag-tree icon on the sidebar tab", exTabIcon?.querySelectorAll("path").length === 4 && exTabIcon.getBoundingClientRect().width > 0, exTabIcon?.outerHTML.slice(0, 200));
+exEl.querySelector(".tag-everything-explorer-collapse").click();
+await sleep(100);
+const exKey = (r) => r.dataset.tag ?? r.dataset.path;
+const exTop = () => [...exEl.querySelectorAll(".tag-everything-explorer-tree > .tree-item > .tree-item-self")].map(exKey);
+const tagRow = (...trail) => [...exEl.querySelectorAll(".tag-everything-explorer-row.is-tag")].find((r) => r.dataset.trail === trail.join("\u001f"));
+// a tag row's children (Obsidian's tree classes: .tree-item > .tree-item-self + .tree-item-children); null when closed
+const childrenOf = (row) => {
+  const box = row?.parentElement.querySelector(":scope > .tree-item-children");
+  return box ? [...box.querySelectorAll(":scope > .tree-item > .tree-item-self")].map(exKey).join() : null;
+};
+const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+const ownTags = [...plugin.index.counts(undefined, true).keys()].sort(byName);
+check("explorer: the root lists every stored tag by name, no extension tag, no file", exTop().join() === ownTags.join() && !exTop().includes("md"), exTop().join(" | "));
+tagRow("kpi").click();
+await sleep(100);
+check("explorer: opening a tag shows the tags found with it, not the file carrying more tags", childrenOf(tagRow("kpi")) === "q1" && tagRow("kpi").getAttribute("aria-expanded") === "true" && !tagRow("kpi").querySelector(".collapse-icon").hasClass("is-collapsed"), childrenOf(tagRow("kpi")));
+tagRow("kpi", "q1").click();
+await sleep(100);
+const docxRows = () => [...exEl.querySelectorAll(".tag-everything-explorer-row")].filter((r) => r.dataset.path === docx.path);
+check("explorer: a .docx hidden by Obsidian's setting sits at the end of its tag path", vault.getConfig("showUnsupportedFiles") === false && childrenOf(tagRow("kpi", "q1")) === docx.path, childrenOf(tagRow("kpi", "q1")));
+const docxRow = docxRows()[0];
+const exWhere = docxRow?.querySelector(".tag-everything-explorer-where");
+check(
+  "explorer: a file row is the extension chip and the name, then the tag-count pill and its real folder (on hover)",
+  [...(docxRow?.querySelector(".tree-item-inner")?.children ?? [])].map((c) => c.textContent).join("|") === "docx|board[kpi q1]" &&
+    docxRow.querySelector(".tree-item-flair-outer .tag-everything-count")?.textContent === "2" && exWhere?.getAttribute("aria-label")?.startsWith("In Docs."),
+  docxRow?.innerHTML.slice(0, 400),
+);
+const exPill = docxRow?.querySelector(".tag-everything-count");
+exPill?.dispatchEvent(new MouseEvent("mouseenter"));
+await sleep(50);
+const exList = document.querySelector(".tag-everything-badge-list");
+check("explorer: hovering the pill lists the file's tags", [...(exList?.children ?? [])].map((c) => c.textContent).join() === "kpi,q1", exList?.outerHTML.slice(0, 200));
+exPill?.dispatchEvent(new MouseEvent("mouseleave"));
+await sleep(400);
+tagRow("q1").click();
+await sleep(100);
+tagRow("q1", "kpi").click();
+await sleep(100);
+check("explorer: a file with two tags shows at the end of both paths", docxRows().length === 2 && childrenOf(tagRow("q1", "kpi")) === docx.path);
+const exSaved = explorer.getState().expanded.map((t) => t.join("/")).sort().join();
+check("explorer: the open tags are saved with the workspace", exSaved === "kpi,kpi/q1,q1,q1/kpi", exSaved);
+tagRow("kpi").click();
+await sleep(100);
+check("explorer: clicking an open tag closes it", childrenOf(tagRow("kpi")) === null && docxRows().length === 1);
+exEl.querySelector(".tag-everything-explorer-collapse").click();
+await sleep(100);
+// a note, reached through its own tags; a click opens it, the highlight follows the editor
+const exNote = vault.getMarkdownFiles().find((f) => plugin.index.ownTagsOf(f.path).length);
+const exTrail = [...plugin.index.ownTagsOf(exNote.path)];
+for (let i = 1; i <= exTrail.length; i++) explorer.toggle(exTrail.slice(0, i));
+await sleep(100);
+const noteRow = () => [...exEl.querySelectorAll(".tag-everything-explorer-row")].find((r) => r.dataset.path === exNote.path);
+// the real place: the TagEverything menu of a row, and the row's folder icon, show it in the file explorer
+const placeMenu = fakeMenu();
+app.workspace.trigger("file-menu", placeMenu, exNote, "tag-everything-explorer");
+check("explorer: right-click → TagEverything → Show in the file explorer", placeMenu.sub("TagEverything")?.titles()[0] === "Show in the file explorer", placeMenu.sub("TagEverything")?.titles().join(" | "));
+const coreExplorer = app.workspace.getLeavesOfType("file-explorer")[0];
+noteRow()?.querySelector(".tag-everything-explorer-where")?.click();
+await sleep(500);
+check("explorer: the folder icon shows the file in its real place in the file explorer", coreExplorer.view.containerEl.isShown() && !!coreExplorer.view.fileItems?.[exNote.path]?.selfEl.isShown());
+await app.workspace.revealLeaf(explorer.leaf);
+await sleep(1000); // the file explorer's reveal finishes late
+noteRow()?.click();
+await sleep(300);
+check("explorer: clicking a file opens it, highlighted", app.workspace.getActiveFile()?.path === exNote.path && noteRow()?.hasClass("is-active"), `${exNote.path} via ${exTrail.join(" > ")}`);
+await app.workspace.getLeaf(false).openFile(vault.getMarkdownFiles().find((f) => f !== exNote));
+await sleep(300);
+check("explorer: the highlight follows the editor", !noteRow()?.hasClass("is-active"));
+await app.workspace.getLeaf(false).openFile(exNote);
+await vault.delete(docx);
+vault.setConfig("showUnsupportedFiles", true);
+await sleep(800); // opening a note may reveal it in the file explorer a moment later
+await app.workspace.revealLeaf(explorer.leaf); // left for the screenshot: the path to that note open, the note highlighted
+await sleep(300);
+
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.
 document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above
 await sleep(300);
