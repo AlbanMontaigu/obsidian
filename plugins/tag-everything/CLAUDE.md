@@ -11,8 +11,8 @@ files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSO
 TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
 tags (AND), with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
 and groups bookmarked in them; badges show tags in the explorer. The **TagEverything explorer** (left sidebar) is a
-tree of tags: every tag at the root, inside a tag the tags found with it, then the files carrying exactly the path's
-tags (a file shows at the end of each path made of its tags), even files the core explorer hides. Every file
+tree of tags: every tag at the root, inside a tag the tags telling its files apart (on more than one, not on all),
+then its files (a file alone under a tag shows directly, not one level deeper), even files the core explorer hides. Every file
 also carries its extension as a derived, never-written tag (`pdf`,
 `md`; setting `extensionTags`, on by default), shown before its name in the explorer. *Write AI assistant guide* (folder menu, or a command
 for the vault root) writes a `CLAUDE.md` telling an AI assistant how tags are stored and which exist; never over an
@@ -71,8 +71,9 @@ and `docs/user-guide.md` when users see it.
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution, `requiredTags`.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
-- `tests/explore.test.ts`: tree nodes (root = every tag and no item, a tag's branches and its own items, an item at the
-  end of every path of its tags, from the parent's paths = from the vault, dead end), name order, folders first, the
+- `tests/explore.test.ts`: tree nodes (root = every tag and no item; inside a tag, a tag on several items is a branch,
+  an item alone under a tag shows directly, a tag on every item is no branch; from the parent's paths = from the
+  vault, dead end), name order, folders first, the
   formula box (`joinFormula`: chips in parentheses then the text; `treeSearch`: empty, vault spelling, unknown tags pruned and named, syntax error keeps the last).
 - `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
@@ -100,7 +101,8 @@ and `docs/user-guide.md` when users see it.
   leaves the tree whole, picking it makes a chip and keeps the items carrying kpi, Enter opens its path, `AND` after it
   warns and keeps the search, `OR shared` + Enter joins the chips, a chip's × removes it, `shared et non final` (NOT
   chip struck), Backspace removes the last chip, Escape clears); with `showUnsupportedFiles` off a
-  created `board[kpi q1].docx` sits under kpi › q1 and q1 › kpi, not under kpi; its row = extension badge, name, pill
+  created `board[kpi q1].docx` with `sales[kpi q1].xlsx` and `forecast[kpi q2].xlsx`: kpi holds the branch q1 then
+  forecast directly (alone under q2), kpi › q1 holds board and sales, q1 holds them directly (no kpi branch: on both); its row = extension badge, name, pill
   `2` listing its tags on hover, folder icon whose tooltip names `Docs`; open tags saved; a click closes a tag; the
   TagEverything menu item and the folder icon show a note in the file explorer; a click opens a note, highlighted, the
   highlight follows the editor). It ends with the explorer showing the path to that note (left) under the chips `shared AND NOT final` and the panel in the
@@ -144,7 +146,8 @@ Deliberate exceptions, each for a reason:
   menu are only reachable from the TagEverything explorer or the panel (checked on 1.15.1, 2026-11-21).
 - The explorer redraws the open nodes on every index or vault change, debounced; a node lists at most 500 files.
   Not measured on the owner's 9 500-file vault (the root scans every indexed path, each open node its parent's).
-  A file with n tags shows in n! places once all are opened (only what is opened is drawn). Untagged files are not
+  A file can show in several places (directly where it is alone under a tag, and down each branch it is in; only
+  what is opened is drawn). Untagged files are not
   in the tree. Showing a file the core explorer hides in the file explorer only opens its folder.
 - Explorer ideas: reveal the active file in the tree, keyboard arrows between rows,
   extension tags as branches (an option).

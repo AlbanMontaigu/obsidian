@@ -824,12 +824,15 @@ await plugin.saveSettings();
 await view.setState(panelState, { history: false });
 await sleep(300);
 
-// ---- TagEverything explorer: a tree of tags. Every file can show (even those the core explorer hides), at the end of
-// each path made of its tags; a file row is its extension chip, its name and the tag-count pill.
+// ---- TagEverything explorer: a tree of tags. Every file can show (even those the core explorer hides); inside a tag,
+// only the tags telling its files apart are branches, a file alone under a tag shows directly; a file row is its
+// extension chip, its name and the tag-count pill.
 check("explorer: command and page-preview source registered", !!app.commands.commands["tag-everything:open-explorer"] && !!app.workspace.hoverLinkSources?.["tag-everything-explorer"]);
 vault.setConfig("showUnsupportedFiles", false); // as in the owner's vault: the core explorer hides Office files
 const docx = await vault.createBinary("Docs/board[kpi q1].docx", new ArrayBuffer(4));
-await waitFor(() => plugin.index.tagsOf(docx.path).includes("kpi"));
+const sales = await vault.createBinary("Docs/sales[kpi q1].xlsx", new ArrayBuffer(4));
+const forecast = await vault.createBinary("Docs/forecast[kpi q2].xlsx", new ArrayBuffer(4));
+await waitFor(() => plugin.index.tagsOf(forecast.path).includes("kpi"));
 const explorer = await plugin.openExplorer();
 await sleep(300);
 const exEl = explorer?.contentEl;
@@ -888,7 +891,7 @@ check(
   `[${exChips()}] "${exSearch.value}" / ${exTop().join(" | ")} / ${exStatus()}`,
 );
 await exKey2("Enter");
-check("explorer: Enter opens the tags the formula requires", childrenOf(tagRow("kpi")) === "q1", childrenOf(tagRow("kpi")));
+check("explorer: Enter opens the tags the formula requires", childrenOf(tagRow("kpi")) === `q1,${forecast.path}`, childrenOf(tagRow("kpi")));
 await exType("AND");
 check("explorer: a syntax error is said, the chips' search stays", exTop().join() === rootFor(has("kpi")).join() && exStatus().includes("missing") && exEl.querySelector(".tag-everything-explorer-status").hasClass("mod-warning"), exStatus());
 await exType("OR shared");
@@ -915,11 +918,11 @@ exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 tagRow("kpi").click();
 await sleep(100);
-check("explorer: opening a tag shows the tags found with it, not the file carrying more tags", childrenOf(tagRow("kpi")) === "q1" && tagRow("kpi").getAttribute("aria-expanded") === "true" && !tagRow("kpi").querySelector(".collapse-icon").hasClass("is-collapsed"), childrenOf(tagRow("kpi")));
+check("explorer: opening a tag: q1 on two of its files is a branch, the file alone under q2 shows directly", childrenOf(tagRow("kpi")) === `q1,${forecast.path}` && tagRow("kpi").getAttribute("aria-expanded") === "true" && !tagRow("kpi").querySelector(".collapse-icon").hasClass("is-collapsed"), childrenOf(tagRow("kpi")));
 tagRow("kpi", "q1").click();
 await sleep(100);
 const docxRows = () => [...exEl.querySelectorAll(".tag-everything-explorer-row")].filter((r) => r.dataset.path === docx.path);
-check("explorer: a .docx hidden by Obsidian's setting sits at the end of its tag path", vault.getConfig("showUnsupportedFiles") === false && childrenOf(tagRow("kpi", "q1")) === docx.path, childrenOf(tagRow("kpi", "q1")));
+check("explorer: a .docx hidden by Obsidian's setting sits at the end of its tag path", vault.getConfig("showUnsupportedFiles") === false && childrenOf(tagRow("kpi", "q1")) === `${docx.path},${sales.path}`, childrenOf(tagRow("kpi", "q1")));
 const docxRow = docxRows()[0];
 const exWhere = docxRow?.querySelector(".tag-everything-explorer-where");
 check(
@@ -937,22 +940,27 @@ exPill?.dispatchEvent(new MouseEvent("mouseleave"));
 await sleep(400);
 tagRow("q1").click();
 await sleep(100);
-tagRow("q1", "kpi").click();
-await sleep(100);
-check("explorer: a file with two tags shows at the end of both paths", docxRows().length === 2 && childrenOf(tagRow("q1", "kpi")) === docx.path);
+check(
+  "explorer: a tag every file of the node carries is no branch (kpi under q1): the files show directly, on both paths",
+  docxRows().length === 2 && childrenOf(tagRow("q1")) === `${docx.path},${sales.path}` && !tagRow("q1", "kpi"),
+  childrenOf(tagRow("q1")),
+);
 const exSaved = explorer.getState().expanded.map((t) => t.join("/")).sort().join();
-check("explorer: the open tags are saved with the workspace", exSaved === "kpi,kpi/q1,q1,q1/kpi", exSaved);
+check("explorer: the open tags are saved with the workspace", exSaved === "kpi,kpi/q1,q1", exSaved);
 tagRow("kpi").click();
 await sleep(100);
 check("explorer: clicking an open tag closes it", childrenOf(tagRow("kpi")) === null && docxRows().length === 1);
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
-// a note, reached through its own tags; a click opens it, the highlight follows the editor
+// a note, reached through its own tags (opened until it shows); a click opens it, the highlight follows the editor
 const exNote = vault.getMarkdownFiles().find((f) => plugin.index.ownTagsOf(f.path).length);
-const exTrail = [...plugin.index.ownTagsOf(exNote.path)];
-for (let i = 1; i <= exTrail.length; i++) explorer.toggle(exTrail.slice(0, i));
-await sleep(100);
 const noteRow = () => [...exEl.querySelectorAll(".tag-everything-explorer-row")].find((r) => r.dataset.path === exNote.path);
+const exTrail = [];
+for (let next; !noteRow() && (next = plugin.index.ownTagsOf(exNote.path).find((t) => !exTrail.includes(t) && tagRow(...exTrail, t))); ) {
+  exTrail.push(next);
+  explorer.toggle(exTrail);
+}
+await sleep(100);
 // the real place: the TagEverything menu of a row, and the row's folder icon, show it in the file explorer
 const placeMenu = fakeMenu();
 app.workspace.trigger("file-menu", placeMenu, exNote, "tag-everything-explorer");
@@ -970,7 +978,7 @@ await app.workspace.getLeaf(false).openFile(vault.getMarkdownFiles().find((f) =>
 await sleep(300);
 check("explorer: the highlight follows the editor", !noteRow()?.hasClass("is-active"));
 await app.workspace.getLeaf(false).openFile(exNote);
-await vault.delete(docx);
+for (const f of [docx, sales, forecast]) await vault.delete(f);
 vault.setConfig("showUnsupportedFiles", true);
 await sleep(800); // opening a note may reveal it in the file explorer a moment later
 await app.workspace.revealLeaf(explorer.leaf); // left for the screenshot: the path to that note open, the note highlighted

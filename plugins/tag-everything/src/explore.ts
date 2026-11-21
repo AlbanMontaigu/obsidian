@@ -7,12 +7,16 @@ import { type Expr, formatFormula, formulaTags, prune, resolveTags, tryParseForm
 export interface TagNode {
   /** Paths carrying every tag of the trail: what the node's branches are computed from. */
   paths: string[];
-  /** The other tags of those items, with how many of them carry each, in name order: the node's branches. */
+  /**
+   * The node's branches: the other tags of those items, with how many of them carry each, in name order. At the root,
+   * every tag. Inside a tag, only the tags that tell its items apart: not one every item carries (it would hold the
+   * same items) nor one on a single item (that item shows directly instead).
+   */
   tags: [string, number][];
   /**
-   * The items carrying the trail's tags and no other: the files of the node. An item with more tags sits deeper, at
-   * the end of each path made of its tags (so in several places). Empty at the root (an item with no tag is not in
-   * the tree).
+   * The files of the node: the items that no branch leads to (their other tags are on every item of the node) and the
+   * items alone under one of their tags. An item can so show in several places. Empty at the root (an item with no
+   * tag is not in the tree).
    */
   items: string[];
 }
@@ -34,22 +38,23 @@ export function compareItems(a: { name: string; folder: boolean }, b: { name: st
  * `paths` (a subset holding every candidate), so a deep node does not rescan the whole vault.
  */
 export function tagNode(paths: Iterable<string>, tagsOf: (path: string) => readonly string[], trail: readonly string[]): TagNode {
-  const matched: string[] = [];
-  const items: string[] = [];
+  const matched: [string, string[]][] = [];
   const counts = new Map<string, number>();
   for (const path of paths) {
     const tags = tagsOf(path);
     if (!trail.every((t) => tags.includes(t))) continue;
-    matched.push(path);
-    let other = false;
-    for (const t of tags) {
-      if (trail.includes(t)) continue;
-      counts.set(t, (counts.get(t) ?? 0) + 1);
-      other = true;
-    }
-    if (!other && trail.length) items.push(path);
+    const other = tags.filter((t) => !trail.includes(t));
+    matched.push([path, other]);
+    for (const t of other) counts.set(t, (counts.get(t) ?? 0) + 1);
   }
-  return { paths: matched, tags: [...counts].sort((a, b) => compareNames(a[0], b[0])), items };
+  const all = [...counts].sort((a, b) => compareNames(a[0], b[0]));
+  const node = { paths: matched.map(([p]) => p), tags: all, items: [] as string[] };
+  if (!trail.length) return node; // the root is the index of every tag, whatever it holds
+  node.tags = all.filter(([, c]) => c > 1 && c < matched.length);
+  const branch = new Set(node.tags.map(([t]) => t));
+  const alone = (t: string): boolean => counts.get(t) === 1;
+  node.items = matched.filter(([, other]) => other.some(alone) || !other.some((t) => branch.has(t))).map(([p]) => p);
+  return node;
 }
 
 /**

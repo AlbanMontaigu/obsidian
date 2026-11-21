@@ -6,6 +6,7 @@ import { formatFormula, parseFormula } from "../src/formula.ts";
 const vault = new Map<string, string[]>([
   ["Taxes/2024[tax].pdf", ["tax"]],
   ["Taxes/2025[tax receipt].pdf", ["tax", "receipt"]],
+  ["Taxes/2025b[tax receipt bank].pdf", ["tax", "receipt", "bank"]],
   ["notes/plan.md", ["tax", "plan"]],
   ["Projects", ["client"]],
   ["photo.jpg", []],
@@ -15,22 +16,26 @@ const node = (trail: string[], paths: Iterable<string> = vault.keys()) => tagNod
 
 test("tagNode: the root holds every tag, counted per item, in name order, and no item", () => {
   const root = node([]);
-  assert.deepEqual(root.tags, [["client", 1], ["plan", 1], ["receipt", 1], ["tax", 3]]);
+  assert.deepEqual(root.tags, [["bank", 1], ["client", 1], ["plan", 1], ["receipt", 2], ["tax", 4]]);
   assert.deepEqual(root.items, []);
 });
 
-test("tagNode: a tag's branches are the tags found with it; its items carry no other tag", () => {
+test("tagNode: inside a tag, a tag on several of its items is a branch; an item alone under a tag shows directly", () => {
   const tax = node(["tax"]);
-  assert.deepEqual(tax.tags, [["plan", 1], ["receipt", 1]]);
-  assert.deepEqual(tax.items, ["Taxes/2024[tax].pdf"]);
-  assert.deepEqual(tax.paths, ["Taxes/2024[tax].pdf", "Taxes/2025[tax receipt].pdf", "notes/plan.md"]);
-  assert.deepEqual(node(["client"]).items, ["Projects"]);
+  assert.deepEqual(tax.tags, [["receipt", 2]]);
+  assert.deepEqual(tax.items, ["Taxes/2024[tax].pdf", "Taxes/2025b[tax receipt bank].pdf", "notes/plan.md"]);
+  assert.deepEqual(tax.paths, ["Taxes/2024[tax].pdf", "Taxes/2025[tax receipt].pdf", "Taxes/2025b[tax receipt bank].pdf", "notes/plan.md"]);
+  assert.deepEqual(node(["tax", "receipt"]).items, ["Taxes/2025[tax receipt].pdf", "Taxes/2025b[tax receipt bank].pdf"]);
 });
 
-test("tagNode: an item with several tags sits at the end of each path made of them", () => {
-  assert.deepEqual(node(["tax", "receipt"]), { paths: ["Taxes/2025[tax receipt].pdf"], tags: [], items: ["Taxes/2025[tax receipt].pdf"] });
-  assert.deepEqual(node(["receipt", "tax"]).items, ["Taxes/2025[tax receipt].pdf"]);
-  assert.deepEqual(node(["receipt"]).items, []);
+test("tagNode: a tag every item of the node carries is no branch: they show directly", () => {
+  assert.deepEqual(node(["receipt"]), {
+    paths: ["Taxes/2025[tax receipt].pdf", "Taxes/2025b[tax receipt bank].pdf"],
+    tags: [],
+    items: ["Taxes/2025[tax receipt].pdf", "Taxes/2025b[tax receipt bank].pdf"],
+  });
+  assert.deepEqual(node(["bank"]), { paths: ["Taxes/2025b[tax receipt bank].pdf"], tags: [], items: ["Taxes/2025b[tax receipt bank].pdf"] });
+  assert.deepEqual(node(["client"]).items, ["Projects"]);
 });
 
 test("tagNode: from the parent's paths, the same node as from the whole vault", () => {

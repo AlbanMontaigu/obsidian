@@ -203,10 +203,15 @@ file explorer.
   faded), so a half-typed tag leaves the tree as it is; an unfinished formula (`tax AND`) says what is missing and
   keeps the last search. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
   clears the box. The search is not remembered across restarts.
-- At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are **the other
-  tags found with it** on the same files (each opening the same way), then the files and folders carrying **exactly
-  the tags of the path**. A file tagged `tax receipt` sits under *tax › receipt* and under *receipt › tax*: one file,
-  several places, like a shortcut.
+- At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are the other
+  tags that **tell its files apart** (each opening the same way), then its files and folders. Only a tag found on
+  **several** of its files, but not on all of them, is a branch:
+  - a tag on **one file only** is not a level to click through: that file shows **directly** here;
+  - a tag on **every file** of the tag tells nothing apart, so it is not shown: those files show directly too.
+
+  So with `2024[tax].pdf`, `2025[tax receipt].pdf`, `2026[tax receipt].pdf` and `plan[tax plan].md`, *tax* holds the
+  branch *receipt* (2 files), then `2024` and `plan` (alone under *plan*); *receipt* holds `2025` and `2026` directly
+  (both carry *tax*). One file can show in several places, like a shortcut; its pill lists all its tags.
 - Extension tags (`pdf`, `md`) are not branches: every file has one. They stay as the badge before the file name.
 - A file row is its extension badge and its name, then on the right the round **pill** with the number of its tags
   (hover it: the list) and a **folder icon**: hover it to see the folder the file is really in, click it to show the
@@ -222,9 +227,13 @@ file explorer.
 flowchart LR
   root[All tags] --> tax[tax]
   root --> receipt[receipt]
+  tax --> tr["receipt (2)"]
+  tr --> f2["2025[tax receipt].pdf"]
+  tr --> f3["2026[tax receipt].pdf"]
   tax --> f1["2024[tax].pdf"]
-  tax --> tr[receipt] --> f2["2025[tax receipt].pdf"]
-  receipt --> rt[tax] --> f2b["2025[tax receipt].pdf"]
+  tax --> fp["plan[tax plan].md"]
+  receipt --> f2b["2025[tax receipt].pdf"]
+  receipt --> f3b["2026[tax receipt].pdf"]
 ```
 
 Files behave as in the panel's results: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files in

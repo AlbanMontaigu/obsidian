@@ -35,8 +35,8 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
 
 /**
  * The TagEverything explorer (left sidebar): the vault as a tree of tags. At the root every tag; inside a tag, the
- * tags found with it (opening the same way), then the items carrying exactly the tags of the path. An item with
- * several tags sits at the end of every path made of them (src/explore.ts `tagNode`). Stored tags only: extension
+ * tags that tell its items apart (opening the same way), then its items: those no branch leads to, and those alone
+ * under one of their tags, shown directly rather than one level deeper (src/explore.ts `tagNode`). Stored tags only: extension
  * tags are on every file, so they are the chip before a name, not a branch. Every file of the vault can show,
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
  * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed, a
@@ -302,8 +302,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
   /**
    * One file or folder, as in the core explorer with badges: the extension chip, the name (without extension after a
    * chip), then on the right the round pill with the number of its tags (hover: the list) and a folder icon (hover:
-   * the folder it is really in; click: shown there in the file explorer). Its tags are not repeated: the branches
-   * above are its tags.
+   * the folder it is really in; click: shown there in the file explorer). Its tags are not repeated: the path above
+   * holds some, the pill lists them all.
    */
   private itemRow(parent: HTMLElement, item: TAbstractFile): void {
     const index = this.plugin.index;
