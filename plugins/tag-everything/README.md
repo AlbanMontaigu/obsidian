@@ -16,7 +16,7 @@ TagSpaces.
 - Search in the **TagEverything panel**: click tags (AND), exclude some (NOT), open, preview or drag the results.
 - Save searches as **tag groups**, with **formulas** (`(b27 OR inc) AND NOT draft`), and sort them into **bookmark
   tabs**.
-- See tags as coloured **badges** in the file explorer; each file's extension (`pdf`, `md`) is a tag too, shown before its name.
+- See how many tags each item has in the file explorer (hover the number to list them); each file's extension (`pdf`, `md`) is a tag too, shown before its name.
 - Write a **guide for AI assistants** (`CLAUDE.md`) into a folder, so an assistant working in the vault tags files the
   way TagEverything reads them and reuses your tags.
 - **Suggest tags with Claude Code**: it reads the files of a folder (read-only) and suggests tags, reusing the ones

@@ -286,7 +286,25 @@ check("panel filters by tag", document.querySelectorAll(".tag-everything-result"
 plugin.badges.refresh();
 await sleep(300);
 check("explorer badges rendered", document.querySelectorAll(".nav-files-container .tag-everything-badge").length > 0);
-const badgeWrap = document.querySelector(".nav-files-container .tag-everything-badges");
+// One round pill per tagged row (a visible one) with the number of its tags; hovering it lists them, one per line.
+const explorerItems = Object.entries(app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems ?? {});
+const [pillPath, pillItem] = explorerItems.find(([, i]) => i.selfEl?.querySelector(":scope > .tag-everything-count")?.getClientRects().length) ?? [];
+const pill = pillItem?.selfEl.querySelector(":scope > .tag-everything-count");
+const pillTags = pillPath ? plugin.index.ownTagsOf(pillPath) : [];
+check("badges: a pill with the number of tags, no chip per tag", !!pill && pill.textContent === String(pillTags.length) && !pillItem.selfEl.querySelector(":scope > .tag-everything-badges") && parseFloat(getComputedStyle(pill).borderRadius) >= pill.getBoundingClientRect().height / 2, `${pillPath} ${pill?.textContent} ${pillTags}`);
+pill?.dispatchEvent(new MouseEvent("mouseenter"));
+const pillList = document.body.querySelector(":scope > .tag-everything-badge-list");
+const listChips = [...(pillList?.querySelectorAll(".tag-everything-badge") ?? [])];
+const tops = listChips.map((c) => c.getBoundingClientRect().top);
+check("badges: hovering the pill lists its tags, one per line", listChips.map((c) => c.textContent).join() === pillTags.join() && tops.every((t, i) => i === 0 || t > tops[i - 1]) && pillList.getBoundingClientRect().width > 0, pillList?.outerHTML.slice(0, 300));
+pill?.dispatchEvent(new MouseEvent("mouseleave"));
+pillList?.dispatchEvent(new MouseEvent("mouseenter"));
+await sleep(300);
+const stays = !!pillList?.isConnected;
+pillList?.dispatchEvent(new MouseEvent("mouseleave"));
+await sleep(300);
+check("badges: the list stays while the mouse is on it, closes after", stays && !document.querySelector(".tag-everything-badge-list"));
+const badgeWrap = document.querySelector(".nav-files-container .tag-everything-count");
 plugin.badges.refresh();
 check("badges: a refresh with nothing changed keeps the same elements", !!badgeWrap?.isConnected);
 const settingTab = app.setting?.pluginTabs?.find((t) => t.id === "tag-everything");
@@ -294,9 +312,9 @@ if (settingTab) {
   // Declarative tab (getSettingDefinitions): its rows are indexed for Obsidian's settings search.
   const walk = (d) => (d.items ? d.items.flatMap(walk) : [d.name]);
   const names = (settingTab.settingItems ?? []).flatMap(walk);
-  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Maximum badges per item") && names.includes("Claude Code program") && names.includes("Model"), JSON.stringify(names));
+  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Badges for") && names.includes("Claude Code program") && names.includes("Model"), JSON.stringify(names));
   check("settings: tab has an icon", settingTab.icon === "tags", String(settingTab.icon));
-  // Through the real dialog: the badges toggle disables / enables the two badge options and is saved.
+  // Through the real dialog: the badges toggle disables / enables the badge option and is saved.
   app.setting.open();
   app.setting.openTabById("tag-everything");
   await sleep(300);
@@ -322,7 +340,7 @@ if (settingTab) {
   const saved = (await plugin.loadData())?.showBadges;
   toggle?.click();
   await sleep(300);
-  check("settings: badge options disabled while badges are off", off === 3 && saved === false, `disabled=${off} saved=${saved}`);
+  check("settings: badge option disabled while badges are off", off === 2 && saved === false, `disabled=${off} saved=${saved}`);
   check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 1 && (await plugin.loadData())?.showBadges === true);
   // Tag maintenance: the vault check and the re-read are buttons of the settings too. Settings have their own
   // window in Obsidian 1.15: the notice and the dialog open there.

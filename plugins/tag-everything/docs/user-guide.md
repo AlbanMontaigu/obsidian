@@ -147,9 +147,9 @@ Under the filter box: a tab **All** (every group and tag), then your own named t
 - Each tag gets its own colour, picked from its name among the theme colours: always the same in the panel, the
   badges and the editor; nested tags share their parent's colour. A colour stored in a sidecar wins. With 8 colours,
   two tags can share one.
-- **Badges** show tags next to names in the file explorer, in the tag colours; clicking one opens the panel on that
-  tag. More tags than the limit show as `+N` (hover it to read them).
-- The **extension tag** shows **before** the name (`pdf scan[tax].pdf`), outside the badge limit; Obsidian's own
+- **Badges**: after a name in the file explorer, a round pill with the **number** of its tags (`report 3`). Hover
+  it (or click it) to see the tags, one per line, in their colours; clicking a tag there opens the panel on it.
+- The **extension tag** shows **before** the name (`pdf scan[tax].pdf`), not counted in the pill; Obsidian's own
   grey extension label after the name is hidden on those rows. *Badges for: tags not in the name only* keeps it.
 
 ## 9. A guide for AI assistants (CLAUDE.md)
@@ -208,7 +208,7 @@ read your files and suggest tags for them:
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer |
 | Colour tags automatically | On | Section 8 |
-| Show tag badges / Badges for / Maximum badges per item | On / All tags / 4 | Explorer badges (Section 8); *Badges for* can hide tags already readable in the name |
+| Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
 | Model | empty | The model that suggests tags (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
 | Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |

@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, SettingDefinitionItem, TFile } from "obsidian";
 import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
-import { DEFAULT_SETTINGS, MAX_BADGES, MIN_BADGES, normalizeSettings, type TagEverythingSettings } from "./config.ts";
+import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export { DEFAULT_SETTINGS, normalizeSettings } from "./config.ts";
@@ -88,7 +88,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         items: [
           {
             name: "Show tag badges",
-            desc: "Tag chips next to names in the file explorer (relies on its markup, which Obsidian may change).",
+            desc: "In the file explorer, the extension before the name and the number of tags after it; hover the number to list the tags (relies on its markup, which Obsidian may change).",
             control: { type: "toggle", key: "showBadges" },
           },
           {
@@ -99,11 +99,6 @@ export class TagEverythingSettingTab extends PluginSettingTab {
               options: { all: "All tags", sidecar: "Tags not in the name only (frontmatter, sidecar, folder)" },
               disabled: badgesOff,
             },
-          },
-          {
-            name: "Maximum badges per item",
-            desc: "More tags show as +N; hover it to read them.",
-            control: { type: "slider", key: "maxBadges", min: MIN_BADGES, max: MAX_BADGES, step: 1, disabled: badgesOff },
           },
           {
             name: "PDFs, Office files and other non-note files are hidden in the file explorer",

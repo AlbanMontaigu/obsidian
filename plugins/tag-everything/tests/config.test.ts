@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_SETTINGS, MAX_BADGES, normalizeSettings } from "../src/config.ts";
+import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config.ts";
 import { failureMessage, plural, progressMessage } from "../src/messages.ts";
 
 test("normalizeSettings: missing or broken data gives the defaults", () => {
@@ -13,7 +13,6 @@ test("normalizeSettings: valid values kept, wrong types and ranges fixed, unknow
     lowercase: true,
     showBadges: "yes",
     badgeScope: "nope",
-    maxBadges: 99,
     groups: [{ name: "G", tags: ["a"] }, "junk"],
     future: 1,
   });
@@ -21,10 +20,6 @@ test("normalizeSettings: valid values kept, wrong types and ranges fixed, unknow
   assert.equal(s.lowercase, true);
   assert.equal(s.showBadges, DEFAULT_SETTINGS.showBadges);
   assert.equal(s.badgeScope, "all");
-  assert.equal(s.maxBadges, MAX_BADGES);
-  assert.equal(normalizeSettings({ maxBadges: -3 }).maxBadges, 1);
-  assert.equal(normalizeSettings({ maxBadges: Number.NaN }).maxBadges, DEFAULT_SETTINGS.maxBadges);
-  assert.equal(normalizeSettings({ maxBadges: 2.6 }).maxBadges, 3);
   assert.equal(normalizeSettings({ storage: "cloud" }).storage, "filename");
   assert.deepEqual(s.groups.map((g) => g.name), ["G"]);
   assert.equal((s as unknown as Record<string, unknown>).future, 1);

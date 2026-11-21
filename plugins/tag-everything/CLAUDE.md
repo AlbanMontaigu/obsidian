@@ -83,8 +83,8 @@ and `docs/user-guide.md` when users see it.
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); robustness (a sidecar edit and a folder rename during `rebuild()` are kept, two
   concurrent edits queued, an item deleted since the editor opened refused, editor keeps an invalid word and saves
-  once fixed); then panel, badges (a no-op refresh keeps the DOM), settings (declarative rows indexed for search, tab icon; in the
-  real settings dialog, the badges toggle disables / enables the two badge options and is saved to `data.json`), tag groups (create through the
+  once fixed); then panel, badges (a round pill with the number of tags on a visible row, hover lists them one per line, the list stays while hovered and closes after, a no-op refresh keeps the DOM), settings (declarative rows indexed for search, tab icon; in the
+  real settings dialog, the badges toggle disables / enables the badge option and is saved to `data.json`), tag groups (create through the
   dialog, drag with a synthetic `DataTransfer`, fold, `data.json`, group search, switch a tag off / on; formula through the real menu and dialog: error, preview,
   rendering, search, switch-off pruning, NOT, drop = AND, × prunes; the ⊘ NOT button on group chips, with and without a formula; excluding a cloud tag through its right-click menu, saved state, **+** turning it into a `NOT` formula), panel usability (filter + Enter, keyboard,
   saved state, labelled group search button "Search" / "Stop", group menu starting with it, draggable results, hover source), bookmark tabs (+ creates and shows one,
@@ -126,6 +126,7 @@ Deliberate exceptions, each for a reason:
 - `.ts` changes made outside Obsidian need a rebuild (no watcher on dot-folders). A file-system watcher on the
   vault base path (desktop `fs.watch`) would fix it.
 - Badges rely on internal explorer markup (the extension chip also on Obsidian's `.nav-file-tag` class, to hide it).
+  The pill's tag list opens on hover or click only, not from the keyboard (the panel is).
 - Extension tags: a name tag equal to the extension (`x[pdf].pdf`) is allowed (stored, shown once). With `md` on
   every note, the index holds every file of the vault, so badges and the panel's search loop over all of them
   (not measured on the owner's 9 500-file vault).

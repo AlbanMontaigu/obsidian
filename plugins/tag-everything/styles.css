@@ -132,15 +132,6 @@
 
 /* ---- file explorer badges */
 
-.tag-everything-badges {
-  display: inline-flex;
-  gap: 3px;
-  margin-left: 6px;
-  flex-shrink: 0;
-  max-width: 50%;
-  overflow: hidden;
-}
-
 .tag-everything-badge {
   padding: 0 5px;
   font-size: var(--font-ui-smaller);
@@ -148,8 +139,32 @@
   cursor: pointer;
 }
 
-.tag-everything-badge.is-more {
-  color: var(--text-muted);
+/* the number of tags after the name: a round pill; hovering it lists the tags (.tag-everything-badge-list) */
+.tag-everything-badge.tag-everything-count {
+  justify-content: center;
+  min-width: 1.6em;
+  margin-left: 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag-everything-badge-list {
+  position: fixed;
+  top: var(--tag-everything-list-top, 0);
+  left: var(--tag-everything-list-left, 0);
+  z-index: var(--layer-tooltip);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
 }
 
 /* the extension tag, before the file name; Obsidian's own extension label after the name is then redundant */

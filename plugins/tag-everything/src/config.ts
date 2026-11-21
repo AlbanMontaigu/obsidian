@@ -23,7 +23,6 @@ export interface TagEverythingSettings {
   autoColors: boolean;
   /** "sidecar": hide badges for tags already readable in the file name. */
   badgeScope: "all" | "sidecar";
-  maxBadges: number;
   /** Move `.ts/<name>.json` and `.ts/<name>.jpg` along when a file is renamed or moved in Obsidian. */
   followRenames: boolean;
   /** Claude Code program for tag suggestions; empty = `claude` on the PATH, then `~/.local/bin`. */
@@ -36,9 +35,6 @@ export interface TagEverythingSettings {
   tabs: BookmarkTab[];
 }
 
-export const MIN_BADGES = 1;
-export const MAX_BADGES = 10;
-
 export const DEFAULT_SETTINGS: TagEverythingSettings = {
   storage: "filename",
   noteTagsInFrontmatter: true,
@@ -49,7 +45,6 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
-  maxBadges: 4,
   followRenames: true,
   claudeCommand: "",
   claudeModel: "",
@@ -65,7 +60,6 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const d = DEFAULT_SETTINGS;
   const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? r[k] : (d[k] as boolean));
-  const max = typeof r.maxBadges === "number" && Number.isFinite(r.maxBadges) ? Math.round(r.maxBadges) : d.maxBadges;
   const text = (k: "claudeCommand" | "claudeModel"): string => (typeof r[k] === "string" ? r[k].trim() : d[k]);
   const groups = normalizeGroups(r.groups);
   return {
@@ -79,7 +73,6 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,
-    maxBadges: Math.min(MAX_BADGES, Math.max(MIN_BADGES, max)),
     followRenames: bool("followRenames"),
     claudeCommand: text("claudeCommand"),
     claudeModel: text("claudeModel"),
