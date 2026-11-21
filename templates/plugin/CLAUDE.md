@@ -1,6 +1,6 @@
 # __NAME__: notes for Claude
 
-Read the root `CLAUDE.md` first. User-facing description: `README.md`.
+Read the root `CLAUDE.md` first, then `docs/architecture.md`. Users' view: `docs/user-guide.md`.
 
 ## What it does
 
@@ -8,12 +8,13 @@ __DESCRIPTION__
 
 <!-- Replace with: the user's entry points (commands, menus, views, settings), what it reads and writes. -->
 
-## Architecture
+## Where to change what
 
-| File | Role |
-|---|---|
-| `src/main.ts` | Plugin wiring: commands, settings tab, events. |
-| `src/core.ts` | **Pure** logic, unit-tested, no `obsidian` import. |
+<!-- One row per kind of change: the module to start in, the doc to update. Module details: docs/architecture.md. -->
+
+| Change | Start in | Also update |
+|---|---|---|
+| ... | `src/core.ts` (pure) | `docs/user-guide.md` |
 
 ## Invariants (keep them)
 

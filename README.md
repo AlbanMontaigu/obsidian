@@ -59,7 +59,9 @@ Every command takes plugin names (the folder name = manifest `id`); `build`, `te
 ```
 CLAUDE.md                instructions for Claude Code: conventions, safety, definition of done
 docs/
-  workflow.md            playbooks: new plugin, improve a plugin, debugging, release
+  README.md              documentation map: which doc holds what, which to update when
+  workflow.md            playbooks: new plugin, improve a plugin, debugging, code review, release
+  code-style.md          best practices (KISS, DRY, comments) and the review checklist
   obsidian-api.md        API building blocks, internal APIs relied on, traps already hit
   testing.md             unit tests and the in-app smoke test contract
 plugins/<id>/            one plugin
@@ -70,8 +72,10 @@ plugins/<id>/            one plugin
   tests/*.test.ts        unit tests (node --test runs TypeScript directly)
   tests/smoke.js         in-app checks for npm run smoke
   tests/fixtures/vault/  optional vault the smoke test opens
-  README.md              for users
-  CLAUDE.md              for Claude: spec, architecture, invariants
+  README.md              for users: pitch, install
+  docs/user-guide.md     for users: every feature, command, setting
+  docs/architecture.md   for developers: layers, flows (Mermaid), module reference
+  CLAUDE.md              for Claude: where to change what, invariants, tests
 templates/plugin/        starting point for npm run new
 tools/                   build / dev / deploy / smoke / status scripts (plain Node + esbuild)
 .claude/                 skills (/new-plugin, /improve-plugin) and command permissions
@@ -80,4 +84,4 @@ dist/ backups/           generated, git-ignored
 
 ## Conventions
 
-The full list is in [CLAUDE.md](CLAUDE.md). In short: Obsidian theme variables only, class names prefixed with the plugin id, pure logic tested apart from the Obsidian wiring, `.ts` extensions in imports, fail gracefully with a `[plugin-id]` log prefix, no third-party brand in plugin names, bump `version` in `manifest.json` with each change.
+The full list is in [CLAUDE.md](CLAUDE.md), the code style in [docs/code-style.md](docs/code-style.md) and the documentation map in [docs/README.md](docs/README.md). In short: Obsidian theme variables only, class names prefixed with the plugin id, pure logic tested apart from the Obsidian wiring, `.ts` extensions in imports, fail gracefully with a `[plugin-id]` log prefix, no third-party brand in plugin names, bump `version` in `manifest.json` with each change.

@@ -6,7 +6,7 @@ import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
 import { failureMessage, plural, progressMessage } from "./messages.ts";
-import { type NamingRule, type TagMapping, makeRule, mapTagList, replacePlan, ruleMessage } from "./naming.ts";
+import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts";
 import { TagFixModal } from "./fix-modal.ts";
 import { replaceTagsInGroups } from "./groups.ts";
 import { replaceTagsInTabs } from "./tabs.ts";
@@ -14,6 +14,9 @@ import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, norma
 
 /** Plans one item's change from its current tags and where its new tags go. */
 type Planner = (state: ts.TagState, target: ts.TagTarget) => ts.TagPlan;
+
+/** Every file and folder can be tagged, except the vault root. */
+const taggable = (f: TAbstractFile): boolean => !(f instanceof TFolder && f.isRoot());
 
 export default class TagEverythingPlugin extends Plugin {
   settings: TagEverythingSettings = { ...DEFAULT_SETTINGS };
@@ -63,7 +66,7 @@ export default class TagEverythingPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
-        if (file instanceof TFolder && file.isRoot()) return;
+        if (!taggable(file)) return;
         menu.addItem((item) =>
           item
             .setTitle("Edit tags")
@@ -75,7 +78,7 @@ export default class TagEverythingPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => {
-        const items = files.filter((f) => !(f instanceof TFolder && f.isRoot()));
+        const items = files.filter(taggable);
         if (!items.length) return;
         menu.addItem((item) =>
           item
@@ -165,7 +168,7 @@ export default class TagEverythingPlugin extends Plugin {
    * Vault-wide fix: every item carrying a mapped tag gets it replaced by its replacements, where the tag was (name,
    * frontmatter, sidecar; `replacePlan`). Tag groups and bookmark tabs follow. Queued like `applyTags`.
    */
-  async replaceTags(mapping: TagMapping): Promise<{ items: number; failed: number }> {
+  async replaceTags(mapping: ts.TagMapping): Promise<{ items: number; failed: number }> {
     if (!mapping.size) return { items: 0, failed: 0 };
     const items: TAbstractFile[] = [];
     for (const path of this.index.paths()) {
@@ -192,7 +195,7 @@ export default class TagEverythingPlugin extends Plugin {
       }
     }
     // The panel's own search follows too.
-    for (const { view, before } of panels) view.replaceTags(before, (tags) => mapTagList(tags, mapping));
+    for (const { view, before } of panels) view.replaceTags(before, (tags) => ts.mapTagList(tags, mapping));
     return { items: items.length, failed };
   }
 
@@ -293,7 +296,7 @@ export default class TagEverythingPlugin extends Plugin {
     if (item instanceof TFolder) {
       const { sideTags, sideChanged } = planner({ nameTags: [], sideTags: side, frontTags: [] }, "sidecar");
       if (!sideChanged) return false;
-      await this.store.writeTags(ts.folderMetaPath(item.path), sideTags);
+      await this.store.writeTags(this.store.metaPathOf(item), sideTags);
       this.index.setSide(item.path, sideTags);
       return true;
     }
@@ -330,7 +333,7 @@ export default class TagEverythingPlugin extends Plugin {
       await this.app.fileManager.processFrontMatter(item, (fm: Record<string, unknown>) => ts.setFrontmatterTags(fm, plan.frontTags));
       this.index.setFront(item.path, plan.frontTags);
     }
-    if (plan.sideChanged) await this.store.writeTags(ts.fileSidecarPath(item.path), plan.sideTags);
+    if (plan.sideChanged) await this.store.writeTags(this.store.metaPathOf(item), plan.sideTags); // item.path is the new path
     this.index.setSide(item.path, plan.sideTags);
     return true;
   }

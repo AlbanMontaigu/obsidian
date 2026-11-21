@@ -2,7 +2,8 @@
 // The panel's first tab, "All", shows every group and tag; each bookmark tab, named by the user, shows only the tags
 // and groups bookmarked in it. Tabs live in data.json (settings.tabs). Every function returns a new array.
 
-import { cleanGroupName, nextGroupId } from "./groups.ts";
+import { type TagMapping, mapTagList } from "./format.ts";
+import { cleanName, cleanTagList, nextId } from "./groups.ts";
 
 export interface BookmarkTab {
   /** Stable id ("t1", "t2"...). */
@@ -16,9 +17,6 @@ export interface BookmarkTab {
 
 export type BookmarkKind = "tags" | "groups";
 
-const strings = (v: unknown): string[] =>
-  Array.isArray(v) ? [...new Set(v.filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim()))] : [];
-
 /** Tabs read from data.json: anything malformed is dropped or repaired; group ids not in `groupIds` are dropped. */
 export function normalizeTabs(raw: unknown, groupIds: readonly string[]): BookmarkTab[] {
   if (!Array.isArray(raw)) return [];
@@ -26,27 +24,27 @@ export function normalizeTabs(raw: unknown, groupIds: readonly string[]): Bookma
   for (const t of raw) {
     if (!t || typeof t !== "object") continue;
     const r = t as Record<string, unknown>;
-    const name = typeof r.name === "string" ? cleanGroupName(r.name) : "";
+    const name = typeof r.name === "string" ? cleanName(r.name) : "";
     if (!name) continue;
     const taken = new Set(out.map((x) => x.id));
     const id = typeof r.id === "string" && /^t\d+$/.test(r.id) && !taken.has(r.id) ? r.id : "";
-    out.push({ id, name, tags: strings(r.tags), groups: strings(r.groups).filter((g) => groupIds.includes(g)) });
+    out.push({ id, name, tags: cleanTagList(r.tags), groups: cleanTagList(r.groups).filter((g) => groupIds.includes(g)) });
   }
   // ids given last, so a repaired one never takes the id of a later valid tab
-  for (const tab of out) if (!tab.id) tab.id = nextGroupId(out.filter((x) => x.id), "t");
+  for (const tab of out) if (!tab.id) tab.id = nextId(out.filter((x) => x.id), "t");
   return out;
 }
 
 /** Adds a tab at the end. Throws on an empty name (the caller shows the message). */
 export function addTab(tabs: readonly BookmarkTab[], name: string): { tabs: BookmarkTab[]; id: string } {
-  const clean = cleanGroupName(name);
+  const clean = cleanName(name);
   if (!clean) throw new Error("A tab needs a name");
-  const id = nextGroupId(tabs, "t");
+  const id = nextId(tabs, "t");
   return { tabs: [...tabs, { id, name: clean, tags: [], groups: [] }], id };
 }
 
 export function renameTab(tabs: readonly BookmarkTab[], id: string, name: string): BookmarkTab[] {
-  const clean = cleanGroupName(name);
+  const clean = cleanName(name);
   if (!clean) throw new Error("A tab needs a name");
   return tabs.map((t) => (t.id === id ? { ...t, name: clean } : t));
 }
@@ -69,6 +67,6 @@ export function forgetGroup(tabs: readonly BookmarkTab[], groupId: string): Book
 }
 
 /** Follows a vault-wide tag fix: each bookmarked tag that is mapped is replaced by its replacements, once each. */
-export function replaceTagsInTabs(tabs: readonly BookmarkTab[], mapping: ReadonlyMap<string, readonly string[]>): BookmarkTab[] {
-  return tabs.map((t) => (t.tags.some((x) => mapping.has(x)) ? { ...t, tags: [...new Set(t.tags.flatMap((x) => mapping.get(x) ?? [x]))] } : t));
+export function replaceTagsInTabs(tabs: readonly BookmarkTab[], mapping: TagMapping): BookmarkTab[] {
+  return tabs.map((t) => (t.tags.some((x) => mapping.has(x)) ? { ...t, tags: mapTagList(t.tags, mapping) } : t));
 }

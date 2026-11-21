@@ -10,7 +10,7 @@ Arguments: `$ARGUMENTS` (an id and/or a description; derive whichever is missing
 
 Follow `docs/workflow.md` section **A. New plugin**, step by step. Before writing code, read:
 
-1. `CLAUDE.md` (root): conventions, safety, definition of done.
+1. `CLAUDE.md` (root): conventions, safety, definition of done; `docs/code-style.md`.
 2. `docs/obsidian-api.md`: building blocks, internal APIs, **traps**.
 3. `docs/testing.md`: how `tests/smoke.js` works (`app`, `plugin`, `check`, `sleep`, `expectError`, `fakeMenu`).
 4. The closest existing plugin's `CLAUDE.md` and source for patterns to reuse.
@@ -24,8 +24,9 @@ Then:
   user-facing entry point (commands, menus, views, settings) and ends with the main UI open.
 - Loop `npm run typecheck`, `npm test -- <id>`, `npm run smoke -- <id>` until green; **Read
   `dist/<id>-smoke.png`** and fix what looks wrong.
-- Write `plugins/<id>/README.md` (user) and `plugins/<id>/CLAUDE.md` (spec, architecture, invariants, tests,
-  limits; same outline as `plugins/tag-everything/CLAUDE.md`). Add the plugin to the root `CLAUDE.md` table and
+- Fill the docs the template created (map: `docs/README.md`): `README.md` (pitch, install), `docs/user-guide.md`
+  (every feature, command, setting, limit), `docs/architecture.md` (layers, Mermaid flows, module reference) and
+  `CLAUDE.md` (where to change what, invariants, tests, limits); `plugins/tag-everything/` is the model. Add the plugin to the root `CLAUDE.md` table and
   the root `README.md` list.
 
 Do **not** deploy into a real vault. Finish with a report: what the plugin does, decisions you made on open points,

@@ -5,7 +5,6 @@ import {
   auditTags,
   followsRule,
   makeRule,
-  mapTagList,
   parseReplacement,
   parseStopWords,
   parseTypedTags,
@@ -14,6 +13,7 @@ import {
   ruleProblem,
   suggestFix,
 } from "../src/naming.ts";
+import { mapTagList } from "../src/format.ts";
 import { formatFormula, parseFormula, replaceTagsInExpr } from "../src/formula.ts";
 import { replaceTagsInGroups, type TagGroup } from "../src/groups.ts";
 import { replaceTagsInTabs } from "../src/tabs.ts";

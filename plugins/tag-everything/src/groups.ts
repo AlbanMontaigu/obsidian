@@ -2,6 +2,7 @@
 // Groups live in the plugin's data.json (settings.groups). Every function returns a new array and never mutates.
 // A group without a formula searches for all its tags (AND); with one, its tags are exactly the formula's tags.
 
+import { type TagMapping, mapTagList } from "./format.ts";
 import { type Expr, andOf, formatFormula, formulaTags, prune, replaceTagsInExpr, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
 
 export interface TagGroup {
@@ -16,11 +17,17 @@ export interface TagGroup {
   formula?: string;
 }
 
-export const MAX_GROUP_NAME = 80;
+export const MAX_NAME = 80;
 
-/** Trimmed, inner whitespace collapsed, capped. Empty string = no valid name. */
-export function cleanGroupName(name: string): string {
-  return name.replace(/\s+/g, " ").trim().slice(0, MAX_GROUP_NAME);
+/** A group or tab name: trimmed, inner whitespace collapsed, capped. Empty string = no valid name. */
+export function cleanName(name: string): string {
+  return name.replace(/\s+/g, " ").trim().slice(0, MAX_NAME);
+}
+
+/** A tag list read from data.json: non-empty strings only, trimmed, once each. Anything else -> []. */
+export function cleanTagList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim()))];
 }
 
 /** Groups read from data.json: anything malformed is dropped or repaired, never thrown on. */
@@ -31,13 +38,12 @@ export function normalizeGroups(raw: unknown): TagGroup[] {
   for (const g of raw) {
     if (!g || typeof g !== "object") continue;
     const r = g as Record<string, unknown>;
-    const name = typeof r.name === "string" ? cleanGroupName(r.name) : "";
+    const name = typeof r.name === "string" ? cleanName(r.name) : "";
     if (!name) continue;
     let id = typeof r.id === "string" && r.id && !ids.has(r.id) ? r.id : "";
-    if (!id) id = nextGroupId([...out, ...raw.filter(isIdHolder)]);
+    if (!id) id = nextId([...out, ...raw.filter(isIdHolder)]);
     ids.add(id);
-    const tags = Array.isArray(r.tags) ? [...new Set(r.tags.filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim()))] : [];
-    const group: TagGroup = { id, name, tags, collapsed: r.collapsed === true };
+    const group: TagGroup = { id, name, tags: cleanTagList(r.tags), collapsed: r.collapsed === true };
     // Kept even if it doesn't parse (written by hand?): the panel shows the error instead of losing it.
     if (typeof r.formula === "string" && r.formula.trim()) group.formula = r.formula.trim();
     out.push(group);
@@ -49,12 +55,12 @@ function isIdHolder(g: unknown): g is { id: string } {
   return !!g && typeof g === "object" && typeof (g as { id?: unknown }).id === "string";
 }
 
-/** "<prefix><n>" ("g1"...) with n above every numeric id in use. Bookmark tabs use the prefix "t". */
-export function nextGroupId(groups: readonly { id: string }[], prefix = "g"): string {
+/** "<prefix><n>" with n above every numeric id in use: groups "g1", "g2"..., bookmark tabs "t1"... */
+export function nextId(items: readonly { id: string }[], prefix = "g"): string {
   let max = 0;
-  for (const g of groups) {
-    if (!g.id.startsWith(prefix)) continue;
-    const n = g.id.slice(prefix.length);
+  for (const { id } of items) {
+    if (!id.startsWith(prefix)) continue;
+    const n = id.slice(prefix.length);
     if (/^\d+$/.test(n)) max = Math.max(max, Number(n));
   }
   return `${prefix}${max + 1}`;
@@ -62,9 +68,9 @@ export function nextGroupId(groups: readonly { id: string }[], prefix = "g"): st
 
 /** Adds a group at the end. Throws on an empty name (the caller shows the message). */
 export function addGroup(groups: readonly TagGroup[], name: string, tags: readonly string[] = []): { groups: TagGroup[]; id: string } {
-  const clean = cleanGroupName(name);
+  const clean = cleanName(name);
   if (!clean) throw new Error("A group needs a name");
-  const id = nextGroupId(groups);
+  const id = nextId(groups);
   return { groups: [...groups, { id, name: clean, tags: [...new Set(tags)], collapsed: false }], id };
 }
 
@@ -73,7 +79,7 @@ function update(groups: readonly TagGroup[], id: string, fn: (g: TagGroup) => Ta
 }
 
 export function renameGroup(groups: readonly TagGroup[], id: string, name: string): TagGroup[] {
-  const clean = cleanGroupName(name);
+  const clean = cleanName(name);
   if (!clean) throw new Error("A group needs a name");
   return update(groups, id, (g) => ({ ...g, name: clean }));
 }
@@ -82,7 +88,8 @@ export function deleteGroup(groups: readonly TagGroup[], id: string): TagGroup[]
   return groups.filter((g) => g.id !== id);
 }
 
-function parsedFormula(g: TagGroup): Expr | null {
+/** The group's formula, parsed; null without one or when it does not parse. */
+export function groupFormula(g: TagGroup): Expr | null {
   if (!g.formula) return null;
   const r = tryParseFormula(g.formula);
   return "expr" in r ? r.expr : null;
@@ -90,7 +97,7 @@ function parsedFormula(g: TagGroup): Expr | null {
 
 /** What the group searches for: its formula, else all its tags (AND). Null for an empty group. */
 export function groupExpr(g: TagGroup): Expr | null {
-  return parsedFormula(g) ?? andOf(g.tags.map(tagExpr));
+  return groupFormula(g) ?? andOf(g.tags.map(tagExpr));
 }
 
 /** The formula's syntax error, if it has a formula that doesn't parse. */
@@ -118,7 +125,7 @@ export function setFormula(groups: readonly TagGroup[], id: string, expr: Expr |
 export function addTagsToGroup(groups: readonly TagGroup[], id: string, tags: readonly string[]): TagGroup[] {
   return update(groups, id, (g) => {
     const fresh = tags.filter((t) => !g.tags.includes(t));
-    const expr = parsedFormula(g);
+    const expr = groupFormula(g);
     if (expr && fresh.length) return withFormula(g, andOf([expr, ...fresh.map(tagExpr)]));
     return { ...g, tags: [...new Set([...g.tags, ...tags])] };
   });
@@ -127,7 +134,7 @@ export function addTagsToGroup(groups: readonly TagGroup[], id: string, tags: re
 /** Removes the tag from the group and from its formula (as if never written there). */
 export function removeTagFromGroup(groups: readonly TagGroup[], id: string, tag: string): TagGroup[] {
   return update(groups, id, (g) => {
-    const expr = parsedFormula(g);
+    const expr = groupFormula(g);
     if (expr) return withFormula(g, prune(expr, (t) => t !== tag));
     return { ...g, tags: g.tags.filter((t) => t !== tag) };
   });
@@ -164,12 +171,12 @@ export function moveGroup(groups: readonly TagGroup[], id: string, beforeId: str
  * in the formula (as `a AND b`; a tag mapped to nothing is pruned). An unparsable formula is left alone. Groups not
  * naming a mapped tag are returned as they are.
  */
-export function replaceTagsInGroups(groups: readonly TagGroup[], mapping: ReadonlyMap<string, readonly string[]>): TagGroup[] {
+export function replaceTagsInGroups(groups: readonly TagGroup[], mapping: TagMapping): TagGroup[] {
   return groups.map((g) => {
     if (!g.tags.some((t) => mapping.has(t))) return g;
     if (formulaError(g)) return g;
-    const expr = parsedFormula(g);
+    const expr = groupFormula(g);
     if (expr) return withFormula(g, replaceTagsInExpr(expr, mapping));
-    return { ...g, tags: [...new Set(g.tags.flatMap((t) => mapping.get(t) ?? [t]))] };
+    return { ...g, tags: mapTagList(g.tags, mapping) };
   });
 }

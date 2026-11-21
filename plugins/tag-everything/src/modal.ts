@@ -3,6 +3,8 @@ import * as ts from "./format.ts";
 import type { TagIndex } from "./index.ts";
 import { TagEverythingSettings, targetFor } from "./settings.ts";
 import { type NamingRule, followsRule, parseTypedTags, ruleMessage, suggestFix } from "./naming.ts";
+import { plural } from "./messages.ts";
+import { matchTags, paintTag, renderTagSuggestion } from "./ui.ts";
 
 export interface TagEdit {
   added: string[];
@@ -21,18 +23,11 @@ class TagSuggest extends AbstractInputSuggest<string> {
   }
 
   protected getSuggestions(query: string): string[] {
-    // Nothing typed -> no list, so Enter on an empty box saves instead of picking the first suggestion.
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const hits = this.source().filter((t) => t.toLowerCase().includes(q));
-    // Prefix matches first, the rest keep the index order (most used first).
-    return hits.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 50);
+    return matchTags(this.source(), query);
   }
 
   renderSuggestion(tag: string, el: HTMLElement): void {
-    el.addClass("tag-everything-suggestion");
-    el.createSpan({ text: tag });
-    el.createSpan({ cls: "tag-everything-suggestion-count", text: String(this.counts.get(tag) ?? 0) });
+    renderTagSuggestion(el, tag, this.counts.get(tag) ?? 0);
   }
 
   selectSuggestion(tag: string): void {
@@ -182,8 +177,7 @@ export class TagEditorModal extends Modal {
     for (const chip of this.chips) {
       const partial = chip.count < total;
       const el = this.chipsEl.createDiv({ cls: "tag-everything-chip" + (partial ? " is-partial" : "") });
-      const color = this.index.colorFor(chip.tag);
-      if (color) el.setCssProps({ "--tag-everything-color": color });
+      paintTag(el, this.index.colorFor(chip.tag));
       el.createSpan({ text: chip.tag });
       if (partial) {
         el.createSpan({ cls: "tag-everything-chip-count", text: `${chip.count}/${total}` });
@@ -245,8 +239,9 @@ export class TagEditorModal extends Modal {
   }
 }
 
+/** "report.pdf", or "3 items (1 folder)": what a batch notice talks about. */
 export function describe(items: TAbstractFile[]): string {
   if (items.length === 1) return items[0].name;
   const folders = items.filter((i) => i instanceof TFolder).length;
-  return `${items.length} items` + (folders ? ` (${folders} folder${folders > 1 ? "s" : ""})` : "");
+  return plural(items.length, "item") + (folders ? ` (${plural(folders, "folder")})` : "");
 }

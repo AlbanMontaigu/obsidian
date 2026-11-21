@@ -1,4 +1,4 @@
-import { AbstractInputSuggest, App, HoverParent, HoverPopover, ItemView, Keymap, Menu, Modal, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
+import { HoverParent, HoverPopover, ItemView, Keymap, Menu, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
 import * as ts from "./format.ts";
 import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
@@ -7,6 +7,8 @@ import * as tb from "./tabs.ts";
 import { plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
+import { FormulaModal, NameModal } from "./dialogs.ts";
+import { clickable, isNode, paintTag } from "./ui.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 const MAX_RESULTS = 500;
@@ -38,24 +40,6 @@ interface PanelState {
   filter: string;
   /** Bookmark tab shown; null = All. */
   tab: string | null;
-}
-
-/** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
-function isNode(target: EventTarget | null): target is Node {
-  return !!target && typeof (target as Partial<Node>).nodeType === "number";
-}
-
-/** Makes `el` a button for the keyboard too: focusable, Enter / Space run `fn` like a click. */
-function clickable(el: HTMLElement, fn: (evt: MouseEvent | KeyboardEvent) => void): void {
-  el.tabIndex = 0;
-  el.setAttr("role", "button");
-  el.addEventListener("click", fn);
-  el.addEventListener("keydown", (evt) => {
-    if ((evt.key === "Enter" || evt.key === " ") && evt.target === el) {
-      evt.preventDefault();
-      fn(evt);
-    }
-  });
 }
 
 /**
@@ -174,10 +158,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   /** Shows the items carrying `tag` (used by badge clicks). */
   selectOnly(tag: string): void {
+    this.resetSearch();
     this.selected = [tag];
-    this.excluded = [];
-    this.activeGroup = null;
-    this.render();
+    this.stateChanged();
   }
 
   /** The search as it is, taken before a vault-wide tag fix (renders during the fix drop tags no item carries). */
@@ -189,8 +172,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
   replaceTags(before: { selected: string[]; excluded: string[] }, fn: (tags: readonly string[]) => string[]): void {
     this.selected = fn(before.selected);
     this.excluded = fn(before.excluded).filter((t) => !this.selected.includes(t));
-    this.app.workspace.requestSaveLayout();
+    this.stateChanged();
+  }
+
+  /** Empties the search: no tag selected or excluded, no active group. */
+  private resetSearch(): void {
+    this.selected = [];
+    this.excluded = [];
+    this.activeGroup = null;
+  }
+
+  /** The search, tab or groups changed: redraw, and save the panel state with the workspace. */
+  private stateChanged(): void {
     this.render();
+    this.app.workspace.requestSaveLayout();
   }
 
   // ---- tag groups (stored in settings.groups, logic in src/groups.ts)
@@ -201,8 +196,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   private async save(change: Partial<Pick<TagEverythingSettings, "groups" | "tabs">>): Promise<void> {
     Object.assign(this.plugin.settings, change);
-    this.render();
-    this.app.workspace.requestSaveLayout();
+    this.stateChanged();
     try {
       await this.plugin.saveData(this.plugin.settings);
     } catch (err) {
@@ -244,8 +238,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Shows a bookmark tab, or All with null (public for the smoke test). */
   showTab(id: string | null): void {
     this.tab = id;
-    this.render();
-    this.app.workspace.requestSaveLayout();
+    this.stateChanged();
   }
 
   /** Creates a bookmark tab holding these bookmarks and shows it (public for the smoke test). Throws on an empty name. */
@@ -310,18 +303,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   /** Searches by every tag of the group still in use; on the active group, clears the search. */
   selectGroup(id: string): void {
-    const group = this.groups.find((g) => g.id === id);
-    this.excluded = [];
-    if (!group || this.activeGroup === id) {
-      this.activeGroup = null;
-      this.selected = [];
-    } else {
+    const group = this.activeGroup === id ? undefined : this.groups.find((g) => g.id === id);
+    this.resetSearch();
+    if (group) {
       const counts = this.plugin.index.counts();
-      this.activeGroup = id;
+      this.activeGroup = group.id;
       this.selected = group.tags.filter((t) => counts.has(t));
     }
-    this.render();
-    this.app.workspace.requestSaveLayout();
+    this.stateChanged();
   }
 
   /**
@@ -349,6 +338,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
       ...this.selected.filter((t) => !group?.tags.includes(t)).map(fx.tagExpr),
       ...this.excluded.map((t) => fx.notExpr(fx.tagExpr(t))),
     ]);
+  }
+
+  /** Paths the current search finds; null when there is no search. */
+  private searchMatches(): string[] | null {
+    const search = this.searchExpr();
+    return search ? this.matchPaths(search) : null;
   }
 
   /** Tagged paths matching `expr`; tags no item carries (e.g. renamed since) are left out of it first. */
@@ -420,7 +415,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   editFormula(group: gr.TagGroup): void {
     const counts = this.plugin.index.counts();
-    const current = group.formula ?? (gr.groupExpr(group) ? fx.formatFormula(gr.groupExpr(group)!) : "");
+    const expr = gr.groupExpr(group);
+    const current = group.formula ?? (expr ? fx.formatFormula(expr) : "");
     new FormulaModal(
       this.app,
       group.name,
@@ -486,8 +482,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.excluded = this.excluded.filter((t) => t !== tag);
     if (mode === "on") this.selected.push(tag);
     if (mode === "not") this.excluded.push(tag);
-    this.render();
-    this.app.workspace.requestSaveLayout(); // the selection is part of the panel's saved state
+    this.stateChanged();
   }
 
   private toggle(tag: string): void {
@@ -523,15 +518,15 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.renderTabs();
     this.renderSelected();
     this.renderGroups();
-    this.renderTags();
-    this.renderResults();
+    const matches = this.searchMatches(); // used by both: computed once
+    this.renderTags(matches);
+    this.renderResults(matches);
   }
 
   private chip(parent: HTMLElement, tag: string, extra = ""): HTMLElement {
     const el = parent.createDiv({ cls: "tag-everything-chip " + extra });
     el.dataset.tag = tag;
-    const color = this.plugin.index.colorFor(tag);
-    if (color) el.setCssProps({ "--tag-everything-color": color });
+    paintTag(el, this.plugin.index.colorFor(tag));
     el.createSpan({ text: tag });
     // Every chip of the panel can be dragged onto a group.
     el.draggable = true;
@@ -597,7 +592,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         el.setAttr("aria-label", !used ? "No file or folder carries this tag" : on ? "Click to leave it out of the search" : "Click to search with it");
         if (used) clickable(el, () => this.toggle(tag));
       };
-      const expr = group.formula && !gr.formulaError(group) ? gr.groupExpr(group) : null;
+      const expr = gr.groupFormula(group);
       if (expr) this.renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
       else for (const tag of group.tags) toggleChip(this.selectedEl, tag, false);
     }
@@ -614,11 +609,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     for (const tag of this.excluded) searchChip(tag, true);
     const clear = this.selectedEl.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
     clear.addEventListener("click", () => {
-      this.selected = [];
-      this.excluded = [];
-      this.activeGroup = null;
-      this.render();
-      this.app.workspace.requestSaveLayout();
+      this.resetSearch();
+      this.stateChanged();
     });
   }
 
@@ -749,18 +741,18 @@ export class TagEverythingView extends ItemView implements HoverParent {
         const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit formula.` });
         err.setAttr("aria-label", group.formula ?? "");
       }
-      const expr = group.formula && !error ? gr.groupExpr(group) : null;
+      const expr = gr.groupFormula(group);
       if (expr) this.renderExpr(body, expr, groupChip);
       else for (const tag of group.tags) groupChip(body, tag, false);
     }
   }
 
-  private renderTags(): void {
+  /** The tag cloud, counted over what the search finds (`matches`; null = no search: the whole vault). */
+  private renderTags(matches = this.searchMatches()): void {
     this.tagsEl.empty();
     const index = this.plugin.index;
-    const search = this.searchExpr();
-    const scope = search ? this.matchPaths(search) : undefined;
-    const counts = index.counts(scope);
+    const search = matches !== null;
+    const counts = index.counts(matches ?? undefined);
     // In a bookmark tab, its tags only; with no search, one no item carries any more stays (faded) so it can be removed.
     const tab = this.currentTab;
     const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]).filter(([, n]) => n > 0 || !search) : [...counts];
@@ -792,12 +784,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
   }
 
-  private renderResults(): void {
+  private renderResults(matches: string[] | null): void {
     this.resultsEl.empty();
     const index = this.plugin.index;
     const total = index.size;
-    const search = this.searchExpr();
-    if (!search) {
+    if (!matches) {
       this.statusEl.setText(
         this.activeGroup
           ? "No tag of this group is switched on: click one above."
@@ -806,8 +797,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       return;
     }
     const vault = this.app.vault;
-    const items = this
-      .matchPaths(search)
+    const items = matches
       .map((p) => vault.getAbstractFileByPath(p))
       .filter((f): f is TAbstractFile => !!f)
       .sort((a, b) => Number(a instanceof TFile) - Number(b instanceof TFile) || a.path.localeCompare(b.path));
@@ -863,172 +853,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
         return;
       }
       if (!(item instanceof TFile)) return;
-      const file = item;
-      const known = app.viewRegistry?.isExtensionRegistered?.(file.extension) ?? true;
-      if (!known && app.openWithDefaultApp) app.openWithDefaultApp(file.path);
-      else void this.app.workspace.getLeaf(Keymap.isModEvent(evt)).openFile(file);
+      // A file Obsidian has no view for (Office files...) opens in the system app.
+      const known = app.viewRegistry?.isExtensionRegistered?.(item.extension) ?? true;
+      if (!known && app.openWithDefaultApp) app.openWithDefaultApp(item.path);
+      else void this.app.workspace.getLeaf(Keymap.isModEvent(evt)).openFile(item);
     } catch (err) {
       console.error("[tag-everything] open failed", err);
     }
-  }
-}
-
-/** Asks for a group or tab name. If `done` throws (empty name), the message shows and the modal stays open. */
-class NameModal extends Modal {
-  constructor(
-    app: App,
-    private heading: string,
-    private initial: string,
-    private placeholder: string,
-    private done: (name: string) => Promise<void>,
-  ) {
-    super(app);
-  }
-
-  onOpen(): void {
-    this.modalEl.addClass("tag-everything-group-modal");
-    this.setTitle(this.heading);
-    const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: this.placeholder } });
-    input.value = this.initial;
-    const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
-    const buttons = this.contentEl.createDiv({ cls: "modal-button-container" });
-    const save = buttons.createEl("button", { cls: "mod-cta", text: "Save" });
-    const submit = async (): Promise<void> => {
-      try {
-        await this.done(input.value);
-        this.close();
-      } catch (err) {
-        error.setText((err as Error).message);
-      }
-    };
-    save.addEventListener("click", () => void submit());
-    input.addEventListener("keydown", (evt) => {
-      if (evt.key !== "Enter" || evt.defaultPrevented || evt.isComposing) return;
-      evt.preventDefault();
-      void submit();
-    });
-    window.setTimeout(() => input.focus(), 0);
-  }
-
-  onClose(): void {
-    this.contentEl.empty();
-  }
-}
-
-/** Completes the tag being typed in a formula (the word before the caret). */
-class FormulaTagSuggest extends AbstractInputSuggest<string> {
-  constructor(
-    app: App,
-    private input: HTMLInputElement,
-    private tags: readonly string[],
-    private counts: ReadonlyMap<string, number>,
-  ) {
-    super(app, input);
-  }
-
-  private partial(): { start: number; word: string } {
-    const caret = this.input.selectionStart ?? this.input.value.length;
-    const before = this.input.value.slice(0, caret);
-    const m = /[^\s()"!]*$/.exec(before)!;
-    return { start: caret - m[0].length, word: m[0].replace(/^#/, "") };
-  }
-
-  protected getSuggestions(): string[] {
-    const q = this.partial().word.toLowerCase();
-    if (!q) return []; // nothing typed: Enter saves
-    const hits = this.tags.filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q);
-    return hits.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 50);
-  }
-
-  renderSuggestion(tag: string, el: HTMLElement): void {
-    el.addClass("tag-everything-suggestion");
-    el.createSpan({ text: tag });
-    el.createSpan({ cls: "tag-everything-suggestion-count", text: String(this.counts.get(tag) ?? 0) });
-  }
-
-  selectSuggestion(tag: string): void {
-    const { start } = this.partial();
-    const caret = this.input.selectionStart ?? this.input.value.length;
-    const text = fx.formatFormula(fx.tagExpr(tag)) + " ";
-    this.input.value = this.input.value.slice(0, start) + text + this.input.value.slice(caret);
-    this.input.setSelectionRange(start + text.length, start + text.length);
-    this.close();
-    this.input.dispatchEvent(new Event("input")); // refreshes the preview
-  }
-}
-
-/** Edits a group's formula, with a live check: syntax error, or how many items it finds. */
-class FormulaModal extends Modal {
-  constructor(
-    app: App,
-    private groupName: string,
-    private initial: string,
-    private tags: readonly string[],
-    private counts: ReadonlyMap<string, number>,
-    private countMatches: (expr: fx.Expr) => number,
-    private done: (text: string) => Promise<void>,
-  ) {
-    super(app);
-  }
-
-  onOpen(): void {
-    this.modalEl.addClass("tag-everything-formula-modal");
-    this.setTitle(`Formula of "${this.groupName}"`);
-    this.contentEl.createDiv({
-      cls: "tag-everything-where",
-      text:
-        "Combine the tags with AND, OR, NOT (or ET, OU, NON) and parentheses, e.g. (B27 OR INC) AND (q3 OR 2026). " +
-        "Two tags side by side = AND. Empty: all the group's tags (AND).",
-    });
-    const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-formula-input", attr: { placeholder: "(tag1 OR tag2) AND tag3", spellcheck: "false" } });
-    input.value = this.initial;
-    const preview = this.contentEl.createDiv({ cls: "tag-everything-formula-preview" });
-    const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
-    new FormulaTagSuggest(this.app, input, this.tags, this.counts);
-
-    const update = (): void => {
-      preview.empty();
-      error.setText("");
-      if (!input.value.trim()) {
-        preview.setText("No formula: the group searches for all its tags.");
-        return;
-      }
-      const r = fx.tryParseFormula(input.value);
-      if ("error" in r) {
-        error.setText(r.error);
-        return;
-      }
-      const expr = fx.resolveTags(r.expr, this.tags);
-      const n = this.countMatches(expr);
-      preview.createDiv({ text: `${fx.formatFormula(expr)}  →  ${plural(n, "item")}` });
-      const unknown = fx.formulaTags(expr).filter((t) => !this.counts.has(t));
-      if (unknown.length) preview.createDiv({ cls: "tag-everything-formula-unknown", text: `No item carries ${unknown.join(", ")} (left out of the search).` });
-    };
-    input.addEventListener("input", update);
-    update();
-
-    const buttons = this.contentEl.createDiv({ cls: "modal-button-container" });
-    const cancel = buttons.createEl("button", { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const save = buttons.createEl("button", { cls: "mod-cta", text: "Save" });
-    const submit = async (): Promise<void> => {
-      try {
-        await this.done(input.value);
-        this.close();
-      } catch (err) {
-        error.setText((err as Error).message);
-      }
-    };
-    save.addEventListener("click", () => void submit());
-    input.addEventListener("keydown", (evt) => {
-      if (evt.key !== "Enter" || evt.defaultPrevented || evt.isComposing) return;
-      evt.preventDefault();
-      void submit();
-    });
-    window.setTimeout(() => input.focus(), 0);
-  }
-
-  onClose(): void {
-    this.contentEl.empty();
   }
 }

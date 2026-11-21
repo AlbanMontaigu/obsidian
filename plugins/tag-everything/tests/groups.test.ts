@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import {
   addGroup,
   addTagsToGroup,
-  cleanGroupName,
+  cleanName,
   deleteGroup,
   formulaError,
   groupExpr,
   moveGroup,
-  nextGroupId,
+  nextId,
   normalizeGroups,
   removeTagFromGroup,
   renameGroup,
@@ -21,15 +21,15 @@ import { formatFormula, parseFormula } from "../src/formula.ts";
 
 const g = (id: string, tags: string[] = [], name = id): TagGroup => ({ id, name, tags, collapsed: false });
 
-test("cleanGroupName: trims, collapses spaces, caps length", () => {
-  assert.equal(cleanGroupName("  Client   B27 \n"), "Client B27");
-  assert.equal(cleanGroupName("   "), "");
-  assert.equal(cleanGroupName("x".repeat(200)).length, 80);
+test("cleanName: trims, collapses spaces, caps length", () => {
+  assert.equal(cleanName("  Client   B27 \n"), "Client B27");
+  assert.equal(cleanName("   "), "");
+  assert.equal(cleanName("x".repeat(200)).length, 80);
 });
 
-test("nextGroupId: above every numeric id, ignores others", () => {
-  assert.equal(nextGroupId([]), "g1");
-  assert.equal(nextGroupId([g("g1"), g("g7"), g("custom")]), "g8");
+test("nextId: above every numeric id, ignores others", () => {
+  assert.equal(nextId([]), "g1");
+  assert.equal(nextId([g("g1"), g("g7"), g("custom")]), "g8");
 });
 
 test("addGroup: appends with a fresh id and unique tags; refuses an empty name", () => {

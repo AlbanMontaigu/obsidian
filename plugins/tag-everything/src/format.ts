@@ -45,6 +45,14 @@ export function sameTags(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((t, i) => t === b[i]);
 }
 
+/** A tag -> replacements map, as a vault-wide fix applies it (an empty list drops the tag). */
+export type TagMapping = ReadonlyMap<string, readonly string[]>;
+
+/** Each mapped tag replaced in place by its replacements, order kept, once each. */
+export function mapTagList(tags: readonly string[], mapping: TagMapping): string[] {
+  return dedupe(tags.flatMap((t) => mapping.get(t) ?? [t]));
+}
+
 // ---------------------------------------------------------------- file-name tags
 
 function tagSpan(name: string): { begin: number; end: number } | null {

@@ -1,5 +1,6 @@
 import { TAbstractFile } from "obsidian";
 import type TagEverythingPlugin from "./main.ts";
+import { paintTag } from "./ui.ts";
 
 /**
  * Tag chips in the core file explorer. There is no public API for this: it uses the explorer view's
@@ -77,8 +78,7 @@ export class ExplorerBadges {
     const wrap = host.createSpan({ cls: BADGE_CLS });
     for (const tag of tags.slice(0, settings.maxBadges)) {
       const chip = wrap.createSpan({ cls: "tag-everything-badge", text: tag });
-      const color = index.colorFor(tag);
-      if (color) chip.setCssProps({ "--tag-everything-color": color });
+      paintTag(chip, index.colorFor(tag));
       chip.addEventListener("click", (evt) => {
         evt.preventDefault();
         evt.stopPropagation();

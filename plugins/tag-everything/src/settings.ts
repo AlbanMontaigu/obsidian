@@ -12,8 +12,9 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
   return file.extension === "md" && settings.noteTagsInFrontmatter ? "frontmatter" : settings.storage;
 }
 
-/** Settings a control of the tab may write (`groups` is edited in the panel only). */
-type ControlKey = Exclude<keyof TagEverythingSettings, "groups">;
+/** Settings edited in the File tags panel, never by a control of this tab. */
+const PANEL_KEYS: readonly string[] = ["groups", "tabs"];
+type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs">;
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
@@ -133,7 +134,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
 
   /** Repairs the value like data.json is repaired at load (wrong type or out of range → default), then saves. */
   async setControlValue(key: string, value: unknown): Promise<void> {
-    if (!(key in DEFAULT_SETTINGS) || key === "groups") return;
+    if (!(key in DEFAULT_SETTINGS) || PANEL_KEYS.includes(key)) return;
     const k = key as ControlKey;
     const settings = this.plugin.settings;
     setKey(settings, k, normalizeSettings({ ...settings, [k]: value })[k]);

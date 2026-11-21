@@ -5,7 +5,7 @@
 // Used three ways: the editor refuses a new tag that breaks the rule and offers its fix, `applyTags` refuses it too,
 // and the "Check tag names" engine lists the vault's tags that break it, with a fix, and rewrites them where they are.
 
-import { type TagPlan, type TagState, dedupe, normalizeTag, parseTagInput, sameTags, splitTagInput } from "./format.ts";
+import { type TagMapping, type TagPlan, type TagState, dedupe, normalizeTag, parseTagInput, sameTags, splitTagInput } from "./format.ts";
 
 /** French and English liaison words (articles, prepositions, conjunctions, determiners, elided forms). */
 export const DEFAULT_STOP_WORDS =
@@ -147,14 +147,6 @@ export function auditTags(counts: ReadonlyMap<string, number>, rule: NamingRule)
   return out.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-/** A tag -> replacements map (an empty list drops the tag). */
-export type TagMapping = ReadonlyMap<string, readonly string[]>;
-
-/** Each mapped tag replaced in place by its replacements, order kept, once each. */
-export function mapTagList(tags: readonly string[], mapping: TagMapping): string[] {
-  return dedupe(tags.flatMap((t) => mapping.get(t) ?? [t]));
-}
-
 /**
  * Rewrites an item's tags where they are: a name tag's replacements go in the name, a frontmatter tag's in the
  * frontmatter, a sidecar tag's in the sidecar, so a fix never moves a tag elsewhere. A replacement the item already
@@ -195,7 +187,7 @@ export function replacePlan(current: TagState, mapping: TagMapping): TagPlan {
 
 /** Text typed as a replacement in the fix dialog -> tags, or the first error. Empty text = drop the tag. */
 export function parseReplacement(text: string, rule: NamingRule): { tags: string[] } | { error: string } {
-  const tags = dedupe(text.split(/[\s,]+/).filter(Boolean));
+  const tags = dedupe(splitTagInput(text));
   for (const t of tags) {
     const msg = ruleMessage(t, rule);
     if (msg) return { error: msg };

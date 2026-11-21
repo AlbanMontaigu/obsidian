@@ -1,6 +1,7 @@
 import { App, ButtonComponent, Modal, Notice, Setting } from "obsidian";
 import { type NamingRule, type TagIssue, auditTags, parseReplacement } from "./naming.ts";
 import { plural } from "./messages.ts";
+import { paintTag } from "./ui.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 interface Row {
@@ -70,8 +71,7 @@ export class TagFixModal extends Modal {
     checkbox.checked = issue.fix !== null;
     const from = el.createDiv({ cls: "tag-everything-fix-from" });
     const chip = from.createSpan({ cls: "tag-everything-chip", text: issue.tag });
-    const color = this.plugin.index.colorFor(issue.tag);
-    if (color) chip.setCssProps({ "--tag-everything-color": color });
+    paintTag(chip, this.plugin.index.colorFor(issue.tag));
     from.createSpan({ cls: "tag-everything-fix-count", text: `×${issue.count}` });
     from.createDiv({ cls: "tag-everything-fix-problem", text: issue.problem });
     el.createSpan({ cls: "tag-everything-fix-arrow", text: "→" });

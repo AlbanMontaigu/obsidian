@@ -18,7 +18,9 @@ and git-ignored.
 
 Everything needed to create, change and verify a plugin **without the owner** is in this repo:
 
-- `docs/workflow.md`: the step-by-step playbooks (**new plugin**, **improve a plugin**) and the definition of done.
+- `docs/workflow.md`: the step-by-step playbooks (**new plugin**, **improve a plugin**, **code review**).
+- `docs/code-style.md`: how code is written here (KISS, DRY, comments, errors) and the review checklist.
+- `docs/README.md`: the documentation map: which doc holds what, and **which doc to update when**.
 - `docs/obsidian-api.md`: the Obsidian API notes that matter, internal APIs we rely on, and the traps already hit.
 - `docs/testing.md`: unit tests (`node --test`) and the **in-app smoke test** (`npm run smoke`), which runs the plugin
   in a real, throwaway Obsidian and gives you pass/fail, console errors and a screenshot you can look at.
@@ -51,8 +53,9 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
 2. `npm test -- <id>` passes; pure logic you added has a test.
 3. `npm run smoke -- <id>` prints `PASS` with no unexpected console error; you looked at the screenshot.
 4. A smoke `check()` covers the new behaviour (a new command, menu item, view, setting...).
-5. The plugin's `README.md` (user-facing) and `CLAUDE.md` (for you) describe the change; `manifest.json`
-   `version` bumped (patch for fixes, minor for features).
+5. The docs describe the change (`docs/README.md` → *When to update what*): the plugin's `docs/user-guide.md`
+   for what users see, `docs/architecture.md` for modules and flows, `CLAUDE.md` for invariants, tests, limits;
+   `manifest.json` `version` bumped (patch for fixes, minor for features).
 6. Report to the owner: what changed, what ran (with results), what did not, what to do in Obsidian.
 
 ## Safety
@@ -71,7 +74,11 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
 
 - **Layout per plugin**: `manifest.json` (id = folder name, no "obsidian" in it), `src/main.ts` (default export
   extends `Plugin`), pure logic in modules that do **not** import `obsidian` (so `node --test` can run them),
-  `styles.css`, `tests/*.test.ts`, `tests/smoke.js`, optional `tests/fixtures/vault/`, `README.md`, `CLAUDE.md`.
+  `styles.css`, `tests/*.test.ts`, `tests/smoke.js`, optional `tests/fixtures/vault/`, `README.md`, `CLAUDE.md`,
+  `docs/user-guide.md`, `docs/architecture.md`.
+- **Code style** (`docs/code-style.md`): KISS, no abstraction before a second caller; extract real duplication
+  into the module that owns the topic; refactor only when it removes duplication, dead code or a misleading name;
+  files by topic (~500 lines max); doc comments on exports, *why* comments only, no commented-out code.
 - **No per-plugin `package.json`** and no new dependency without a reason; prefer the Obsidian API and the DOM.
   A runtime npm dependency gets bundled by esbuild: add it to the root `package.json`.
 - **Imports between source files end in `.ts`** (`./format.ts`): esbuild and `node --test` both resolve it.
@@ -84,7 +91,8 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
   the plugin leaves nothing behind.
 - **Names**: no third-party brand in a plugin id, name, UI string or manifest. Mentioning compatibility with
   another app in docs is fine.
-- Diagrams in Markdown: Mermaid only.
+- **Docs**: Mermaid only for diagrams; one fact in one place (link, don't copy); docs change in the same commit as
+  the code.
 
 ## Environment
 

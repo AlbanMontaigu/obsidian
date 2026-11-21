@@ -11,7 +11,7 @@ flowchart LR
   D --> E[npm run typecheck / test]
   E --> F[npm run smoke + look at screenshot]
   F -->|FAIL| C
-  F -->|PASS| G[Docs + version bump]
+  F -->|PASS| G[Docs: user guide, architecture + version bump]
   G --> H[Report to the owner]
 ```
 
@@ -40,8 +40,10 @@ flowchart LR
    opening the main UI so the screenshot shows it.
 9. **Iterate** until `npm run typecheck`, `npm test -- <id>` and `npm run smoke -- <id>` are all green and the
    screenshot looks right (theme colours, no overflow, nothing hidden behind a modal).
-10. **Document**: `README.md` (what it does, how to use it, limits) and `CLAUDE.md` (spec, architecture, data
-    format, invariants, traps). Add the plugin to the table in the root `CLAUDE.md` and the list in `README.md`.
+10. **Document** (map: `docs/README.md`): `README.md` (pitch, install), `docs/user-guide.md` (every feature,
+    command, setting, limit), `docs/architecture.md` (layers, flows as Mermaid diagrams, module reference) and
+    `CLAUDE.md` (where to change what, invariants, tests, traps). Add the plugin to the table in the root
+    `CLAUDE.md` and the list in `README.md`.
 11. **Report** and offer to deploy: `npm run deploy -- <id>` into the vault the owner names, then
     *Settings → Community plugins → enable*.
 
@@ -55,7 +57,8 @@ flowchart LR
 4. Keep the plugin's **invariants** (listed in its `CLAUDE.md`). A change to a stored format must stay readable by
    the previous version or come with a migration that is safe to re-run.
 5. Run the definition of done. Bump `manifest.json` `version`.
-6. Update `README.md` / `CLAUDE.md` where behaviour, settings or format changed.
+6. Update the docs where behaviour, settings, modules or format changed (`docs/README.md` → *When to update
+   what*). Follow `docs/code-style.md`: reuse the shared helpers, keep one path per job.
 
 ## C. Debugging a failure
 
@@ -68,7 +71,22 @@ flowchart LR
 - **Type errors in a correct call**: the `obsidian` types may be older than the app; check `obsidian.d.ts`, then
   cast narrowly (pattern in `docs/obsidian-api.md`).
 
-## D. Releasing to the owner's vault (only when asked)
+## D. Code review / clean-up
+
+For a "review the code" request, or once in a while over a whole plugin. Fix directly; ask only for a product
+decision.
+
+1. **Baseline**: `npm run typecheck`, `npm test -- <id>` green before touching anything.
+2. **Read every file** of the plugin (and `tools/` if in scope) against the checklist in `docs/code-style.md`. Note
+   findings first, then decide: a refactor that removes nearly nothing is skipped.
+3. Dead code: grep each export / public method for callers; unused CSS classes against `src/` and `tests/`.
+4. Fix in small steps, `npm run typecheck` + `npm test -- <id>` after each. A behaviour-neutral refactor needs no new
+   test; a merged helper whose callers differed gets one (and check it fails when the helper is broken).
+5. `npm run smoke -- <id>` once at the end (UI touched), look at the screenshot.
+6. Docs: walk `docs/README.md` → *When to update what*; module renames and moves land in `docs/architecture.md`.
+7. Patch version bump; report what changed, what was left as is and why.
+
+## E. Releasing to the owner's vault (only when asked)
 
 ```powershell
 npm run deploy -- <id>                 # open vault; or --vault Perso / --vault "C:\path"

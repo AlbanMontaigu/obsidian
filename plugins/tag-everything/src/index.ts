@@ -33,6 +33,8 @@ export function cachedFrontTags(app: App, file: TFile, cache?: CachedMetadata | 
   if (file.extension !== "md") return [];
   return ts.frontmatterTags((cache ?? app.metadataCache.getFileCache(file))?.frontmatter);
 }
+
+/** Sidecar colours accepted as is: hex or rgb()/rgba(), nothing that could inject CSS. */
 const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i;
 const SCAN_CONCURRENCY = 8;
 
@@ -143,12 +145,6 @@ export class TagIndex extends Events {
   ranked(): readonly string[] {
     this.rankedCache ??= [...this.counts()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
     return this.rankedCache;
-  }
-
-  /** Paths carrying every tag in `tags`. */
-  matching(tags: readonly string[]): string[] {
-    if (!tags.length) return [];
-    return this.paths().filter((p) => tags.every((t) => this.hasTag(p, t)));
   }
 
   private changed(): void {
