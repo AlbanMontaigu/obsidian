@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluate, formatFormula, formulaTags, parseFormula, prune, resolveTags, toggleNot, tryParseFormula } from "../src/formula.ts";
+import { evaluate, formatFormula, formulaTags, parseFormula, prune, requiredTags, resolveTags, toggleNot, tryParseFormula } from "../src/formula.ts";
 
 const fmt = (s: string): string => formatFormula(parseFormula(s));
 const matches = (formula: string, tags: string[]): boolean => evaluate(parseFormula(formula), (t) => tags.includes(t));
@@ -78,4 +78,14 @@ test("toggleNot: tag <-> NOT tag wherever it is written, the rest untouched", ()
   assert.equal(flip("(a OR NOT b) AND c", "b"), "(a OR b) AND c");
   assert.equal(flip("NOT (a OR b)", "a"), "NOT (NOT a OR b)", "only a tag directly under NOT is un-negated");
   assert.equal(flip("a AND c", "zzz"), "a AND c");
+});
+
+test("requiredTags: the tags every match carries (AND: all, OR: common, NOT: none)", () => {
+  const req = (s: string): string[] => requiredTags(parseFormula(s));
+  assert.deepEqual(req("tax receipt"), ["tax", "receipt"]);
+  assert.deepEqual(req("tax AND (a OR tax AND b)"), ["tax"]);
+  assert.deepEqual(req("(tax AND a) OR (b AND tax)"), ["tax"]);
+  assert.deepEqual(req("a OR b"), []);
+  assert.deepEqual(req("tax AND NOT b"), ["tax"]);
+  assert.deepEqual(req("tax AND tax"), ["tax"]);
 });

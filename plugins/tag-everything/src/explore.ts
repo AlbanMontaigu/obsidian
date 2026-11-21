@@ -1,6 +1,8 @@
 // Pure logic of the TagEverything explorer (src/explorer.ts): the nodes of its tag tree and the order of its rows.
 // No `obsidian` import, so `node --test` runs it.
 
+import { type Expr, formulaTags, prune, resolveTags, tryParseFormula } from "./formula.ts";
+
 /** One node of the tag tree: the path of tags opened to reach it (`trail`), what it holds. */
 export interface TagNode {
   /** Paths carrying every tag of the trail: what the node's branches are computed from. */
@@ -50,14 +52,30 @@ export function tagNode(paths: Iterable<string>, tagsOf: (path: string) => reado
   return { paths: matched, tags: [...counts].sort((a, b) => compareNames(a[0], b[0])), items };
 }
 
-/** Lower case without accents, so a search for `ete` finds `Été`. */
-const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+/** What the explorer's formula box filters the tree by. */
+export interface TreeSearch {
+  /** The formula as written; while the box holds a syntax error, the last valid one, so the tree does not flicker. */
+  parsed: Expr | null;
+  /** The formula applied: tags spelled as in the vault, those no item carries left out. Null = the whole tree. */
+  expr: Expr | null;
+  /** Why the box is not applied as typed: a syntax error, or tags no item carries. */
+  problem: string | null;
+}
 
 /**
- * The explorer's filter box: the tags whose name contains `query` (case and accents ignored), in the order given.
- * An empty query keeps them all.
+ * Reads the explorer's formula box (the panel's group formula syntax): `known` = every tag of the vault, `last` = the
+ * previous `parsed`. Unknown tags are left out as in the panel's searches, so a tag still being typed does not empty
+ * the tree.
  */
-export function filterTags<T extends readonly [string, ...unknown[]]>(tags: readonly T[], query: string): T[] {
-  const q = fold(query.trim());
-  return q ? tags.filter(([t]) => fold(t).includes(q)) : [...tags];
+export function treeSearch(text: string, known: readonly string[], last: Expr | null): TreeSearch {
+  if (!text.trim()) return { parsed: null, expr: null, problem: null };
+  const r = tryParseFormula(text);
+  const parsed = "expr" in r ? r.expr : last;
+  let problem = "error" in r ? r.error : null;
+  if (!parsed) return { parsed, expr: null, problem };
+  const has = new Set(known);
+  const resolved = resolveTags(parsed, known);
+  const unknown = formulaTags(resolved).filter((t) => !has.has(t));
+  if (unknown.length && !problem) problem = `No item carries ${unknown.join(", ")} (left out)`;
+  return { parsed, expr: prune(resolved, (t) => has.has(t)), problem };
 }

@@ -1,10 +1,12 @@
 import { HoverParent, HoverPopover, ItemView, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
-import { compareItems, filterTags, tagNode } from "./explore.ts";
+import { compareItems, tagNode, treeSearch } from "./explore.ts";
+import { FormulaTagSuggest } from "./dialogs.ts";
+import { type Expr, evaluate, formatFormula, requiredTags } from "./formula.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
 import { revealInExplorer, wireItemRow } from "./items.ts";
-import { clickable, paintTag } from "./ui.ts";
+import { clickable, onEnter, paintTag } from "./ui.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -37,7 +39,8 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
  * several tags sits at the end of every path made of them (src/explore.ts `tagNode`). Stored tags only: extension
  * tags are on every file, so they are the chip before a name, not a branch. Every file of the vault can show,
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
- * highlighted wherever it shows.
+ * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed): the
+ * tree then holds only the matching items.
  */
 export class TagExplorerView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -45,8 +48,11 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private expanded = new Map<string, string[]>();
   /** The file open in the editor: highlighted. */
   private activePath: string | null = null;
-  /** The filter box: only the root tags containing it show (not saved: a quick search). */
+  /** The formula box as typed (not saved: a quick search). */
   private query = "";
+  /** The box's last valid formula (kept while it holds a syntax error) and the formula applied at the last render. */
+  private parsed: Expr | null = null;
+  private applied: Expr | null = null;
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
   /** Vault events come in bursts (a folder moved, a sync): one redraw once they stop. */
@@ -80,24 +86,24 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const search = bar.createEl("input", {
       type: "search",
       cls: "tag-everything-explorer-search",
-      attr: { placeholder: "Filter tags…", "aria-label": "Filter tags (Enter opens the first one, Escape clears)" },
+      attr: {
+        placeholder: "Search: tag1 OR tag2…",
+        "aria-label": "Show only the items matching a formula: tags with AND, OR, NOT and parentheses. Enter opens the tags it requires, Escape clears",
+        spellcheck: "false",
+      },
     });
+    new FormulaTagSuggest(this.app, search, () => this.plugin.index.ranked(), (t) => this.plugin.index.counts().get(t) ?? 0);
     search.addEventListener("input", () => {
       this.query = search.value;
       this.render();
     });
+    onEnter(search, () => this.openRequired());
     search.addEventListener("keydown", (evt) => {
-      if (evt.isComposing) return;
-      if (evt.key === "Enter") {
-        const first = this.treeEl.querySelector<HTMLElement>(":scope > .tree-item > .tag-everything-explorer-row.is-tag")?.dataset.tag;
-        evt.preventDefault();
-        if (first && !this.expanded.has(keyOf([first]))) this.toggle([first]);
-      } else if (evt.key === "Escape" && search.value) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        search.value = this.query = "";
-        this.render();
-      }
+      if (evt.key !== "Escape" || evt.defaultPrevented || !search.value) return; // an open suggestion list closes first
+      evt.preventDefault();
+      evt.stopPropagation();
+      search.value = this.query = "";
+      this.render();
     });
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
@@ -149,6 +155,14 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
+  /** Enter in the formula box: opens, one inside the other, the tags every matching item carries (`tax receipt`: tax › receipt). */
+  private openRequired(): void {
+    const own = this.plugin.index.counts(undefined, true);
+    const trail = this.applied ? requiredTags(this.applied).filter((t) => own.has(t)) : [];
+    for (let i = 1; i <= trail.length; i++) this.expanded.set(keyOf(trail.slice(0, i)), trail.slice(0, i));
+    if (trail.length) this.stateChanged();
+  }
+
   /** The editor opened another file: move the highlight (it may show in several places). */
   private highlight(path: string | null): void {
     this.activePath = path;
@@ -170,33 +184,33 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const index = this.plugin.index;
     const scroll = this.contentEl.scrollTop; // a redraw after a tag change must not jump to the top
     this.treeEl.empty();
-    const root = this.renderNode(this.treeEl, [], index.paths());
+    const search = treeSearch(this.query, [...index.counts().keys()], this.parsed);
+    this.parsed = search.parsed;
+    const expr = (this.applied = search.expr);
+    const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
+    const root = this.renderNode(this.treeEl, [], paths);
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
-    const shown = filterTags(root.tags, this.query).length;
+    const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
     this.statusEl.setText(
       !index.ready
         ? "Reading tags…"
-        : !root.tags.length
+        : !index.counts(undefined, true).size
           ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
-          : shown < root.tags.length
-            ? shown
-              ? `${shown} of ${plural(root.tags.length, "tag")} match "${this.query.trim()}"`
-              : `No tag matches "${this.query.trim()}".`
-            : `${plural(root.tags.length, "tag")} on ${plural(tagged, "item")}`,
+          : [found ?? `${plural(root.tags.length, "tag")} on ${plural(tagged, "item")}`, search.problem].filter(Boolean).join(". "),
     );
+    this.statusEl.toggleClass("mod-warning", !!search.problem);
     this.contentEl.scrollTop = scroll;
   }
 
   /**
    * Draws the node at `trail` into `parent` (its branches, open ones drawn inside, then its items); returns the node.
-   * At the root, only the branches matching the filter box; inside a tag, all of them.
    * Built from Obsidian's own tree classes (`tree-item`, `tree-item-self`, `collapse-icon`, `tree-item-children`,
    * `tree-item-flair`), as the core search and outline are, so it looks and indents like the file explorer.
    */
   private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>): ReturnType<typeof tagNode> {
     const index = this.plugin.index;
     const node = tagNode(paths, (p) => index.ownTagsOf(p), trail);
-    for (const [tag, n] of trail.length ? node.tags : filterTags(node.tags, this.query)) {
+    for (const [tag, n] of node.tags) {
       const branch = [...trail, tag];
       const open = this.expanded.has(keyOf(branch));
       const box = parent.createDiv({ cls: "tree-item" });

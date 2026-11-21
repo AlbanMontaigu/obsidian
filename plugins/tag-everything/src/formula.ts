@@ -192,6 +192,22 @@ export function formulaTags(e: Expr): string[] {
   return [...out];
 }
 
+/** The tags every item matching the formula carries, in reading order: `tax AND (a OR tax)` -> tax; NOT gives none. */
+export function requiredTags(e: Expr): string[] {
+  switch (e.k) {
+    case "tag":
+      return [e.tag];
+    case "not":
+      return [];
+    case "and":
+      return [...new Set(e.items.flatMap(requiredTags))];
+    case "or": {
+      const [first, ...rest] = e.items.map(requiredTags);
+      return first.filter((t) => rest.every((r) => r.includes(t)));
+    }
+  }
+}
+
 export function evaluate(e: Expr, has: (tag: string) => boolean): boolean {
   switch (e.k) {
     case "tag":

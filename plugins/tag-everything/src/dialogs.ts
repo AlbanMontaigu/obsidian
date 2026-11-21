@@ -51,13 +51,16 @@ export class NameModal extends Modal {
   }
 }
 
-/** Completes the tag being typed in a formula (the word before the caret). */
-class FormulaTagSuggest extends AbstractInputSuggest<string> {
+/**
+ * Completes the tag being typed in a formula (the word before the caret), in the formula dialog and the explorer's
+ * box. `tags` (most used first) and `count` are read at each keystroke, so they follow the vault.
+ */
+export class FormulaTagSuggest extends AbstractInputSuggest<string> {
   constructor(
     app: App,
     private input: HTMLInputElement,
-    private tags: readonly string[],
-    private counts: ReadonlyMap<string, number>,
+    private tags: () => readonly string[],
+    private count: (tag: string) => number,
   ) {
     super(app, input);
   }
@@ -71,11 +74,11 @@ class FormulaTagSuggest extends AbstractInputSuggest<string> {
 
   protected getSuggestions(): string[] {
     const q = this.partial().word.toLowerCase();
-    return matchTags(this.tags, q).filter((t) => t.toLowerCase() !== q); // a complete word needs no suggestion
+    return matchTags(this.tags(), q).filter((t) => t.toLowerCase() !== q); // a complete word needs no suggestion
   }
 
   renderSuggestion(tag: string, el: HTMLElement): void {
-    renderTagSuggestion(el, tag, this.counts.get(tag) ?? 0);
+    renderTagSuggestion(el, tag, this.count(tag));
   }
 
   selectSuggestion(tag: string): void {
@@ -116,7 +119,7 @@ export class FormulaModal extends Modal {
     input.value = this.initial;
     const preview = this.contentEl.createDiv({ cls: "tag-everything-formula-preview" });
     const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
-    new FormulaTagSuggest(this.app, input, this.tags, this.counts);
+    new FormulaTagSuggest(this.app, input, () => this.tags, (t) => this.counts.get(t) ?? 0);
 
     const update = (): void => {
       preview.empty();

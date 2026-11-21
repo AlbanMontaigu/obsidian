@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareItems, compareNames, filterTags, tagNode } from "../src/explore.ts";
+import { compareItems, compareNames, tagNode, treeSearch } from "../src/explore.ts";
+import { formatFormula } from "../src/formula.ts";
 
 const vault = new Map<string, string[]>([
   ["Taxes/2024[tax].pdf", ["tax"]],
@@ -50,11 +51,27 @@ test("compareItems: folders first, then by name", () => {
   assert.deepEqual(items.sort(compareItems).map((i) => i.name), ["beta", "Zeta", "a.md"]);
 });
 
-test("filterTags: the tags containing the query, case and accents ignored, order kept; empty = all", () => {
-  const tags: [string, number][] = [["Été", 2], ["receipt", 1], ["tax", 3], ["Taxes", 1]];
-  assert.deepEqual(filterTags(tags, " TAX "), [["tax", 3], ["Taxes", 1]]);
-  assert.deepEqual(filterTags(tags, "ete"), [["Été", 2]]);
-  assert.deepEqual(filterTags(tags, "eip"), [["receipt", 1]]);
-  assert.deepEqual(filterTags(tags, "zzz"), []);
-  assert.deepEqual(filterTags(tags, "  "), tags);
+test("treeSearch: empty box = whole tree; a formula is resolved to the vault's spelling", () => {
+  const known = ["tax", "receipt", "B27"];
+  assert.deepEqual(treeSearch("  ", known, null), { parsed: null, expr: null, problem: null });
+  const s = treeSearch("TAX et non b27", known, null);
+  assert.equal(s.expr && formatFormula(s.expr), "tax AND NOT B27");
+  assert.equal(s.problem, null);
+});
+
+test("treeSearch: unknown tags are left out and named; nothing left = whole tree", () => {
+  const known = ["tax", "receipt"];
+  const s = treeSearch("tax OR ta", known, null);
+  assert.equal(s.expr && formatFormula(s.expr), "tax");
+  assert.equal(s.problem, "No item carries ta (left out)");
+  assert.equal(treeSearch("ta", known, null).expr, null);
+});
+
+test("treeSearch: a syntax error keeps the last valid formula and says why", () => {
+  const known = ["tax", "receipt"];
+  const first = treeSearch("tax", known, null);
+  const s = treeSearch("tax AND", known, first.parsed);
+  assert.equal(s.expr && formatFormula(s.expr), "tax");
+  assert.match(s.problem ?? "", /missing/i);
+  assert.equal(treeSearch("tax AND", known, null).expr, null);
 });

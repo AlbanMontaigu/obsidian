@@ -69,11 +69,11 @@ and `docs/user-guide.md` when users see it.
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
 - `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas.
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
-- `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
+- `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution, `requiredTags`.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item, a tag's branches and its own items, an item at the
   end of every path of its tags, from the parent's paths = from the vault, dead end), name order, folders first, the
-  filter box (`filterTags`: case, accents, order, empty).
+  formula box (`treeSearch`: empty, vault spelling, unknown tags pruned and named, syntax error keeps the last).
 - `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
@@ -96,8 +96,9 @@ and `docs/user-guide.md` when users see it.
   frontmatter) plus the fixture's `B27 INC IMAC` are listed with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
   group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
-  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the filter box (`KP` keeps the root tags
-  containing it and says how many, Enter opens the first unfiltered inside, no match said, Escape clears); with `showUnsupportedFiles` off a
+  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the formula box (`KP` suggests kpi and
+  leaves the tree whole, picking it keeps the items carrying kpi, Enter opens its path, `kpi AND` warns and keeps the
+  search, `shared et non final`, Escape clears); with `showUnsupportedFiles` off a
   created `board[kpi q1].docx` sits under kpi › q1 and q1 › kpi, not under kpi; its row = extension badge, name, pill
   `2` listing its tags on hover, folder icon whose tooltip names `Docs`; open tags saved; a click closes a tag; the
   TagEverything menu item and the folder icon show a note in the file explorer; a click opens a note, highlighted, the

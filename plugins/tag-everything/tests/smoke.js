@@ -852,28 +852,45 @@ const childrenOf = (row) => {
 const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 const ownTags = [...plugin.index.counts(undefined, true).keys()].sort(byName);
 check("explorer: the root lists every stored tag by name, no extension tag, no file", exTop().join() === ownTags.join() && !exTop().includes("md"), exTop().join(" | "));
-// the filter box: only the root tags containing the text (any case); Enter opens the first, Escape clears
+// the formula box: autocompletes the tag being typed; the tree then holds only the matching items
 const exSearch = exEl.querySelector(".tag-everything-explorer-search");
-const exType = (text) => {
+const exType = async (text) => {
+  exSearch.focus();
   exSearch.value = text;
+  exSearch.setSelectionRange(text.length, text.length);
   exSearch.dispatchEvent(new Event("input"));
+  await sleep(150);
 };
 const exKey2 = (key) => exSearch.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
-exType("KP");
-const kpTags = ownTags.filter((t) => t.toLowerCase().includes("kp"));
 const exStatus = () => exEl.querySelector(".tag-everything-explorer-status")?.textContent ?? "";
+const rootFor = (match) => [...plugin.index.counts(plugin.index.paths().filter(match), true).keys()].sort(byName);
+await exType("KP");
+const exSuggested = [...document.querySelectorAll(".suggestion-container .tag-everything-suggestion")];
+check("explorer: the formula box suggests the tags containing what is typed", exSuggested.map((el) => el.firstChild.textContent).join() === "kpi", exSuggested.map((el) => el.textContent).join(" | "));
+check("explorer: a tag still being typed is left out, the whole tree stays", exTop().join() === ownTags.join() && exStatus().includes("No item carries KP"), exStatus());
+(exSuggested[0]?.closest(".suggestion-item") ?? exSuggested[0])?.click();
+await sleep(150);
+const hasKpi = (p) => plugin.index.hasTag(p, "kpi");
 check(
-  "explorer: the filter box keeps only the root tags containing the text, any case, and says so",
-  kpTags.length > 0 && kpTags.length < ownTags.length && exTop().join() === kpTags.join() && exStatus().startsWith(`${kpTags.length} of `),
-  `${exTop().join(" | ")} / ${exStatus()}`,
+  "explorer: picking a suggestion writes the tag; the tree holds only the items carrying it",
+  exSearch.value === "kpi " && exTop().join() === rootFor(hasKpi).join() && exStatus() === `${plugin.index.paths().filter(hasKpi).length === 1 ? "1 item matches" : `${plugin.index.paths().filter(hasKpi).length} items match`} kpi`,
+  `"${exSearch.value}" / ${exTop().join(" | ")} / ${exStatus()}`,
 );
 exKey2("Enter");
 await sleep(100);
-check("explorer: Enter in the filter box opens the first matching tag, its inside unfiltered", childrenOf(tagRow(kpTags[0])) === "q1", childrenOf(tagRow(kpTags[0])));
-exType("zzz-none");
-check("explorer: no matching tag is said", exTop().length === 0 && exStatus() === 'No tag matches "zzz-none".', exStatus());
+check("explorer: Enter opens the tags the formula requires", childrenOf(tagRow("kpi")) === "q1", childrenOf(tagRow("kpi")));
+await exType("kpi AND");
+check("explorer: a syntax error is said, the last valid search stays", exTop().join() === rootFor(hasKpi).join() && exStatus().includes("missing") && exEl.querySelector(".tag-everything-explorer-status").hasClass("mod-warning"), exStatus());
+await exType("shared et non final");
+const sharedNotFinal = (p) => plugin.index.hasTag(p, "shared") && !plugin.index.hasTag(p, "final");
+check(
+  "explorer: a formula with NOT (French words too) keeps the matching items only",
+  exTop().length > 0 && exTop().join() === rootFor(sharedNotFinal).join() && exStatus().endsWith("shared AND NOT final") && !exTop().includes("final"),
+  `${exTop().join(" | ")} / ${exStatus()}`,
+);
 exKey2("Escape");
-check("explorer: Escape clears the filter box, every tag back", exSearch.value === "" && exTop().join() === ownTags.join());
+await sleep(100);
+check("explorer: Escape clears the formula box, the whole tree back", exSearch.value === "" && exTop().join() === ownTags.join());
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 tagRow("kpi").click();
