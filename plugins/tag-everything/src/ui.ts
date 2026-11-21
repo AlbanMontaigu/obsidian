@@ -1,6 +1,8 @@
 // Small DOM helpers shared by the panel, the dialogs and the explorer badges. No `obsidian` import: the element
 // methods used here (`setAttr`, `setCssProps`, `createSpan`...) are Obsidian's global DOM extensions.
 
+import type { Expr } from "./formula.ts";
+
 /** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
 export function isNode(target: EventTarget | null): target is Node {
   return !!target && typeof (target as Partial<Node>).nodeType === "number";
@@ -52,4 +54,25 @@ export function onEnter(input: HTMLInputElement, fn: () => void): void {
     evt.preventDefault();
     fn();
   });
+}
+
+/** Draws one tag of a formula; `negated` when it is written `NOT tag`. */
+export type TagChipFn = (parent: HTMLElement, tag: string, negated: boolean) => void;
+
+/** Draws a formula: chips (from `chip`, told when the tag is negated) between AND / OR / NOT and the parentheses it needs. */
+export function renderExpr(parent: HTMLElement, e: Expr, chip: TagChipFn, outer: Expr["k"] | null = null): void {
+  const op = (text: string, cls = ""): void => void parent.createSpan({ cls: "tag-everything-op " + cls, text });
+  if (e.k === "tag") return chip(parent, e.tag, false);
+  if (e.k === "not") {
+    op("NOT");
+    if (e.item.k === "tag") return chip(parent, e.item.tag, true);
+    return renderExpr(parent, e.item, chip, "not");
+  }
+  const parens = (e.k === "or" && (outer === "and" || outer === "not")) || (e.k === "and" && outer === "not");
+  if (parens) op("(", "is-paren");
+  e.items.forEach((item, i) => {
+    if (i) op(e.k === "and" ? "AND" : "OR");
+    renderExpr(parent, item, chip, e.k);
+  });
+  if (parens) op(")", "is-paren");
 }

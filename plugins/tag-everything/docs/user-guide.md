@@ -196,10 +196,13 @@ file explorer.
 - At the top, a **search box** that takes a formula, as the panel's group formulas do (§6): tags with AND, OR, NOT
   (or ET, OU, NON) and parentheses, e.g. `tax AND NOT receipt`; two tags side by side = AND. While you type a tag,
   the box suggests the vault's tags containing it (with their counts); pick one with the arrows and Enter, or a
-  click. The tree then holds **only the items matching the formula**, and the line under the box says how many. A
-  tag no item carries is left out (and named), so a half-typed tag leaves the tree as it is; an unfinished formula
-  (`tax AND`) says what is missing and keeps the last search. Enter opens the tags every match carries (`tax receipt`
-  → *tax › receipt*), Escape clears the box. The search is not remembered across restarts.
+  click, and it becomes a **chip** in the box. Keep typing after the chips: a tag (= AND), or `OR tag`, `NOT tag`;
+  Enter turns what you typed into chips too. Each chip has a **×** that takes its tag out of the search (Backspace in
+  the empty box removes the last one); a `NOT` tag is struck through. The tree then holds **only the items matching
+  the formula**, and the line under the box says how many. A tag no item carries is left out (and named, its chip
+  faded), so a half-typed tag leaves the tree as it is; an unfinished formula (`tax AND`) says what is missing and
+  keeps the last search. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
+  clears the box. The search is not remembered across restarts.
 - At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are **the other
   tags found with it** on the same files (each opening the same way), then the files and folders carrying **exactly
   the tags of the path**. A file tagged `tax receipt` sits under *tax › receipt* and under *receipt › tax*: one file,

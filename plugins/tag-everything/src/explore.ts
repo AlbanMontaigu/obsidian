@@ -1,7 +1,7 @@
 // Pure logic of the TagEverything explorer (src/explorer.ts): the nodes of its tag tree and the order of its rows.
 // No `obsidian` import, so `node --test` runs it.
 
-import { type Expr, formulaTags, prune, resolveTags, tryParseFormula } from "./formula.ts";
+import { type Expr, formatFormula, formulaTags, prune, resolveTags, tryParseFormula } from "./formula.ts";
 
 /** One node of the tag tree: the path of tags opened to reach it (`trail`), what it holds. */
 export interface TagNode {
@@ -50,6 +50,14 @@ export function tagNode(paths: Iterable<string>, tagsOf: (path: string) => reado
     if (!other && trail.length) items.push(path);
   }
   return { paths: matched, tags: [...counts].sort((a, b) => compareNames(a[0], b[0])), items };
+}
+
+/**
+ * The explorer box's whole formula: its chips (in parentheses, so `a OR b` then `c` = `(a OR b) AND c`), then the
+ * text being typed, which may start with an operator (`OR c`).
+ */
+export function joinFormula(chips: Expr | null, typed: string): string {
+  return [chips && `(${formatFormula(chips)})`, typed.trim()].filter(Boolean).join(" ");
 }
 
 /** What the explorer's formula box filters the tree by. */

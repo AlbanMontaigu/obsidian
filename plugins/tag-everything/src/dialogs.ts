@@ -53,7 +53,8 @@ export class NameModal extends Modal {
 
 /**
  * Completes the tag being typed in a formula (the word before the caret), in the formula dialog and the explorer's
- * box. `tags` (most used first) and `count` are read at each keystroke, so they follow the vault.
+ * box. `tags` (most used first) and `count` are read at each keystroke, so they follow the vault; `onPick` runs after a
+ * tag is picked (the explorer turns it into a chip).
  */
 export class FormulaTagSuggest extends AbstractInputSuggest<string> {
   constructor(
@@ -61,6 +62,7 @@ export class FormulaTagSuggest extends AbstractInputSuggest<string> {
     private input: HTMLInputElement,
     private tags: () => readonly string[],
     private count: (tag: string) => number,
+    private onPick?: () => void,
   ) {
     super(app, input);
   }
@@ -89,6 +91,7 @@ export class FormulaTagSuggest extends AbstractInputSuggest<string> {
     this.input.setSelectionRange(start + text.length, start + text.length);
     this.close();
     this.input.dispatchEvent(new Event("input")); // refreshes the preview
+    this.onPick?.();
   }
 }
 

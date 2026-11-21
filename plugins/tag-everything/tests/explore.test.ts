@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareItems, compareNames, tagNode, treeSearch } from "../src/explore.ts";
-import { formatFormula } from "../src/formula.ts";
+import { compareItems, compareNames, joinFormula, tagNode, treeSearch } from "../src/explore.ts";
+import { formatFormula, parseFormula } from "../src/formula.ts";
 
 const vault = new Map<string, string[]>([
   ["Taxes/2024[tax].pdf", ["tax"]],
@@ -74,4 +74,14 @@ test("treeSearch: a syntax error keeps the last valid formula and says why", () 
   assert.equal(s.expr && formatFormula(s.expr), "tax");
   assert.match(s.problem ?? "", /missing/i);
   assert.equal(treeSearch("tax AND", known, null).expr, null);
+});
+
+test("joinFormula: the chips' formula, then the text typed (AND side by side, or its own operator)", () => {
+  const join = (chips: string | null, typed: string): string => formatFormula(parseFormula(joinFormula(chips ? parseFormula(chips) : null, typed)));
+  assert.equal(join("a OR b", "c"), "(a OR b) AND c");
+  assert.equal(join("a AND b", "OR c"), "a AND b OR c");
+  assert.equal(join("a", "NOT b"), "a AND NOT b");
+  assert.equal(join(null, "x OR y"), "x OR y");
+  assert.equal(join("a OR b", "  "), "a OR b");
+  assert.equal(joinFormula(null, " "), "");
 });

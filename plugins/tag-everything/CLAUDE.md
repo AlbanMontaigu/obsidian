@@ -73,7 +73,7 @@ and `docs/user-guide.md` when users see it.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item, a tag's branches and its own items, an item at the
   end of every path of its tags, from the parent's paths = from the vault, dead end), name order, folders first, the
-  formula box (`treeSearch`: empty, vault spelling, unknown tags pruned and named, syntax error keeps the last).
+  formula box (`joinFormula`: chips in parentheses then the text; `treeSearch`: empty, vault spelling, unknown tags pruned and named, syntax error keeps the last).
 - `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
@@ -97,12 +97,13 @@ and `docs/user-guide.md` when users see it.
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
   group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
   left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the formula box (`KP` suggests kpi and
-  leaves the tree whole, picking it keeps the items carrying kpi, Enter opens its path, `kpi AND` warns and keeps the
-  search, `shared et non final`, Escape clears); with `showUnsupportedFiles` off a
+  leaves the tree whole, picking it makes a chip and keeps the items carrying kpi, Enter opens its path, `AND` after it
+  warns and keeps the search, `OR shared` + Enter joins the chips, a chip's × removes it, `shared et non final` (NOT
+  chip struck), Backspace removes the last chip, Escape clears); with `showUnsupportedFiles` off a
   created `board[kpi q1].docx` sits under kpi › q1 and q1 › kpi, not under kpi; its row = extension badge, name, pill
   `2` listing its tags on hover, folder icon whose tooltip names `Docs`; open tags saved; a click closes a tag; the
   TagEverything menu item and the folder icon show a note in the file explorer; a click opens a note, highlighted, the
-  highlight follows the editor). It ends with the explorer showing the path to that note (left) and the panel in the
+  highlight follows the editor). It ends with the explorer showing the path to that note (left) under the chips `shared AND NOT final` and the panel in the
   bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.

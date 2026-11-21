@@ -731,9 +731,40 @@
   margin-bottom: var(--size-4-1);
 }
 
+/* the formula box: drawn as one input holding the chips, then the text being typed */
 .tag-everything-explorer-search {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 4px;
+  min-height: var(--input-height);
+  padding: 2px var(--size-4-2);
+  background: var(--background-modifier-form-field);
+  border: var(--input-border-width, 1px) solid var(--background-modifier-border);
+  border-radius: var(--input-radius, var(--radius-s));
+  cursor: text;
+}
+
+.tag-everything-explorer-search:focus-within {
+  border-color: var(--background-modifier-border-focus);
+}
+
+.tag-everything-explorer-search .tag-everything-chip-remove {
+  margin-right: -2px;
+}
+
+.tag-everything-explorer-search input[type="text"].tag-everything-explorer-input,
+.tag-everything-explorer-search input[type="text"].tag-everything-explorer-input:hover,
+.tag-everything-explorer-search input[type="text"].tag-everything-explorer-input:focus {
+  flex: 1 1 3em;
+  min-width: 3em;
+  height: auto;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .tag-everything-explorer-status {

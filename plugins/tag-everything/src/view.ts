@@ -8,7 +8,7 @@ import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { FormulaModal, NameModal } from "./dialogs.ts";
-import { clickable, isNode, paintTag } from "./ui.ts";
+import { clickable, isNode, paintTag, renderExpr } from "./ui.ts";
 import { wireItemRow } from "./items.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
@@ -18,8 +18,6 @@ export const MAX_RESULTS = 500;
 const TAG_MIME = "application/x-tag-everything-tag";
 const GROUP_MIME = "application/x-tag-everything-group";
 
-/** Draws one tag of a formula; `negated` when it is written `NOT tag`. */
-type TagChipFn = (parent: HTMLElement, tag: string, negated: boolean) => void;
 
 /** What the panel remembers across restarts (workspace.json). */
 interface PanelState {
@@ -418,24 +416,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
     ).open();
   }
 
-  /** Draws a formula: chips (from `chip`, told when the tag is negated) between AND / OR / NOT and the parentheses it needs. */
-  private renderExpr(parent: HTMLElement, e: fx.Expr, chip: TagChipFn, outer: fx.Expr["k"] | null = null): void {
-    const op = (text: string, cls = ""): void => void parent.createSpan({ cls: "tag-everything-op " + cls, text });
-    if (e.k === "tag") return chip(parent, e.tag, false);
-    if (e.k === "not") {
-      op("NOT");
-      if (e.item.k === "tag") return chip(parent, e.item.tag, true);
-      return this.renderExpr(parent, e.item, chip, "not");
-    }
-    const parens = (e.k === "or" && (outer === "and" || outer === "not")) || (e.k === "and" && outer === "not");
-    if (parens) op("(", "is-paren");
-    e.items.forEach((item, i) => {
-      if (i) op(e.k === "and" ? "AND" : "OR");
-      this.renderExpr(parent, item, chip, e.k);
-    });
-    if (parens) op(")", "is-paren");
-  }
-
   /** Accepts tags (and, with `onGroup`, groups) dragged within the panel. */
   private dropZone(el: HTMLElement, onTag: (tag: string) => void, onGroup?: (id: string) => void): void {
     const accepts = (evt: DragEvent): boolean => {
@@ -583,7 +563,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         if (used) clickable(el, () => this.toggle(tag));
       };
       const expr = gr.groupFormula(group);
-      if (expr) this.renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
+      if (expr) renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
       else for (const tag of group.tags) toggleChip(this.selectedEl, tag, false);
     }
     const searchChip = (tag: string, negated: boolean): void => {
@@ -732,7 +712,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         err.setAttr("aria-label", group.formula ?? "");
       }
       const expr = gr.groupFormula(group);
-      if (expr) this.renderExpr(body, expr, groupChip);
+      if (expr) renderExpr(body, expr, groupChip);
       else for (const tag of group.tags) groupChip(body, tag, false);
     }
   }

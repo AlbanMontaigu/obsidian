@@ -1,12 +1,12 @@
 import { HoverParent, HoverPopover, ItemView, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
-import { compareItems, tagNode, treeSearch } from "./explore.ts";
+import { compareItems, joinFormula, tagNode, treeSearch } from "./explore.ts";
 import { FormulaTagSuggest } from "./dialogs.ts";
-import { type Expr, evaluate, formatFormula, requiredTags } from "./formula.ts";
+import { type Expr, evaluate, formatFormula, formulaTags, prune, requiredTags, resolveTags, tryParseFormula } from "./formula.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
 import { revealInExplorer, wireItemRow } from "./items.ts";
-import { clickable, onEnter, paintTag } from "./ui.ts";
+import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -39,8 +39,8 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
  * several tags sits at the end of every path made of them (src/explore.ts `tagNode`). Stored tags only: extension
  * tags are on every file, so they are the chip before a name, not a branch. Every file of the vault can show,
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
- * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed): the
- * tree then holds only the matching items.
+ * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed, a
+ * picked tag becomes a chip with a ×): the tree then holds only the matching items.
  */
 export class TagExplorerView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -48,11 +48,17 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private expanded = new Map<string, string[]>();
   /** The file open in the editor: highlighted. */
   private activePath: string | null = null;
-  /** The formula box as typed (not saved: a quick search). */
+  /**
+   * The formula box (not saved: a quick search): `chips`, the formula already turned into chips (a tag picked, Enter),
+   * then `query`, the text being typed after them (src/explore.ts `joinFormula`).
+   */
+  private chips: Expr | null = null;
   private query = "";
   /** The box's last valid formula (kept while it holds a syntax error) and the formula applied at the last render. */
   private parsed: Expr | null = null;
   private applied: Expr | null = null;
+  private chipsEl!: HTMLElement;
+  private inputEl!: HTMLInputElement;
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
   /** Vault events come in bursts (a folder moved, a sync): one redraw once they stop. */
@@ -83,27 +89,42 @@ export class TagExplorerView extends ItemView implements HoverParent {
     root.addClass("tag-everything-explorer");
 
     const bar = root.createDiv({ cls: "tag-everything-explorer-bar" });
-    const search = bar.createEl("input", {
-      type: "search",
-      cls: "tag-everything-explorer-search",
+    // looks like one input: the chips, then the text being typed
+    const box = bar.createDiv({ cls: "tag-everything-explorer-search" });
+    this.chipsEl = box.createDiv({ cls: "tag-everything-formula" });
+    const search = (this.inputEl = box.createEl("input", {
+      type: "text",
+      cls: "tag-everything-explorer-input",
       attr: {
-        placeholder: "Search: tag1 OR tag2…",
         "aria-label": "Show only the items matching a formula: tags with AND, OR, NOT and parentheses. Enter opens the tags it requires, Escape clears",
         spellcheck: "false",
       },
+    }));
+    box.addEventListener("click", (evt) => {
+      if (evt.target === box) search.focus();
     });
-    new FormulaTagSuggest(this.app, search, () => this.plugin.index.ranked(), (t) => this.plugin.index.counts().get(t) ?? 0);
+    const index = this.plugin.index;
+    new FormulaTagSuggest(this.app, search, () => index.ranked(), (t) => index.counts().get(t) ?? 0, () => this.commit());
     search.addEventListener("input", () => {
       this.query = search.value;
       this.render();
     });
-    onEnter(search, () => this.openRequired());
+    onEnter(search, () => {
+      this.commit();
+      this.openRequired();
+    });
     search.addEventListener("keydown", (evt) => {
-      if (evt.key !== "Escape" || evt.defaultPrevented || !search.value) return; // an open suggestion list closes first
-      evt.preventDefault();
-      evt.stopPropagation();
-      search.value = this.query = "";
-      this.render();
+      if (evt.defaultPrevented || evt.isComposing) return; // an open suggestion list takes Escape first
+      if (evt.key === "Backspace" && !search.value && this.chips) {
+        evt.preventDefault();
+        this.removeChip(formulaTags(this.chips).pop()!);
+      } else if (evt.key === "Escape" && (search.value || this.chips)) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        this.chips = this.parsed = null;
+        search.value = this.query = "";
+        this.render();
+      }
     });
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
@@ -155,6 +176,25 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
+  /** The box's text becomes chips, when the whole formula parses (a picked suggestion, Enter). */
+  private commit(): void {
+    if (!this.query.trim()) return;
+    const r = tryParseFormula(joinFormula(this.chips, this.query));
+    if ("error" in r) return;
+    this.chips = resolveTags(r.expr, [...this.plugin.index.counts().keys()]);
+    this.parsed = null;
+    this.inputEl.value = this.query = "";
+    this.render();
+  }
+
+  /** A chip's ×: the tag leaves the formula (its NOT with it, src/formula.ts `prune`). */
+  private removeChip(tag: string): void {
+    this.chips = this.chips && prune(this.chips, (t) => t !== tag);
+    this.parsed = null;
+    this.render();
+    this.inputEl.focus();
+  }
+
   /** Enter in the formula box: opens, one inside the other, the tags every matching item carries (`tax receipt`: tax › receipt). */
   private openRequired(): void {
     const own = this.plugin.index.counts(undefined, true);
@@ -184,7 +224,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const index = this.plugin.index;
     const scroll = this.contentEl.scrollTop; // a redraw after a tag change must not jump to the top
     this.treeEl.empty();
-    const search = treeSearch(this.query, [...index.counts().keys()], this.parsed);
+    this.renderChips();
+    const search = treeSearch(joinFormula(this.chips, this.query), [...index.counts().keys()], this.parsed ?? this.chips);
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
@@ -200,6 +241,24 @@ export class TagExplorerView extends ItemView implements HoverParent {
     );
     this.statusEl.toggleClass("mod-warning", !!search.problem);
     this.contentEl.scrollTop = scroll;
+  }
+
+  /** The box's chips, between their AND / OR / NOT, each with a × that removes it; a tag no item carries is faded. */
+  private renderChips(): void {
+    const index = this.plugin.index;
+    const counts = index.counts();
+    this.chipsEl.empty();
+    this.inputEl.placeholder = this.chips ? "" : "Search: tag1 OR tag2…";
+    if (!this.chips) return;
+    renderExpr(this.chipsEl, this.chips, (parent, tag, negated) => {
+      const chip = parent.createDiv({ cls: "tag-everything-chip is-small is-selected" + (negated ? " is-negated" : "") + (counts.has(tag) ? "" : " is-missing") });
+      chip.dataset.tag = tag;
+      paintTag(chip, index.colorFor(tag));
+      chip.createSpan({ text: tag });
+      const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": `Remove ${tag} from the search` } });
+      setIcon(x, "x");
+      clickable(x, () => this.removeChip(tag));
+    });
   }
 
   /**

@@ -852,8 +852,9 @@ const childrenOf = (row) => {
 const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 const ownTags = [...plugin.index.counts(undefined, true).keys()].sort(byName);
 check("explorer: the root lists every stored tag by name, no extension tag, no file", exTop().join() === ownTags.join() && !exTop().includes("md"), exTop().join(" | "));
-// the formula box: autocompletes the tag being typed; the tree then holds only the matching items
-const exSearch = exEl.querySelector(".tag-everything-explorer-search");
+// the formula box: autocompletes the tag being typed, a picked tag becomes a chip with a ×; the tree then holds only
+// the matching items
+const exSearch = exEl.querySelector(".tag-everything-explorer-input");
 const exType = async (text) => {
   exSearch.focus();
   exSearch.value = text;
@@ -861,36 +862,55 @@ const exType = async (text) => {
   exSearch.dispatchEvent(new Event("input"));
   await sleep(150);
 };
-const exKey2 = (key) => exSearch.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+const exKey2 = async (key) => {
+  exSearch.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  await sleep(100);
+};
 const exStatus = () => exEl.querySelector(".tag-everything-explorer-status")?.textContent ?? "";
+// the box as read: chips by tag (negated ones as !tag) and the operators between them
+const exChips = () =>
+  [...exEl.querySelectorAll(".tag-everything-explorer-search .tag-everything-formula > *")]
+    .map((el) => (el.dataset.tag ? (el.hasClass("is-negated") ? "!" : "") + el.dataset.tag : el.textContent))
+    .filter((t) => t !== "NOT")
+    .join(" ");
 const rootFor = (match) => [...plugin.index.counts(plugin.index.paths().filter(match), true).keys()].sort(byName);
+const has = (t) => (p) => plugin.index.hasTag(p, t);
 await exType("KP");
 const exSuggested = [...document.querySelectorAll(".suggestion-container .tag-everything-suggestion")];
 check("explorer: the formula box suggests the tags containing what is typed", exSuggested.map((el) => el.firstChild.textContent).join() === "kpi", exSuggested.map((el) => el.textContent).join(" | "));
 check("explorer: a tag still being typed is left out, the whole tree stays", exTop().join() === ownTags.join() && exStatus().includes("No item carries KP"), exStatus());
 (exSuggested[0]?.closest(".suggestion-item") ?? exSuggested[0])?.click();
 await sleep(150);
-const hasKpi = (p) => plugin.index.hasTag(p, "kpi");
+const nKpi = plugin.index.paths().filter(has("kpi")).length;
 check(
-  "explorer: picking a suggestion writes the tag; the tree holds only the items carrying it",
-  exSearch.value === "kpi " && exTop().join() === rootFor(hasKpi).join() && exStatus() === `${plugin.index.paths().filter(hasKpi).length === 1 ? "1 item matches" : `${plugin.index.paths().filter(hasKpi).length} items match`} kpi`,
-  `"${exSearch.value}" / ${exTop().join(" | ")} / ${exStatus()}`,
+  "explorer: a picked suggestion becomes a chip in the box; the tree holds only the items carrying it",
+  exChips() === "kpi" && exSearch.value === "" && exTop().join() === rootFor(has("kpi")).join() && exStatus() === `${nKpi === 1 ? "1 item matches" : `${nKpi} items match`} kpi`,
+  `[${exChips()}] "${exSearch.value}" / ${exTop().join(" | ")} / ${exStatus()}`,
 );
-exKey2("Enter");
-await sleep(100);
+await exKey2("Enter");
 check("explorer: Enter opens the tags the formula requires", childrenOf(tagRow("kpi")) === "q1", childrenOf(tagRow("kpi")));
-await exType("kpi AND");
-check("explorer: a syntax error is said, the last valid search stays", exTop().join() === rootFor(hasKpi).join() && exStatus().includes("missing") && exEl.querySelector(".tag-everything-explorer-status").hasClass("mod-warning"), exStatus());
-await exType("shared et non final");
-const sharedNotFinal = (p) => plugin.index.hasTag(p, "shared") && !plugin.index.hasTag(p, "final");
-check(
-  "explorer: a formula with NOT (French words too) keeps the matching items only",
-  exTop().length > 0 && exTop().join() === rootFor(sharedNotFinal).join() && exStatus().endsWith("shared AND NOT final") && !exTop().includes("final"),
-  `${exTop().join(" | ")} / ${exStatus()}`,
-);
-exKey2("Escape");
+await exType("AND");
+check("explorer: a syntax error is said, the chips' search stays", exTop().join() === rootFor(has("kpi")).join() && exStatus().includes("missing") && exEl.querySelector(".tag-everything-explorer-status").hasClass("mod-warning"), exStatus());
+await exType("OR shared");
+await exKey2("Enter");
+const kpiOrShared = (p) => has("kpi")(p) || has("shared")(p);
+check("explorer: text typed after the chips joins them (OR), Enter turns it into chips", exChips() === "kpi OR shared" && exSearch.value === "" && exTop().join() === rootFor(kpiOrShared).join(), `[${exChips()}] / ${exTop().join(" | ")}`);
+exEl.querySelector('.tag-everything-explorer-search .tag-everything-chip[data-tag="kpi"] .tag-everything-chip-remove')?.click();
 await sleep(100);
-check("explorer: Escape clears the formula box, the whole tree back", exSearch.value === "" && exTop().join() === ownTags.join());
+check("explorer: a chip's × removes its tag from the search", exChips() === "shared" && exTop().join() === rootFor(has("shared")).join() && exStatus().endsWith("match shared"), `[${exChips()}] / ${exStatus()}`);
+await exKey2("Escape");
+await exType("shared et non final");
+await exKey2("Enter");
+const sharedNotFinal = (p) => has("shared")(p) && !has("final")(p);
+check(
+  "explorer: a formula with NOT (French words too): chips, NOT struck, only the matching items",
+  exChips() === "shared AND !final" && exTop().length > 0 && exTop().join() === rootFor(sharedNotFinal).join() && exStatus().endsWith("shared AND NOT final"),
+  `[${exChips()}] / ${exTop().join(" | ")} / ${exStatus()}`,
+);
+await exKey2("Backspace");
+check("explorer: Backspace in the empty box removes the last chip", exChips() === "shared", exChips());
+await exKey2("Escape");
+check("explorer: Escape clears the formula box, the whole tree back", exSearch.value === "" && exChips() === "" && exTop().join() === ownTags.join());
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 tagRow("kpi").click();
@@ -955,6 +975,12 @@ vault.setConfig("showUnsupportedFiles", true);
 await sleep(800); // opening a note may reveal it in the file explorer a moment later
 await app.workspace.revealLeaf(explorer.leaf); // left for the screenshot: the path to that note open, the note highlighted
 await sleep(300);
+if (exTrail.join() === "shared") {
+  // and a search in the box that still shows that note, its chips with their ×
+  await exType("shared non final");
+  await exKey2("Enter");
+  exSearch.blur();
+}
 
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.
 document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above
