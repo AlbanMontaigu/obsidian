@@ -135,9 +135,9 @@ function ruleLines(g: GuideInput): string[] {
     return [`- No naming rule is enforced${g.lowercase ? ", but new tags are lower-case" : ""}; stay consistent with the existing tags.`];
   }
   return [
-    "- **Naming rule**: a tag is one lower-case word of letters and digits (accents allowed), no `-`, `_` or `.`, and",
+    "- **Naming rule**: a tag is one lower-case word of letters and digits (accents allowed), no `/`, `-`, `_` or `.`, and",
     "  never a liaison word. `Tax-Receipt` is two tags, `tax` and `receipt`; `plan_de_charge` is `plan` and `charge`;",
-    "  `R&D` is `rd`. A nested tag follows it level by level. Liaison words:",
+    "  `R&D` is `rd`; no nested tag: `proj/alpha` is `proj` and `alpha`. Liaison words:",
     `  ${parseStopWords(g.stopWords).join(" ")}.`,
   ];
 }

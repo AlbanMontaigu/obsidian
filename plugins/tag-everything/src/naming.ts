@@ -1,6 +1,6 @@
 // Tag naming rule: a tag is one lower-case plain word (letters and digits, accents allowed), never a liaison word.
-// `Tax-Receipt` is two tags, `tax` and `receipt`; `plan_de_charge` is `plan` and `charge`. A nested frontmatter tag
-// (`proj/alpha`) follows the rule segment by segment. Pure, no `obsidian` import (unit-tested under node --test).
+// `Tax-Receipt` is two tags, `tax` and `receipt`; `plan_de_charge` is `plan` and `charge`; `/` is a separator too, so
+// a nested tag (`proj/alpha`) breaks the rule and becomes `proj` and `alpha`. Pure, no `obsidian` import (unit-tested under node --test).
 //
 // Used three ways: the editor refuses a new tag that breaks the rule and offers its fix, `applyTags` refuses it too,
 // and the "Check tag names" engine lists the vault's tags that break it, with a fix, and rewrites them where they are.
@@ -39,23 +39,13 @@ function words(text: string, rule: NamingRule): string[] {
   return dedupe(parts.filter((w) => !rule.stopWords.has(w)));
 }
 
-/** Why one segment (a whole tag, or one level of a nested tag) breaks the rule; null when it follows it. */
-function segmentProblem(seg: string, rule: NamingRule): string | null {
-  if (!seg) return "empty level";
-  if (!WORD.test(seg)) {
-    return /[\s\-_.]/.test(seg) ? "one word per tag (no space, - or _)" : "letters and digits only";
-  }
-  if (seg !== seg.toLowerCase()) return "lower-case only";
-  if (rule.stopWords.has(seg)) return `"${seg}" is a liaison word`;
-  return null;
-}
-
-/** Why `tag` breaks the rule (the first reason found), or null when it follows it. `/` separates nested levels. */
+/** Why `tag` breaks the rule (the first reason found), or null when it follows it. */
 export function ruleProblem(tag: string, rule: NamingRule): string | null {
-  for (const seg of tag.split("/")) {
-    const p = segmentProblem(seg, rule);
-    if (p) return p;
+  if (!WORD.test(tag)) {
+    return /[\s\-_./]/.test(tag) ? "one word per tag (no space, /, - or _)" : "letters and digits only";
   }
+  if (tag !== tag.toLowerCase()) return "lower-case only";
+  if (rule.stopWords.has(tag)) return `"${tag}" is a liaison word`;
   return null;
 }
 
@@ -65,35 +55,26 @@ export function followsRule(tag: string, rule: NamingRule): boolean {
 
 /**
  * The tags that should replace `tag`: lower-cased, split into plain words, liaison words dropped.
- * `Tax-Receipt` -> ["tax", "receipt"]; `de` -> [] (drop it); `proj/Alpha-Beta` -> ["proj/alpha", "proj/beta"].
- * Null when there is no obvious fix (a parent level of a nested tag holding several words): the user decides.
+ * `Tax-Receipt` -> ["tax", "receipt"]; `proj/Alpha` -> ["proj", "alpha"]; `de` -> [] (drop it).
  * A tag that already follows the rule gives itself.
  */
-export function suggestFix(tag: string, rule: NamingRule): string[] | null {
-  if (followsRule(tag, rule)) return [tag];
-  const levels = tag.replace(/^#/, "").split("/").map((s) => words(s, rule));
-  const leaf = levels.pop() ?? [];
-  const parents = levels.filter((w) => w.length);
-  if (parents.some((w) => w.length > 1)) return null;
-  const prefix = parents.map((w) => w[0]).join("/");
-  if (!leaf.length) return prefix ? [prefix] : [];
-  return leaf.map((w) => (prefix ? `${prefix}/${w}` : w));
+export function suggestFix(tag: string, rule: NamingRule): string[] {
+  return followsRule(tag, rule) ? [tag] : words(tag, rule);
 }
 
-/** One line for the user: `"Tax-Receipt": one word per tag (no space, - or _); use "tax receipt"`. */
+/** One line for the user: `"Tax-Receipt": one word per tag (no space, /, - or _); use "tax receipt"`. */
 export function ruleMessage(tag: string, rule: NamingRule, shown = tag): string | null {
   const problem = ruleProblem(tag, rule);
   if (!problem) return null;
   const fix = suggestFix(tag, rule);
-  const hint = fix === null ? "" : fix.length ? `; use "${fix.join(" ")}"` : "; left out";
-  return `"${shown}": ${problem}${hint}`;
+  return `"${shown}": ${problem}${fix.length ? `; use "${fix.join(" ")}"` : "; left out"}`;
 }
 
 /**
  * Text typed in the tag editor -> tags, errors, and what to leave in the box (`rest`). Without a rule it is
  * `parseTagInput`. With one, words are lower-cased, and a word breaking the rule is refused: its fix goes in the
- * box instead (`Tax-Receipt` -> `tax receipt`, ready to accept with Enter), a liaison word is left out, a word
- * without obvious fix stays as typed. A word that can't be a tag at all (`a:b`) stays as typed, as before.
+ * box instead (`Tax-Receipt` or `proj/alpha` -> two words, ready to accept with Enter), a liaison word is left out.
+ * A word that can't be a tag at all (`a:b`) stays as typed, as before.
  */
 export function parseTypedTags(
   text: string,
@@ -106,7 +87,8 @@ export function parseTypedTags(
   const errors: string[] = [];
   const rest: string[] = [];
   for (const raw of splitTagInput(text)) {
-    const { tag, error } = normalizeTag(raw, true, nested);
+    // `/` is a word separator under the rule, like `-`: never the "no nested tag in a file name" error.
+    const { tag, error } = normalizeTag(raw.replaceAll("/", "-"), true, nested);
     if (error) {
       errors.push(error);
       rest.push(raw);
@@ -119,9 +101,7 @@ export function parseTypedTags(
       continue;
     }
     errors.push(msg);
-    const fix = suggestFix(tag, rule);
-    if (fix === null) rest.push(raw);
-    else for (const f of fix) if (!rest.includes(f)) rest.push(f);
+    for (const f of suggestFix(tag, rule)) if (!rest.includes(f)) rest.push(f);
   }
   return { tags, errors, rest: rest.join(" ") };
 }
@@ -133,8 +113,8 @@ export interface TagIssue {
   /** Items carrying it. */
   count: number;
   problem: string;
-  /** Suggested replacement tags ([] = drop the tag), null = no obvious fix. */
-  fix: string[] | null;
+  /** Suggested replacement tags ([] = drop the tag). */
+  fix: string[];
 }
 
 /** Every tag of the vault that breaks the rule, most used first. */

@@ -1,4 +1,4 @@
-import { Menu, MenuItem, Notice, Plugin, TAbstractFile, TFile, TFolder, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
+import { FileSystemAdapter, Menu, MenuItem, Notice, Plugin, TAbstractFile, TFile, TFolder, Vault, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
 import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
@@ -10,11 +10,31 @@ import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts
 import { TagFixModal } from "./fix-modal.ts";
 import { replaceTagsInGroups } from "./groups.ts";
 import { replaceTagsInTabs } from "./tabs.ts";
-import { claudeGuide, guidePath, hasGuide } from "./guide.ts";
+import { GUIDE_FILE, claudeGuide, guidePath, hasGuide } from "./guide.ts";
+import { type Spawn, runFirstFound } from "./claude.ts";
+import { MAX_SUGGEST_ITEMS, claudeArgs, claudeCommands, commonFolder } from "./suggest.ts";
+import { TagSuggestModal } from "./suggest-modal.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
-type Planner = (state: ts.TagState, target: ts.TagTarget) => ts.TagPlan;
+type Planner = (state: ts.TagState, target: ts.TagTarget, item: TAbstractFile) => ts.TagPlan;
+
+/** The planner of an edit: `added` and `removed` merged into the item's stored tags. */
+const editPlanner = (added: readonly string[], removed: readonly string[]): Planner => (state, target) => {
+  const all = ts.dedupe([...state.nameTags, ...(state.frontTags ?? []), ...state.sideTags]);
+  return ts.planTags(state, ts.mergeEdit(all, added, removed), target);
+};
+
+/** Claude Code may read for a long time (many files, PDFs); past this, it is stopped. */
+const CLAUDE_TIMEOUT_MS = 10 * 60_000;
+
+/** Node modules of the desktop app, reached through Electron's `require` (not bundled: esbuild targets the browser). */
+function nodeModules(): { spawn: Spawn; homedir: () => string } {
+  const req = (window as unknown as { require: (id: string) => unknown }).require;
+  const { spawn } = req("child_process") as { spawn: Spawn };
+  const { homedir } = req("os") as { homedir: () => string };
+  return { spawn, homedir };
+}
 
 /** One entry of the plugin's context submenu. */
 interface MenuEntry {
@@ -102,6 +122,16 @@ export default class TagEverythingPlugin extends Plugin {
       callback: () => void this.reindex(),
     });
     this.addCommand({
+      id: "suggest-tags-active-file",
+      name: "Suggest tags for the current file with Claude Code",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        if (!checking) this.suggestTags([file]);
+        return true;
+      },
+    });
+    this.addCommand({
       id: "write-guide-root",
       name: "Write AI assistant guide in the vault root",
       callback: () => void this.writeGuide(this.app.vault.getRoot()),
@@ -111,6 +141,7 @@ export default class TagEverythingPlugin extends Plugin {
       this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
         const entries: MenuEntry[] = [];
         if (taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
+        entries.push({ title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags([file]) });
         if (file instanceof TFolder) entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void this.writeGuide(file) });
         addPluginMenu(menu, entries);
       }),
@@ -118,7 +149,11 @@ export default class TagEverythingPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => {
         const items = files.filter(taggable);
-        if (items.length) addPluginMenu(menu, [{ title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) }]);
+        if (!items.length) return;
+        addPluginMenu(menu, [
+          { title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) },
+          { title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags(items) },
+        ]);
       }),
     );
 
@@ -308,12 +343,68 @@ export default class TagEverythingPlugin extends Plugin {
       new Notice([`${PLUGIN_NAME}: tags not changed: tags are lower-case single words.`, ...broken.slice(0, 5)].join("\n"), 10000);
       return Promise.resolve();
     }
-    const run = this.enqueue(items, (state, target) => {
-      const all = ts.dedupe([...state.nameTags, ...(state.frontTags ?? []), ...state.sideTags]);
-      return ts.planTags(state, ts.mergeEdit(all, edit.added, edit.removed), target);
-    });
-    return run.then(() => undefined);
+    return this.enqueue(items, editPlanner(edit.added, edit.removed)).then(() => undefined);
   }
+
+  /**
+   * Adds its own tags to each item (the suggestions of Claude Code); nothing is removed. A tag breaking the naming
+   * rule is left out (the suggestions are already fixed). Resolves to the number of items that failed.
+   */
+  addTagsEach(added: ReadonlyMap<TAbstractFile, readonly string[]>): Promise<number> {
+    const rule = this.rule;
+    const tagsOf = (item: TAbstractFile): string[] => (added.get(item) ?? []).filter((t) => !rule || !ruleMessage(t, rule));
+    return this.enqueue([...added.keys()], (state, target, item) => editPlanner(tagsOf(item), [])(state, target, item));
+  }
+
+  /**
+   * Opens the Claude Code suggestions for a selection. A folder alone: the folder and the files under it (untagged
+   * ones first, at most MAX_SUGGEST_ITEMS), Claude Code working in it. A file, or several items: those, Claude Code
+   * working in their closest common folder.
+   */
+  suggestTags(selection: TAbstractFile[]): TagSuggestModal | null {
+    const { vault } = this.app;
+    let folder: TFolder;
+    let items: TAbstractFile[];
+    if (selection.length === 1 && selection[0] instanceof TFolder) {
+      folder = selection[0];
+      const files: TFile[] = [];
+      Vault.recurseChildren(folder, (f) => {
+        if (f instanceof TFile && f.name !== GUIDE_FILE) files.push(f);
+      });
+      const tagged = (f: TFile): number => Number(this.index.ownTagsOf(f.path).length > 0);
+      files.sort((a, b) => tagged(a) - tagged(b) || a.path.localeCompare(b.path));
+      items = [...(folder.isRoot() ? [] : [folder]), ...files];
+    } else {
+      items = selection.filter(taggable);
+      const path = commonFolder(items.map((i) => i.path));
+      const common = path ? vault.getAbstractFileByPath(path) : vault.getRoot();
+      folder = common instanceof TFolder ? common : vault.getRoot();
+    }
+    if (!items.length) {
+      new Notice(`${PLUGIN_NAME}: nothing to tag here.`);
+      return null;
+    }
+    const modal = new TagSuggestModal(this.app, this, {
+      folder,
+      items: items.slice(0, MAX_SUGGEST_ITEMS),
+      skipped: Math.max(0, items.length - MAX_SUGGEST_ITEMS),
+    });
+    modal.open();
+    return modal;
+  }
+
+  /**
+   * Runs Claude Code in `folder` with `prompt` on stdin and resolves to what it printed (src/suggest.ts reads it).
+   * Replaced by a fake in the smoke test.
+   */
+  runClaude = (folder: TFolder, prompt: string, signal: AbortSignal): Promise<string> => {
+    const adapter = this.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) return Promise.reject(new Error("the vault is not on this computer's disk"));
+    const cwd = folder.isRoot() ? adapter.getBasePath() : `${adapter.getBasePath()}/${folder.path}`;
+    const { spawn, homedir } = nodeModules();
+    const commands = claudeCommands(this.settings.claudeCommand, homedir(), navigator.platform.startsWith("Win"));
+    return runFirstFound(spawn, commands, claudeArgs(this.settings.claudeModel), { cwd, input: prompt, timeoutMs: CLAUDE_TIMEOUT_MS, signal });
+  };
 
   /** Runs one batch after the previous one; resolves to the number of items that failed. */
   private enqueue(items: TAbstractFile[], planner: Planner): Promise<number> {
@@ -364,7 +455,7 @@ export default class TagEverythingPlugin extends Plugin {
     const side = await this.store.readTags(item);
 
     if (item instanceof TFolder) {
-      const { sideTags, sideChanged } = planner({ nameTags: [], sideTags: side, frontTags: [] }, "sidecar");
+      const { sideTags, sideChanged } = planner({ nameTags: [], sideTags: side, frontTags: [] }, "sidecar", item);
       if (!sideChanged) return false;
       await this.store.writeTags(this.store.metaPathOf(item), sideTags);
       this.index.setSide(item.path, sideTags);
@@ -374,7 +465,7 @@ export default class TagEverythingPlugin extends Plugin {
 
     const nameTags = ts.parseNameTags(item.name);
     const front = await this.readFrontTags(item);
-    const plan = planner({ nameTags, sideTags: side, frontTags: front }, targetFor(item, this.settings));
+    const plan = planner({ nameTags, sideTags: side, frontTags: front }, targetFor(item, this.settings), item);
     if (!plan.renamed && !plan.sideChanged && !plan.frontChanged) return false;
     // A tag picked from the vault (e.g. a nested note tag `a/b`) may not be valid where it is about to go.
     ts.assertWritable(plan.nameTags.filter((t) => !nameTags.includes(t)), "filename");

@@ -19,6 +19,8 @@ TagSpaces.
 - See tags as coloured **badges** in the file explorer; each file's extension (`pdf`, `md`) is a tag too, shown before its name.
 - Write a **guide for AI assistants** (`CLAUDE.md`) into a folder, so an assistant working in the vault tags files the
   way TagEverything reads them and reuses your tags.
+- **Suggest tags with Claude Code**: it reads the files of a folder (read-only) and suggests tags, reusing the ones
+  already in your vault; you pick which to add.
 
 ## Install
 
@@ -37,7 +39,7 @@ Office files, turn on **Settings → Files and links → Detect all file extensi
 
 ```powershell
 npm test -- tag-everything                      # unit tests of the pure modules
-npm run smoke -- tag-everything                 # ~150 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # ~180 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -58,6 +60,8 @@ src/formula.ts     tag formulas: parse, format, evaluate, switch tags off (pure,
 src/groups.ts      tag groups: add, rename, move, fold, formula, load safely (pure, tested)
 src/tabs.ts        bookmark tabs: add, rename, bookmark tags and groups, load safely (pure, tested)
 src/config.ts      settings: shape, defaults, loading a damaged data.json (pure, tested)
+src/suggest.ts     Claude Code suggestions: prompt, command line, reading and cleaning the answer (pure, tested)
+src/claude.ts      runs a program (Claude Code): stdin, stdout, timeout, cancel, not found (tested with real processes)
 src/cloud.ts       tag cloud sizing by use (pure, tested)
 src/colors.ts      automatic tag colours (pure, tested)
 src/messages.ts    notice texts (pure, tested)
@@ -68,6 +72,7 @@ src/store.ts       sidecar read/write and moves through the vault adapter
 src/main.ts        plugin wiring: menus, commands, rename handling, applying edits
 src/modal.ts       tag editor (chips + autocomplete)
 src/fix-modal.ts   Check tag names dialog
+src/suggest-modal.ts  the suggestions dialog: runs Claude Code, chips to leave tags out, adds the rest
 src/view.ts        TagEverything panel: cloud, search, groups, bookmark tabs, results
 src/dialogs.ts     the panel's name and formula dialogs
 src/settings.ts    settings tab

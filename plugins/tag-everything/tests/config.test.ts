@@ -42,6 +42,13 @@ test("normalizeSettings: naming rule on by default, stop words repaired", () => 
   assert.equal(normalizeSettings({ stopWords: 3 }).stopWords, DEFAULT_SETTINGS.stopWords);
 });
 
+test("normalizeSettings: Claude Code program and model, empty by default, trimmed", () => {
+  assert.equal(DEFAULT_SETTINGS.claudeCommand, "");
+  assert.equal(normalizeSettings({}).claudeModel, "");
+  assert.equal(normalizeSettings({ claudeCommand: " C:\\bin\\claude.exe " }).claudeCommand, "C:\\bin\\claude.exe");
+  assert.equal(normalizeSettings({ claudeModel: 4 }).claudeModel, "");
+});
+
 test("normalizeSettings never shares the default groups array", () => {
   const a = normalizeSettings({});
   a.groups.push({ id: "g1", name: "x", tags: [], collapsed: false });

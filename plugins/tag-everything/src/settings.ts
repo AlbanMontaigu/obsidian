@@ -115,6 +115,24 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       },
       {
         type: "group",
+        heading: "Claude Code",
+        items: [
+          {
+            name: "Claude Code program",
+            desc: "Used by Suggest tags with Claude Code. Empty: claude on the PATH, then ~/.local/bin. Otherwise the full path of claude.exe.",
+            aliases: ["claude", "ai", "suggest tags", "path"],
+            control: { type: "text", key: "claudeCommand", placeholder: "claude" },
+          },
+          {
+            name: "Model",
+            desc: "The model that suggests tags: sonnet or haiku cost less than the default for many files. Empty: Claude Code's default.",
+            aliases: ["claude", "ai", "suggest tags"],
+            control: { type: "text", key: "claudeModel", placeholder: "default" },
+          },
+        ],
+      },
+      {
+        type: "group",
         heading: "Tag maintenance",
         items: [
           {

@@ -96,7 +96,7 @@ export class TagEditorModal extends Modal {
         // A tag picked from the vault may not be valid here, e.g. a nested note tag for a PDF.
         const { error } = ts.normalizeTag(tag, false, this.allFrontmatter());
         const broken = !error && this.rule ? ruleMessage(tag, this.rule) : null;
-        if (broken) this.input.value = suggestFix(tag, this.rule!)?.join(" ") ?? "";
+        if (broken) this.input.value = suggestFix(tag, this.rule!).join(" ");
         else if (!error && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
         this.renderChips(error ?? broken ?? "");
         this.input.focus();

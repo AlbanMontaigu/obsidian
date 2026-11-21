@@ -44,6 +44,6 @@ for (const p of problems.slice(0, 20)) console.log("  " + p);
 const issues = auditTags(nameTagCounts, makeRule());
 console.log(`name tags=${nameTagCounts.size} breaking the naming rule=${issues.length}`);
 for (const i of issues.slice(0, 40)) {
-  const fix = i.fix === null ? "(no obvious fix)" : i.fix.length ? i.fix.join(" ") : "(removed)";
+  const fix = i.fix.length ? i.fix.join(" ") : "(removed)";
   console.log(`  ${i.tag} x${i.count}: ${i.problem} -> ${fix}`);
 }

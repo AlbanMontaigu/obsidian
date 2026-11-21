@@ -68,7 +68,7 @@ export class TagFixModal extends Modal {
   private renderRow(list: HTMLElement, issue: TagIssue): Row {
     const el = list.createDiv({ cls: "tag-everything-fix-row" });
     const checkbox = el.createEl("input", { type: "checkbox", attr: { "aria-label": `Fix ${issue.tag}` } });
-    checkbox.checked = issue.fix !== null;
+    checkbox.checked = true;
     const from = el.createDiv({ cls: "tag-everything-fix-from" });
     const chip = from.createSpan({ cls: "tag-everything-chip", text: issue.tag });
     paintTag(chip, this.plugin.index.colorFor(issue.tag));
@@ -79,8 +79,8 @@ export class TagFixModal extends Modal {
     const input = to.createEl("input", {
       type: "text",
       cls: "tag-everything-fix-input",
-      value: issue.fix?.join(" ") ?? "",
-      attr: { placeholder: issue.fix === null ? "Type the new tags" : "(the tag is removed)", spellcheck: "false", "data-tag": issue.tag },
+      value: issue.fix.join(" "),
+      attr: { placeholder: "(the tag is removed)", spellcheck: "false", "data-tag": issue.tag },
     });
     const errorEl = to.createDiv({ cls: "tag-everything-error" });
     const row = { issue, checkbox, input, errorEl };

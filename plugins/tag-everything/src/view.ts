@@ -805,14 +805,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
     for (const item of items.slice(0, MAX_RESULTS)) {
       const row = this.resultsEl.createDiv({ cls: "tag-everything-result" });
-      const icon = row.createSpan({ cls: "tag-everything-result-icon" });
-      setIcon(icon, item instanceof TFolder ? "folder" : "file");
+      const small = (t: string): string => "is-small" + (this.selected.includes(t) ? " is-selected" : "");
+      // The extension tag stands in for the file icon, as before the name in the explorer; folders keep their icon.
+      const [ext] = index.get(item.path).ext;
+      if (ext) this.chip(row, ext, `${small(ext)} tag-everything-result-ext`);
+      else setIcon(row.createSpan({ cls: "tag-everything-result-icon" }), item instanceof TFolder ? "folder" : "file");
       const body = row.createDiv({ cls: "tag-everything-result-body" });
       body.createDiv({ cls: "tag-everything-result-name", text: item.name });
       const parent = ts.parentOf(item.path);
       if (parent) body.createDiv({ cls: "tag-everything-result-path", text: parent });
-      const chips = body.createDiv({ cls: "tag-everything-result-tags" });
-      for (const t of index.tagsOf(item.path)) this.chip(chips, t, "is-small" + (this.selected.includes(t) ? " is-selected" : ""));
+      const tags = index.tagsOf(item.path).filter((t) => t !== ext);
+      if (tags.length) {
+        const chips = body.createDiv({ cls: "tag-everything-result-tags" });
+        for (const t of tags) this.chip(chips, t, small(t));
+      }
 
       clickable(row, (evt) => this.openItem(item, evt));
       row.addEventListener("auxclick", (evt) => {

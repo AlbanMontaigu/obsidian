@@ -22,20 +22,19 @@ const rule = makeRule();
 const map = (o: Record<string, string[]>) => new Map(Object.entries(o));
 
 test("rule: lower-case plain words pass, accents and digits included", () => {
-  for (const t of ["tax", "b27", "2026", "réunion", "q3", "proj/alpha", "élève"]) assert.ok(followsRule(t, rule), t);
+  for (const t of ["tax", "b27", "2026", "réunion", "q3", "élève"]) assert.ok(followsRule(t, rule), t);
 });
 
-test("rule: upper case, separators, signs, liaison words and empty levels fail", () => {
+test("rule: upper case, separators (/ included), signs and liaison words fail", () => {
   assert.equal(ruleProblem("Tax", rule), "lower-case only");
-  assert.equal(ruleProblem("tax-receipt", rule), "one word per tag (no space, - or _)");
-  assert.equal(ruleProblem("tax_receipt", rule), "one word per tag (no space, - or _)");
-  assert.equal(ruleProblem("v1.2", rule), "one word per tag (no space, - or _)");
+  assert.equal(ruleProblem("tax-receipt", rule), "one word per tag (no space, /, - or _)");
+  assert.equal(ruleProblem("tax_receipt", rule), "one word per tag (no space, /, - or _)");
+  assert.equal(ruleProblem("v1.2", rule), "one word per tag (no space, /, - or _)");
+  assert.equal(ruleProblem("proj/alpha", rule), "one word per tag (no space, /, - or _)");
   assert.equal(ruleProblem("r&d", rule), "letters and digits only");
   assert.equal(ruleProblem("#tax", rule), "letters and digits only");
   assert.equal(ruleProblem("de", rule), '"de" is a liaison word');
   assert.equal(ruleProblem("the", rule), '"the" is a liaison word');
-  assert.equal(ruleProblem("proj/Alpha", rule), "lower-case only");
-  assert.equal(ruleProblem("proj//alpha", rule), "empty level");
 });
 
 test("suggestFix: lower-case, split into words, liaison words dropped", () => {
@@ -53,11 +52,11 @@ test("suggestFix: lower-case, split into words, liaison words dropped", () => {
   assert.deepEqual(suggestFix("tax", rule), ["tax"]);
 });
 
-test("suggestFix: nested tags split their last level, a multi-word parent has no obvious fix", () => {
-  assert.deepEqual(suggestFix("Proj/Alpha-Beta", rule), ["proj/alpha", "proj/beta"]);
+test("suggestFix: / splits like -, a nested tag becomes one tag per word", () => {
+  assert.deepEqual(suggestFix("Proj/Alpha-Beta", rule), ["proj", "alpha", "beta"]);
   assert.deepEqual(suggestFix("proj/de", rule), ["proj"]);
-  assert.deepEqual(suggestFix("de/x", rule), ["x"]);
-  assert.equal(suggestFix("my-proj/alpha", rule), null);
+  assert.deepEqual(suggestFix("my-proj/alpha", rule), ["my", "proj", "alpha"]);
+  assert.deepEqual(suggestFix("proj//alpha/", rule), ["proj", "alpha"]);
 });
 
 test("every suggested fix follows the rule", () => {
@@ -76,9 +75,9 @@ test("stop words: parsed from settings text, custom list replaces the default", 
 });
 
 test("ruleMessage: names the tag, the problem and the fix", () => {
-  assert.equal(ruleMessage("Tax-Receipt", rule), '"Tax-Receipt": one word per tag (no space, - or _); use "tax receipt"');
+  assert.equal(ruleMessage("Tax-Receipt", rule), '"Tax-Receipt": one word per tag (no space, /, - or _); use "tax receipt"');
   assert.equal(ruleMessage("de", rule), '"de": "de" is a liaison word; left out');
-  assert.equal(ruleMessage("my-proj/alpha", rule), '"my-proj/alpha": one word per tag (no space, - or _)');
+  assert.equal(ruleMessage("proj/alpha", rule), '"proj/alpha": one word per tag (no space, /, - or _); use "proj alpha"');
   assert.equal(ruleMessage("tax", rule), null);
 });
 
@@ -97,9 +96,12 @@ test("parseTypedTags: lower-cases, refuses with the fix in the box, drops liaiso
   const bad = parseTypedTags("a:b", rule);
   assert.equal(bad.rest, "a:b");
   assert.match(bad.errors[0], /cannot contain/);
-  // nested tags for notes: each level checked
-  assert.deepEqual(parseTypedTags("proj/alpha", rule, false, true).tags, ["proj/alpha"]);
-  assert.equal(parseTypedTags("my-proj/alpha", rule, false, true).rest, "my-proj/alpha");
+  // `/` splits like `-`, for a note (nested allowed) as for a file name (where `/` is not even valid)
+  for (const nested of [true, false]) {
+    const n = parseTypedTags("Proj/Alpha proj/", rule, false, nested);
+    assert.deepEqual([n.tags, n.rest], [[], "proj alpha"], `nested=${nested}`);
+    assert.match(n.errors[0], /^"Proj\/Alpha": one word per tag \(no space, \/, - or _\); use "proj alpha"$/);
+  }
 });
 
 test("auditTags: only the tags breaking the rule, most used first", () => {

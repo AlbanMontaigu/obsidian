@@ -26,6 +26,10 @@ export interface TagEverythingSettings {
   maxBadges: number;
   /** Move `.ts/<name>.json` and `.ts/<name>.jpg` along when a file is renamed or moved in Obsidian. */
   followRenames: boolean;
+  /** Claude Code program for tag suggestions; empty = `claude` on the PATH, then `~/.local/bin`. */
+  claudeCommand: string;
+  /** Model Claude Code uses for tag suggestions (`sonnet`, `haiku`...); empty = Claude Code's own default. */
+  claudeModel: string;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
@@ -47,6 +51,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   badgeScope: "all",
   maxBadges: 4,
   followRenames: true,
+  claudeCommand: "",
+  claudeModel: "",
   groups: [],
   tabs: [],
 };
@@ -60,6 +66,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
   const d = DEFAULT_SETTINGS;
   const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? r[k] : (d[k] as boolean));
   const max = typeof r.maxBadges === "number" && Number.isFinite(r.maxBadges) ? Math.round(r.maxBadges) : d.maxBadges;
+  const text = (k: "claudeCommand" | "claudeModel"): string => (typeof r[k] === "string" ? r[k].trim() : d[k]);
   const groups = normalizeGroups(r.groups);
   return {
     ...r,
@@ -74,6 +81,8 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,
     maxBadges: Math.min(MAX_BADGES, Math.max(MIN_BADGES, max)),
     followRenames: bool("followRenames"),
+    claudeCommand: text("claudeCommand"),
+    claudeModel: text("claudeModel"),
     groups,
     tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
   };

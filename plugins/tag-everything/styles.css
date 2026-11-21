@@ -245,6 +245,13 @@
   height: 14px;
 }
 
+/* the extension tag in place of the file icon, aligned with the name */
+.tag-everything-chip.tag-everything-result-ext {
+  align-self: flex-start;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .tag-everything-result-body {
   min-width: 0;
   flex: 1;
@@ -638,4 +645,58 @@
 .tag-everything-fix-to > .tag-everything-error {
   min-height: 0;
   margin-top: 2px;
+}
+
+/* ---- Suggest tags with Claude Code: one row per item, its suggested tags as chips to switch off */
+.tag-everything-suggest-status {
+  margin: 8px 0;
+}
+
+.tag-everything-suggest-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.tag-everything-suggest-row {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-suggest-row:last-child {
+  border-bottom: none;
+}
+
+.tag-everything-suggest-item,
+.tag-everything-suggest-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-everything-suggest-tags {
+  margin-top: 4px;
+}
+
+.tag-everything-suggest-name {
+  font-weight: var(--font-semibold);
+}
+
+.tag-everything-suggest-path,
+.tag-everything-suggest-none {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* a tag no item of the vault has yet */
+.tag-everything-suggest-tags .tag-everything-chip.is-new {
+  border-style: dashed;
+}
+
+/* switched off: not added */
+.tag-everything-suggest-tags .tag-everything-chip:not(.is-selected) {
+  color: var(--text-faint);
+  text-decoration: line-through;
 }

@@ -33,7 +33,7 @@ const fileMenu = fakeMenu();
 app.workspace.trigger("file-menu", fileMenu, file("report.md"), "file-explorer");
 const single = fileMenu.sub("TagEverything");
 check("file-menu: one TagEverything submenu, nothing else", fileMenu.titles().filter((t) => /tag|guide/i.test(t)).join() === "TagEverything", fileMenu.titles().join(" | "));
-check("file-menu: Edit tags in the submenu, no guide for a file", single?.titles().join() === "Edit tags", single?.titles().join(" | "));
+check("file-menu: Edit tags and Claude Code suggestions in the submenu, no guide for a file", single?.titles().join() === "Edit tags,Suggest tags with Claude Code", single?.titles().join(" | "));
 // The submenu is an internal API (MenuItem.setSubmenu): in the real explorer menu, the plugin's entry must be the
 // "TagEverything" submenu, not the flat fallback ("TagEverything: Edit tags").
 const explorerItem = app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.["report.md"]?.selfEl;
@@ -45,7 +45,7 @@ document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubble
 document.querySelectorAll(".menu").forEach((m) => m.remove());
 const multiMenu = fakeMenu();
 app.workspace.trigger("files-menu", multiMenu, [file("report.md"), file("Docs")], "file-explorer");
-check("files-menu has bulk edit in the submenu", multiMenu.sub("TagEverything")?.titles().join() === "Edit tags of 2 items", multiMenu.titles().join(" | "));
+check("files-menu has bulk edit and suggestions in the submenu", multiMenu.sub("TagEverything")?.titles().join() === "Edit tags of 2 items,Suggest tags with Claude Code", multiMenu.titles().join(" | "));
 single.click("Edit tags");
 await sleep(300);
 check("menu item opens the editor", !!document.querySelector(".tag-everything-modal"));
@@ -121,7 +121,9 @@ plugin.settings.noteTagsInFrontmatter = true;
 plugin.settings.storage = "filename";
 check("frontmatter + name tags merged in the index", plugin.index.tagsOf("Notes/plan[gamma].md").join() === "gamma,alpha,beta", plugin.index.tagsOf("Notes/plan[gamma].md").join());
 
+plugin.settings.tagRule = false; // a nested tag breaks the naming rule (`/` splits like `-`): planted without it
 await plugin.applyTags([file("Notes/plan[gamma].md")], { added: ["delta", "proj/alpha"], removed: [] });
+plugin.settings.tagRule = true;
 await waitFor(() => (fmTags("Notes/plan[gamma].md") ?? []).includes("delta"));
 check("adding a note tag does not rename", !!file("Notes/plan[gamma].md"));
 check("note tag written to frontmatter, spelling kept", JSON.stringify(fmTags("Notes/plan[gamma].md")) === '["alpha","#beta","delta","proj/alpha"]', JSON.stringify(fmTags("Notes/plan[gamma].md")));
@@ -156,8 +158,10 @@ await plugin.applyTags([file("Docs/scan.pdf")], { added: ["paper"], removed: [] 
 await sleep(500);
 check("pdf still tagged in its name", !!file("Docs/scan[paper].pdf"));
 expectError(/tagging failed\s+path=Docs\/scan\[paper\]\.pdf/);
+plugin.settings.tagRule = false; // refused by the format itself, not only by the rule
 await plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["proj/alpha"], removed: [] });
 await sleep(300);
+plugin.settings.tagRule = true;
 check("nested tag refused in a file name", !!file("Docs/scan[paper].pdf"));
 
 // ---- robustness: edits during a rebuild, queued edits, an item gone since the editor opened
@@ -290,7 +294,7 @@ if (settingTab) {
   // Declarative tab (getSettingDefinitions): its rows are indexed for Obsidian's settings search.
   const walk = (d) => (d.items ? d.items.flatMap(walk) : [d.name]);
   const names = (settingTab.settingItems ?? []).flatMap(walk);
-  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Maximum badges per item"), JSON.stringify(names));
+  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Maximum badges per item") && names.includes("Claude Code program") && names.includes("Model"), JSON.stringify(names));
   check("settings: tab has an icon", settingTab.icon === "tags", String(settingTab.icon));
   // Through the real dialog: the badges toggle disables / enables the two badge options and is saved.
   app.setting.open();
@@ -590,12 +594,12 @@ const fxVal = (tag) => fxRow(tag)?.querySelector(".tag-everything-fix-input").va
 check("fix: the check re-reads tags edited outside Obsidian", !knownBefore && fxTags.includes("Hors_Ligne") && fxVal("Hors_Ligne") === "hors ligne", JSON.stringify(fxTags));
 check(
   "fix: the dialog lists exactly the tags breaking the rule",
-  ["B27", "INC", "IMAC", "Tax-Receipt", "plan_de_charge", "de", "Hors_Ligne"].every((t) => fxTags.includes(t)) && !fxTags.includes("paper") && !fxTags.includes("proj/alpha"),
+  ["B27", "INC", "IMAC", "Tax-Receipt", "plan_de_charge", "de", "Hors_Ligne", "proj/alpha"].every((t) => fxTags.includes(t)) && !fxTags.includes("paper"),
   JSON.stringify(fxTags),
 );
 check(
-  "fix: suggestions (split, lower-case, liaison word removed)",
-  fxVal("Tax-Receipt") === "tax receipt" && fxVal("B27") === "b27" && fxVal("plan_de_charge") === "plan charge" && fxVal("de") === "",
+  "fix: suggestions (split on - _ /, lower-case, liaison word removed)",
+  fxVal("Tax-Receipt") === "tax receipt" && fxVal("B27") === "b27" && fxVal("plan_de_charge") === "plan charge" && fxVal("de") === "" && fxVal("proj/alpha") === "proj alpha",
   JSON.stringify(fxTags.map((t) => [t, fxVal(t)])),
 );
 const fxBtn = fxEl.querySelector("button.mod-cta");
@@ -608,7 +612,7 @@ incInput.dispatchEvent(new Event("input"));
 fxRow("plan_de_charge").querySelector("input[type=checkbox]").click(); // left as it is
 check("fix: Fix enabled again, counts the checked tags", !fxBtn.disabled && /^Fix \d+ tags$/.test(fxBtn.textContent), fxBtn.textContent);
 fxBtn.click();
-await waitFor(() => !!file("Projects/Alpha/budget[b27 inc].md") && !!file("Docs/scan[paper tax receipt].pdf") && !(fmTags("report.md") ?? []).includes("de"), 8000);
+await waitFor(() => !!file("Projects/Alpha/budget[b27 inc].md") && !!file("Docs/scan[paper tax receipt].pdf") && !(fmTags("report.md") ?? []).includes("de") && !(fmTags("Notes/plan.md") ?? []).includes("proj/alpha"), 8000);
 await sleep(300);
 check(
   "fix: name tags rewritten in the name (case-only rename too)",
@@ -617,6 +621,7 @@ check(
 );
 check("fix: compound split where it was", !!file("Docs/scan[paper tax receipt].pdf"), plugin.index.tagsOf("Docs/scan[paper tax receipt].pdf").join());
 check("fix: liaison-word tag removed, unchecked tag left alone", JSON.stringify(fmTags("report.md")).includes("plan_de_charge") && !(fmTags("report.md") ?? []).includes("de"), JSON.stringify(fmTags("report.md")));
+check("fix: a nested tag split in the frontmatter, a part already there not repeated", JSON.stringify(fmTags("Notes/plan.md")) === '["alpha","delta","proj"]', JSON.stringify(fmTags("Notes/plan.md")));
 check("fix: a folder's sidecar tag fixed in its sidecar", (await readJson("Notes/.ts/tsm.json")).tags.map((t) => t.title).join() === "hors,ligne", await adapter.read("Notes/.ts/tsm.json"));
 check("fix: other tags of the fixed note kept", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join() === "b27,inc,q3", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join());
 check("fix: the group formula follows", fGroup().formula === "(shared OR b27) AND (final OR inc) AND NOT imac", fGroup().formula);
@@ -634,7 +639,7 @@ check("command: Check tag names registered", !!app.commands.commands["tag-everyt
 const folderMenu = fakeMenu();
 app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
 const guideMenu = folderMenu.sub("TagEverything");
-check("guide: folder submenu has Edit tags and the guide", guideMenu?.titles().join() === "Edit tags,Write AI assistant guide", guideMenu?.titles().join(" | "));
+check("guide: folder submenu has Edit tags, suggestions and the guide", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Write AI assistant guide", guideMenu?.titles().join(" | "));
 guideMenu.click("Write AI assistant guide");
 await waitFor(() => !!file("Projects/CLAUDE.md"));
 const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
@@ -652,6 +657,91 @@ await waitFor(() => !!file("CLAUDE.md"));
 const rootGuide = file("CLAUDE.md") ? await vault.read(file("CLAUDE.md")) : "";
 check("guide: root guide has no folder section", rootGuide.startsWith("# Tags in this vault") && !rootGuide.includes("## Tags used in"), rootGuide.slice(0, 80));
 for (const p of ["Projects/CLAUDE.md", "Docs/claude.md", "CLAUDE.md"]) if (file(p)) await vault.delete(file(p));
+
+// ---- Suggest tags with Claude Code: the prompt (folder, items, dictionary), the review dialog, the tags added.
+// Claude Code itself is faked (cost, login, non-deterministic); the real spawn is run once with a missing program.
+const realRunClaude = plugin.runClaude;
+let asked = null;
+const answerJson = (items) => JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: { items }, total_cost_usd: 0.03, duration_ms: 4200 });
+const budgetPath = "Projects/Alpha/budget[b27 inc].md";
+const meetingPath = "Projects/Alpha/meeting - [imac] SteerCo.md";
+plugin.runClaude = async (folder, prompt) => {
+  asked = { folder: folder.path, prompt };
+  return answerJson([
+    { path: ".", tags: ["client", "Customer-Work"] },
+    { path: "Alpha/budget[b27 inc].md", tags: ["finance", "b27"] },
+    { path: "./Alpha/meeting - [imac] SteerCo.md", tags: ["meeting"] },
+    { path: "made-up.md", tags: ["ghost"] },
+  ]);
+};
+const sgMenu = fakeMenu();
+app.workspace.trigger("file-menu", sgMenu, file("Projects"), "file-explorer");
+sgMenu.sub("TagEverything").click("Suggest tags with Claude Code");
+await waitFor(() => document.querySelectorAll(".tag-everything-suggest-row").length > 0);
+const sgEl = document.querySelector(".tag-everything-suggest-modal");
+check("suggest: dialog titled with the plugin's name", sgEl?.querySelector(".modal-title")?.textContent === "TagEverything: suggest tags with Claude Code");
+check("suggest: Claude Code works in the folder", asked?.folder === "Projects", asked?.folder);
+check(
+  "suggest: the prompt lists the folder and its files with their tags, and the vault's tags",
+  asked?.prompt.includes("- `.` (a folder: this one): no tag yet") && asked.prompt.includes("- `Alpha/budget[b27 inc].md`: b27, inc, q3") &&
+    asked.prompt.includes("`Alpha/meeting - [imac] SteerCo.md`") && /Existing tags in the vault[^\n]*\n[^\n]*`client` \d/.test(asked.prompt) && asked.prompt.includes("ONE lower-case word"),
+  asked?.prompt,
+);
+const sgChips = (i) => [...(sgEl.querySelectorAll(".tag-everything-suggest-row")[i]?.querySelectorAll(".tag-everything-suggest-tags .tag-everything-chip") ?? [])];
+const sgChip = (tag) => sgEl.querySelector(`.tag-everything-suggest-tags .tag-everything-chip[data-tag="${tag}"]`);
+const sgRows = [...sgEl.querySelectorAll(".tag-everything-suggest-row")];
+check("suggest: one row per item, made-up paths ignored", sgRows.length === 4 && !sgChip("ghost") && sgRows[3].textContent.includes("no new tag"), sgRows.map((r) => r.textContent).join(" | "));
+check(
+  "suggest: tags the item has dropped, compound split by the rule",
+  sgChips(0).map((c) => c.dataset.tag).join() === "client,customer,work" && sgChips(1).map((c) => c.dataset.tag).join() === "finance",
+  [0, 1, 2].map((i) => sgChips(i).map((c) => c.dataset.tag).join()).join(" | "),
+);
+check("suggest: new tags marked, cost and time shown", sgChip("customer")?.hasClass("is-new") && /4 s, API cost \$0\.03/.test(sgEl.querySelector(".tag-everything-suggest-status")?.textContent));
+const sgAdd = sgEl.querySelector("button.mod-cta");
+check("suggest: Add counts the tags", sgAdd?.textContent === "Add 5 tags", sgAdd?.textContent);
+sgChip("work").click();
+check("suggest: a clicked tag is left out", !sgChip("work").hasClass("is-selected") && sgAdd.textContent === "Add 4 tags", sgAdd.textContent);
+sgAdd.click();
+await waitFor(() => plugin.index.ownTagsOf(meetingPath).includes("meeting") && plugin.index.ownTagsOf("Projects").includes("customer"));
+check(
+  "suggest: the chosen tags added to each item, nothing removed, the left-out one not added",
+  plugin.index.ownTagsOf("Projects").join() === "client,customer" && plugin.index.ownTagsOf(budgetPath).join() === "b27,inc,q3,finance" && plugin.index.ownTagsOf(meetingPath).includes("meeting") && plugin.index.counts(undefined, true).get("work") === undefined,
+  `${plugin.index.ownTagsOf("Projects")} | ${plugin.index.ownTagsOf(budgetPath)} | ${plugin.index.ownTagsOf(meetingPath)}`,
+);
+check("suggest: a note's tag went to its frontmatter, the note not renamed", (fmTags(budgetPath) ?? []).includes("finance") && !!file(budgetPath), JSON.stringify(fmTags(budgetPath)));
+// A selection: Claude Code works in the closest common folder.
+plugin.runClaude = async (folder, prompt) => {
+  asked = { folder: folder.path, prompt };
+  return "Invalid API key · Please run /login";
+};
+expectError(/Claude Code suggestion failed/);
+const sgSel = plugin.suggestTags([file(budgetPath), file(meetingPath)]);
+await sgSel.done;
+check("suggest: a selection works in its common folder, only the selected items listed", asked?.folder === "Projects/Alpha" && asked.prompt.includes("- `budget[b27 inc].md`") && !asked.prompt.includes("(a folder"), asked?.prompt.split("Items")[1]);
+check("suggest: an answer that is not JSON shows the error", /did not answer in JSON: Invalid API key/.test(document.querySelector(".tag-everything-suggest-modal")?.textContent), document.querySelector(".tag-everything-suggest-modal")?.textContent);
+sgSel.close();
+// Closing the dialog while Claude Code runs stops it.
+let sgSignal = null;
+plugin.runClaude = (_folder, _prompt, signal) => {
+  sgSignal = signal;
+  return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("cancelled"))));
+};
+const sgRun = plugin.suggestTags([file("report.md")]);
+await sleep(100);
+check("suggest: a running dialog says what Claude Code reads", /Claude Code is reading 1 item in the vault root/.test(document.querySelector(".tag-everything-suggest-modal")?.textContent ?? ""));
+sgRun.close();
+await sgRun.done;
+check("suggest: closing the dialog cancels Claude Code", sgSignal?.aborted === true);
+// The real runner, with a program that does not exist: the node modules and the vault path work, the user is told.
+plugin.runClaude = realRunClaude;
+plugin.settings.claudeCommand = "no-such-claude-program";
+const sgMissing = plugin.suggestTags([file("report.md")]);
+await sgMissing.done;
+check("suggest: a missing Claude Code program is explained", /Claude Code was not found.*settings/.test(document.querySelector(".tag-everything-suggest-modal")?.textContent ?? ""), document.querySelector(".tag-everything-suggest-modal")?.textContent);
+sgMissing.close();
+plugin.settings.claudeCommand = "";
+check("command: suggest tags for the current file registered", !!app.commands.commands["tag-everything:suggest-tags-active-file"]);
+document.querySelectorAll(".notice").forEach((n) => n.remove());
 
 // ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
 plugin.settings.extensionTags = true;
@@ -685,15 +775,35 @@ check(
 check("ext: note rows get theirs", rowOf("report.md")?.querySelector(":scope > .tag-everything-ext")?.textContent === "md");
 const obsidianLabel = pdfRow?.querySelector(":scope > .nav-file-tag");
 check("ext: Obsidian's own extension label hidden on the row", !!obsidianLabel && getComputedStyle(obsidianLabel).display === "none", obsidianLabel?.outerHTML);
+// Panel results: the extension chip in place of the file icon, the other tags below without it.
+const resultRow = (name) => [...panel().querySelectorAll(".tag-everything-result")].find((r) => r.querySelector(".tag-everything-result-name")?.textContent === name);
+const rowChips = (r) => [...(r?.querySelectorAll(".tag-everything-result-tags .tag-everything-chip") ?? [])].map((c) => c.dataset.tag).join();
+const reportTags = plugin.index.ownTagsOf("report.md");
+const panelState = view.getState(); // the group search set up for the screenshot, put back below
+await plugin.showTag(reportTags[0]);
+await sleep(300);
+const reportResult = resultRow("report.md");
+check(
+  "ext: panel result shows the extension chip instead of the icon, the other tags below",
+  reportResult?.firstElementChild?.matches(".tag-everything-result-ext") && reportResult.firstElementChild.textContent === "md" && !reportResult.querySelector(".tag-everything-result-icon") && rowChips(reportResult) === reportTags.join(),
+  reportResult?.innerHTML.slice(0, 400),
+);
+await plugin.showTag("pdf");
+await sleep(300);
+const pdfResult = resultRow(pdfPath.split("/").pop());
+check("ext: panel result of the PDF: pdf chip first, not repeated below", pdfResult?.firstElementChild?.textContent === "pdf" && !rowChips(pdfResult).split(",").includes("pdf"), pdfResult?.innerHTML.slice(0, 400));
+await plugin.showTag(reportTags[0]);
 plugin.settings.extensionTags = false;
 await plugin.saveSettings();
 await sleep(300);
 check(
-  "ext: turned off, gone from the index and the explorer",
-  !plugin.index.tagsOf(pdfPath).includes("pdf") && !document.querySelector(".nav-files-container .tag-everything-ext") && getComputedStyle(obsidianLabel).display !== "none",
+  "ext: turned off, gone from the index, the explorer and the panel (file icon back)",
+  !plugin.index.tagsOf(pdfPath).includes("pdf") && !document.querySelector(".nav-files-container .tag-everything-ext") && getComputedStyle(obsidianLabel).display !== "none" &&
+    !!resultRow("report.md")?.querySelector(".tag-everything-result-icon") && !panel().querySelector(".tag-everything-result-ext"),
 );
 plugin.settings.extensionTags = true;
 await plugin.saveSettings();
+await view.setState(panelState, { history: false });
 await sleep(300);
 
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.

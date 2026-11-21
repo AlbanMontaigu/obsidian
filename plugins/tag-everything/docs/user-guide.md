@@ -43,8 +43,9 @@ Other fields of a sidecar or `tsm.json` (id, description, colours…) and other 
 - Type a tag and press **Enter**, space or comma. Suggestions come from every tag of the vault, most used first.
 - With several items, a tag only some of them carry shows as `3/5`: leave it (those items keep it), click it to give
   it to all, or remove it from all.
-- A word that can't be a tag (e.g. `a:b`) stays in the box with the reason, so you can fix it. A nested tag
-  (`proj/alpha`) is refused up front where it can't go (a file name); it works for notes.
+- A word that can't be a tag (e.g. `a:b`) stays in the box with the reason, so you can fix it. With the naming rule
+  off, a nested tag (`proj/alpha`) works for notes and is refused up front where it can't go (a file name); with the
+  rule on, it is split like a compound (section 3).
 - For a single file, the dialog previews the **new file name** before you save. Renames go through Obsidian, so
   **links in notes are updated**.
 - Tagging more than 5 items shows its progress. If some fail, one notice lists why (the first 5, then how many more).
@@ -57,7 +58,7 @@ allowed), never a liaison word (`de`, `la`, `the`, `of`…; the list is the sett
 
 - Typed upper case is lower-cased.
 - A compound is refused and its fix put in the box instead: `Tax-Receipt` → `tax receipt` (two tags); press **Enter**
-  to accept.
+  to accept. `/` splits too, so there are no nested tags: `proj/alpha` → `proj alpha`.
 - A liaison word is left out.
 - Tags of the vault that break the rule aren't offered as suggestions.
 
@@ -69,15 +70,14 @@ Command *Check tag names (naming rule) and fix them*, or *Settings → Tag maint
 
 1. It re-reads every tag (also those edited outside Obsidian).
 2. It lists every tag that breaks the rule: how many items carry it, why, and a suggested fix (`B27` → `b27`,
-   `plan_de_charge` → `plan charge`, `R&D` → `rd`, `de` → removed).
+   `plan_de_charge` → `plan charge`, `proj/alpha` → `proj alpha`, `R&D` → `rd`, `de` → removed).
 3. Edit a fix if you want (several tags: separate them with spaces; empty: the tag is removed), untick the ones to
    leave, then **Fix N tags**.
 4. Each tag is rewritten **where it is**: in the file name (the file is renamed, links follow), the note's frontmatter
    or the sidecar. Tag groups (formulas included: `Tax-Receipt` becomes `tax AND receipt`), bookmark tabs and the
    panel's search follow.
 
-Run it again to see what is left. A nested tag whose parent level holds several words (`my-proj/alpha`) has no
-automatic fix: type one.
+Run it again to see what is left.
 
 ## 5. The TagEverything panel
 
@@ -90,7 +90,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - **Filter tags**: type, then **Enter** selects the first match, **Escape** clears.
 - **Results** work like the file explorer: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files open
   in their default app, folders are revealed), **Ctrl/Cmd + hover** for a page preview, **drag** one into a note to
-  link it, right-click for the usual file menu.
+  link it, right-click for the usual file menu. A file's extension tag stands in for its icon, before its name, and
+  its other tags show below; folders (and files, with extension tags off) keep their icon.
 - Everything works from the keyboard (Tab, then Enter or Space). The panel remembers its search, filter and tab
   across restarts.
 - The ↻ button re-reads all tags (after editing them outside Obsidian).
@@ -165,6 +166,27 @@ its parents) does not know how TagEverything stores tags. Give it a guide:
 - One guide at the vault root covers every folder; add one in a folder when you want the assistant to see the tags of
   that folder in particular.
 
+### Suggest tags with Claude Code
+
+If [Claude Code](https://claude.com/claude-code) is installed on this computer (and you are logged in to it), it can
+read your files and suggest tags for them:
+
+- **Right-click a folder → TagEverything → Suggest tags with Claude Code**: the folder itself and every file under it
+  (untagged files first, at most 50 per run). Or right-click a file, or a multi-selection; or the command *Suggest
+  tags for the current file with Claude Code*.
+- Claude Code works in that folder (for a selection, the closest folder holding all of it). It reads each file (text,
+  Markdown, PDF, images; an Office file is judged from its name and its neighbours), looks at the other files of the
+  folder for context, and is given **the tags already used in your vault**, so it reuses them rather than inventing
+  near-duplicates. It follows the naming rule (Section 3) when it is on, and never repeats a tag the item already has.
+- It can only **read**: its tools are limited to reading and searching files. It writes nothing; the plugin writes the
+  tags you keep, through the usual path (Section 2: notes in their frontmatter, other files where new tags go).
+- A dialog lists each item with its current tags and the suggested ones. **Click a suggested tag to leave it out**;
+  a dashed tag is new (no item of the vault has it yet). **Add N tags** writes them; nothing is removed. Closing the
+  dialog while Claude Code is still reading stops it.
+- It takes a few seconds to a few minutes, and uses your Claude plan (the dialog shows the time and the API price of the
+  run, about $0.05 for a few notes). For a large folder, run it on subfolders, or pick a cheaper **Model** in the
+  settings (Section 10).
+
 ## 10. Commands and settings
 
 | Command | What it does |
@@ -174,6 +196,7 @@ its parents) does not know how TagEverything stores tags. Give it a guide:
 | Check tag names (naming rule) and fix them | Section 4 |
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
 | Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
+| Suggest tags for the current file with Claude Code | Section 9 (folders, selections: right-click → *TagEverything → Suggest tags with Claude Code*) |
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -186,6 +209,8 @@ its parents) does not know how TagEverything stores tags. Give it a guide:
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer |
 | Colour tags automatically | On | Section 8 |
 | Show tag badges / Badges for / Maximum badges per item | On / All tags / 4 | Explorer badges (Section 8); *Badges for* can hide tags already readable in the name |
+| Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
+| Model | empty | The model that suggests tags (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
 | Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |
 
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
@@ -214,3 +239,6 @@ The settings also show up in Obsidian's settings search (e.g. type "badges" or "
 - Deleting a file in Obsidian leaves its `.ts` sidecar in place (metadata is never deleted unasked).
 - Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded); they do follow a
   *Check tag names* fix.
+- **Claude Code was not found**: install it, or set the full path of `claude.exe` in *Claude Code program* (an npm
+  `claude.cmd` cannot be started directly: point to the `.exe`). **Not logged in / other errors**: the dialog shows
+  Claude Code's message; run `claude` once in a terminal to log in. Its suggestions are only suggestions: check them.

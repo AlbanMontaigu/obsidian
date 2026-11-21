@@ -13,7 +13,8 @@ tags (AND), with foldable tag groups that double as saved searches, and named bo
 and groups bookmarked in them; badges show tags in the explorer. Every file also carries its extension as a derived, never-written tag (`pdf`,
 `md`; setting `extensionTags`, on by default), shown before its name in the explorer. *Write AI assistant guide* (folder menu, or a command
 for the vault root) writes a `CLAUDE.md` telling an AI assistant how tags are stored and which exist; never over an
-existing one. A **tag naming rule** (on by default) makes every
+existing one. *Suggest tags with Claude Code* (folder, file or selection menu, a command) runs `claude -p` read-only in
+the folder and lists the tags it suggests, reusing the vault's tags; the user picks, the plugin writes. A **tag naming rule** (on by default) makes every
 new tag one lower-case plain word, no liaison word; the command *Check tag names* audits the vault and fixes the tags
 that break it, where they are.
 
@@ -27,6 +28,7 @@ that break it, where they are.
 | Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts`, `dialogs.ts` | user guide §5-7 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §10 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
+| Claude Code suggestions (prompt, flags, answer) | `suggest.ts` (pure), `claude.ts` (process), `suggest-modal.ts`, `main.ts` `suggestTags` / `runClaude` / `addTagsEach` | user guide §9; check a real run by hand (smoke fakes it) |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -49,24 +51,34 @@ and `docs/user-guide.md` when users see it.
    and sidecar.
 5. One failing item never stops a batch; failures are listed in one `Notice`.
 6. Renames go through `fileManager.renameFile` so links in notes are updated.
+7. Claude Code never writes: it gets only the Read, Glob and Grep tools (`--tools`, `dontAsk`), and its answer is
+   cleaned (`cleanSuggestions`) and written by the plugin through `addTagsEach`, after the user's review. Started
+   without a shell (no quoting of the prompt or the schema), the prompt on stdin.
 
 ## Tests
 
 - `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals, `parseTagInput`, `extensionTag`.
-- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`), message texts.
-- `tests/naming.test.ts`: the rule (accents, digits, nested), problems, fixes (compounds, elisions, acronyms, nested, no obvious fix), every fix follows the rule, liaison word list, editor input, audit, `replacePlan` (in place, no duplicate), `parseReplacement`, formula / group / tab follow-up.
+- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`, Claude Code program and model), message texts.
+- `tests/naming.test.ts`: the rule (accents, digits), problems, fixes (compounds, `/` like `-`, elisions, acronyms), every fix follows the rule, liaison word list, editor input, audit, `replacePlan` (in place, no duplicate), `parseReplacement`, formula / group / tab follow-up.
 - `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic.
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
 - `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas.
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
+- `tests/suggest.test.ts`: the prompt (folder, items, dictionary order, rule on / off), the CLI arguments (read-only
+  tools, safe mode, schema, model), command candidates, reading the output (structured, JSON in text, errors), cleaning
+  (made-up paths, rule split, `#`, liaison words, invalid, known any case, extension, cap, vault spelling without the
+  rule), `relativeTo`, `commonFolder`.
+- `tests/claude.test.ts`: `runProcess` / `runFirstFound` with real `node` processes: stdin / stdout / cwd, exit code
+  with stderr, timeout, cancel, a missing program then the next one.
 - `tests/guide.test.ts`: guide path and existing-guide detection (any case), tag lists (order, cap), content per
   settings (storage, frontmatter, rule on / off, liaison words, extension tags explained or not), no folder section at the root.
-- `tests/smoke.js` + `tests/fixtures/vault/`: ~160 in-app checks. Extension tags are checked on by default, then
+- `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
-  name of a revealed PDF row with Obsidian's label hidden, setting off removes them). Menus: the plugin's items in one *TagEverything* submenu (fake menus, and the real explorer menu, which proves the internal `setSubmenu` still exists); the editor title, a notice and the panel name start with the plugin's name. The first part runs the name / sidecar engine on
+  name of a revealed PDF row with Obsidian's label hidden, panel result rows with the extension chip in place of the
+  icon and not repeated in the tags below, setting off removes them and brings the icon back). Menus: the plugin's items in one *TagEverything* submenu (fake menus, and the real explorer menu, which proves the internal `setSubmenu` still exists); the editor title, a notice and the panel name start with the plugin's name. The first part runs the name / sidecar engine on
   notes with `noteTagsInFrontmatter = false`; the "notes: frontmatter" part turns it on (merge, no rename on add,
   rename on name-tag removal, new frontmatter block, sidecar → frontmatter, live external edit, invalid YAML
   refused, PDF still renamed, nested tag refused in a name); robustness (a sidecar edit and a folder rename during `rebuild()` are kept, two
@@ -80,10 +92,10 @@ and `docs/user-guide.md` when users see it.
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a
   compound's fix in the box (Enter accepts, Save waits), leaves a liaison word out, `applyTags` refuses, settings
   toggle (liaison words disabled, lower-case freed, saved); *Check tag names*: tags planted with the rule off
-  (`Tax-Receipt` in a PDF name, `plan_de_charge` / `de` in a frontmatter) plus the fixture's `B27 INC IMAC` are listed
-  with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
-  `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, frontmatter tag dropped, unticked one kept,
-  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after). It ends on the panel, in the bookmark tab "Work", with a formula
+  (`Tax-Receipt` in a PDF name, `plan_de_charge` / `de` in a frontmatter, the nested `proj/alpha` in a note's
+  frontmatter) plus the fixture's `B27 INC IMAC` are listed with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
+  `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
+  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting). It ends on the panel, in the bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
 - `tools/check-vault.ts "<vault>"`: **read-only**, folder listings only (no file content, so OneDrive
@@ -122,8 +134,8 @@ Deliberate exceptions, each for a reason:
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.
 - Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded); they do follow a
   *Check tag names* fix.
-- Naming rule: inline `#tags` in a note body are neither read nor fixed. A nested tag with a multi-word parent level
-  has no automatic fix. A tag fixed in a file name on a case-sensitive disk relies on Obsidian's rename (tested on
+- Naming rule: inline `#tags` in a note body are neither read nor fixed. `/` splits like `-`, so the rule allows no
+  nested tag (turn it off to use them in notes). A tag fixed in a file name on a case-sensitive disk relies on Obsidian's rename (tested on
   Windows only). The liaison word list is a guess: the owner can edit it in the settings.
 - Deleting a file in Obsidian leaves its `.ts` sidecar (orphan, ignored by the scan); a file created later with the
   same name would pick its tags up at the next rebuild. Not deleted on purpose (never delete metadata unasked).
@@ -131,6 +143,11 @@ Deliberate exceptions, each for a reason:
 - The AI assistant guide is a snapshot (tag lists, settings) and is never overwritten, so it goes stale: the owner
   deletes and rewrites it. A refresh that rewrites only a marked section of an existing `CLAUDE.md` would fix it, but
   touches a file the owner may have edited (not done: never overwrite).
+- Claude Code suggestions: the smoke test fakes Claude Code (cost, login, non-deterministic): after changing the
+  prompt or the flags, run it once for real on a small folder. An npm `claude.cmd` can't be spawned without a shell:
+  the setting must point to the `.exe`. At most 50 items per run; the prompt lists at most 300 vault tags. Folder
+  tags are suggested from what the folder holds. Claude Code's `--safe-mode` / `--tools` flags are from 2.1.x: an
+  older CLI refuses them (the dialog shows its error).
 - Ideas: rename / merge a tag everywhere (the engine exists: `plugin.replaceTags(new Map([[old, [new]]]))`; only a
   UI is missing, e.g. a tag menu item *Rename tag…*); colours editable in settings; tag search in the quick
   switcher; a command to move a note's name tags into its frontmatter (renames the note, so opt-in).
