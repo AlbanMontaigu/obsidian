@@ -10,6 +10,21 @@ Two levels, both runnable without the owner and without touching a real vault.
 | Covers | Pure logic: parsing, formatting, planning, paths | Wiring: load, commands, menus, views, vault I/O, DOM |
 | Speed | < 1 s | ~20 s |
 
+## Test budget: test what matters, not everything every time
+
+Every run costs tokens (its output is read). The owner's rule: **do not over-test**.
+
+- **While working**: run only the tests of what you touch, e.g. `node --test plugins/<id>/tests/<topic>.test.ts`.
+  No baseline smoke run before starting, no smoke run after each step.
+- **Smoke (end to end)**: once, when the change is finished (and again only to confirm a fix of a smoke failure).
+  Skip it when no wiring, UI or vault I/O changed (pure logic, docs).
+- **Full run** (`npm run typecheck`, `npm test` for all plugins, `npm run smoke -- <id>`, the plugin's read-only vault
+  checks): for a **minor or major** version, when the owner asks, or when the last full run is several changes old.
+- **Write few tests that bite**: edge cases that touch user data and the behaviour you changed; no test for trivial
+  code, no second test of what another test already covers.
+- **Mutation check every new test**: break the code it covers (flip a condition, drop a line, return early), run the
+  test, see it **fail**, restore the code. A test that stays green tests nothing: fix it or delete it.
+
 ## Unit tests
 
 - Import only modules that do **not** import `obsidian`: the npm package has types but no runtime code, so

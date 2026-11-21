@@ -50,8 +50,9 @@ flowchart LR
 ## B. Improve an existing plugin
 
 1. Read `plugins/<id>/CLAUDE.md` (spec, invariants), then the files it points to.
-2. **Baseline**: `npm test -- <id>` and `npm run smoke -- <id>` before changing anything. If the baseline fails,
-   say so and fix or report that first; never build on a red baseline silently.
+2. **Baseline**: `npm test -- <id>` before changing anything (no smoke: it runs once at the end, see
+   `docs/testing.md` → *Test budget*). If the baseline fails, say so and fix or report that first; never build on a
+   red baseline silently.
 3. **Bug**: reproduce it first, as a failing unit test (pure logic) or smoke `check()` (wiring/UI). Then fix.
    **Feature**: add the tests with the code.
 4. Keep the plugin's **invariants** (listed in its `CLAUDE.md`). A change to a stored format must stay readable by

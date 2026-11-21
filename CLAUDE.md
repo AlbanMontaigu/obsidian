@@ -49,9 +49,13 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
 
 ## Definition of done (every change)
 
+Do not over-test: follow the **test budget** in `docs/testing.md` (targeted tests while working, smoke once at the
+end, full run only for a minor/major version, on request or when long overdue; every new test mutation-checked).
+
 1. `npm run typecheck` clean.
-2. `npm test -- <id>` passes; pure logic you added has a test.
-3. `npm run smoke -- <id>` prints `PASS` with no unexpected console error; you looked at the screenshot.
+2. `npm test -- <id>` passes; pure logic you added has a test, and you saw it fail on broken code.
+3. `npm run smoke -- <id>` (once, at the end; skip if no wiring/UI/vault I/O changed) prints `PASS` with no
+   unexpected console error; you looked at the screenshot.
 4. A smoke `check()` covers the new behaviour (a new command, menu item, view, setting...).
 5. The docs describe the change (`docs/README.md` → *When to update what*): the plugin's `docs/user-guide.md`
    for what users see, `docs/architecture.md` for modules and flows, `CLAUDE.md` for invariants, tests, limits;

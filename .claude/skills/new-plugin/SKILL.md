@@ -22,8 +22,9 @@ Then:
 - Pure logic in `src/<topic>.ts` + `tests/<topic>.test.ts`; Obsidian wiring in `src/main.ts` and small UI modules.
 - A fixture vault in `tests/fixtures/vault/` if the plugin works on files; a `tests/smoke.js` that drives every
   user-facing entry point (commands, menus, views, settings) and ends with the main UI open.
-- Loop `npm run typecheck`, `npm test -- <id>`, `npm run smoke -- <id>` until green; **Read
-  `dist/<id>-smoke.png`** and fix what looks wrong.
+- Loop `npm run typecheck` and `npm test -- <id>` until green (mutation-check each new test, `docs/testing.md` →
+  *Test budget*); then `npm run smoke -- <id>` once the code is done, **Read `dist/<id>-smoke.png`** and fix what
+  looks wrong.
 - Fill the docs the template created (map: `docs/README.md`): `README.md` (pitch, install), `docs/user-guide.md`
   (every feature, command, setting, limit), `docs/architecture.md` (layers, Mermaid flows, module reference) and
   `CLAUDE.md` (where to change what, invariants, tests, limits); `plugins/tag-everything/` is the model. Add the plugin to the root `CLAUDE.md` table and
