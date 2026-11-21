@@ -253,3 +253,25 @@ export function resolveTags(e: Expr, known: readonly string[]): Expr {
   };
   return map(e);
 }
+
+/**
+ * Each mapped tag replaced by the AND of its replacements (`Tax-Receipt` -> `tax AND receipt`, which finds the items
+ * that carried it once they are fixed); a tag mapped to nothing is pruned like a switched-off tag. Null if nothing
+ * is left.
+ */
+export function replaceTagsInExpr(e: Expr, mapping: ReadonlyMap<string, readonly string[]>): Expr | null {
+  switch (e.k) {
+    case "tag": {
+      const repl = mapping.get(e.tag);
+      return repl ? andOf(repl.map(tagExpr)) : e;
+    }
+    case "not": {
+      const item = replaceTagsInExpr(e.item, mapping);
+      return item ? { k: "not", item } : null;
+    }
+    case "and":
+      return andOf(e.items.map((i) => replaceTagsInExpr(i, mapping)));
+    case "or":
+      return orOf(e.items.map((i) => replaceTagsInExpr(i, mapping)));
+  }
+}

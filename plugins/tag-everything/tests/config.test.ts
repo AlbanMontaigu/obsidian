@@ -30,6 +30,15 @@ test("normalizeSettings: valid values kept, wrong types and ranges fixed, unknow
   assert.equal((s as unknown as Record<string, unknown>).future, 1);
 });
 
+test("normalizeSettings: naming rule on by default, stop words repaired", () => {
+  assert.equal(DEFAULT_SETTINGS.tagRule, true);
+  assert.equal(normalizeSettings({ tagRule: false }).tagRule, false);
+  assert.equal(normalizeSettings({ tagRule: "no" }).tagRule, true);
+  assert.equal(normalizeSettings({ stopWords: "foo bar" }).stopWords, "foo bar");
+  assert.equal(normalizeSettings({ stopWords: "  " }).stopWords, DEFAULT_SETTINGS.stopWords);
+  assert.equal(normalizeSettings({ stopWords: 3 }).stopWords, DEFAULT_SETTINGS.stopWords);
+});
+
 test("normalizeSettings never shares the default groups array", () => {
   const a = normalizeSettings({});
   a.groups.push({ id: "g1", name: "x", tags: [], collapsed: false });

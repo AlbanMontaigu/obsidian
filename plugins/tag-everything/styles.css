@@ -570,3 +570,62 @@
   width: 14px;
   height: 14px;
 }
+
+/* ---- Check tag names (naming rule): list of tags breaking it, each with its fix */
+.tag-everything-fix-summary {
+  margin: 8px 0;
+}
+
+.tag-everything-fix-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.tag-everything-fix-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-fix-row:last-child {
+  border-bottom: none;
+}
+
+.tag-everything-fix-row > input[type="checkbox"],
+.tag-everything-fix-arrow {
+  margin-top: 4px;
+}
+
+.tag-everything-fix-arrow {
+  color: var(--text-muted);
+}
+
+.tag-everything-fix-count {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-fix-problem {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-top: 2px;
+}
+
+.tag-everything-fix-input {
+  width: 100%;
+}
+
+.tag-everything-fix-input.is-invalid {
+  border-color: var(--text-error);
+}
+
+.tag-everything-fix-to > .tag-everything-error {
+  min-height: 0;
+  margin-top: 2px;
+}

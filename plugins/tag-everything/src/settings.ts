@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, SettingDefinitionItem, TFile } from "obsidian";
 import type { TagTarget } from "./format.ts";
+import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, MAX_BADGES, MIN_BADGES, normalizeSettings, type TagEverythingSettings } from "./config.ts";
 import type TagEverythingPlugin from "./main.ts";
 
@@ -47,9 +48,21 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         control: { type: "toggle", key: "noteTagsInFrontmatter" },
       },
       {
+        name: "Tag naming rule",
+        desc: "New tags must be lower-case single words: no space, - or _ (two tags instead), no liaison word. Command Check tag names lists and fixes existing tags.",
+        aliases: ["normalise", "normalize", "lower case", "liaison words", "stop words"],
+        control: { type: "toggle", key: "tagRule" },
+      },
+      {
+        name: "Liaison words",
+        desc: "Words never used as tags while the naming rule is on. Empty the box to get the default list back.",
+        aliases: ["stop words"],
+        control: { type: "textarea", key: "stopWords", rows: 4, placeholder: DEFAULT_STOP_WORDS, disabled: () => !s().tagRule },
+      },
+      {
         name: "Lower-case new tags",
-        desc: "Existing tags are left as they are.",
-        control: { type: "toggle", key: "lowercase" },
+        desc: "Existing tags are left as they are. Always on while the naming rule is on.",
+        control: { type: "toggle", key: "lowercase", disabled: () => s().tagRule },
       },
       {
         name: "Move .ts metadata with renamed files",

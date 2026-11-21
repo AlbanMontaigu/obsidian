@@ -4,6 +4,7 @@
 import type { StorageMode } from "./format.ts";
 import { type TagGroup, normalizeGroups } from "./groups.ts";
 import { type BookmarkTab, normalizeTabs } from "./tabs.ts";
+import { DEFAULT_STOP_WORDS } from "./naming.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -11,6 +12,10 @@ export interface TagEverythingSettings {
   /** Markdown notes: new tags go to the frontmatter `tags` property instead of `storage`. */
   noteTagsInFrontmatter: boolean;
   lowercase: boolean;
+  /** Tag naming rule (src/naming.ts): new tags must be lower-case single words, no liaison word. */
+  tagRule: boolean;
+  /** Liaison words refused as tags while `tagRule` is on (space / comma separated). */
+  stopWords: string;
   showBadges: boolean;
   /** Tags without a sidecar colour get a stable colour picked from their name. */
   autoColors: boolean;
@@ -32,6 +37,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   storage: "filename",
   noteTagsInFrontmatter: true,
   lowercase: false,
+  tagRule: true,
+  stopWords: DEFAULT_STOP_WORDS,
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
@@ -56,6 +63,8 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     storage: r.storage === "filename" || r.storage === "sidecar" ? r.storage : d.storage,
     noteTagsInFrontmatter: bool("noteTagsInFrontmatter"),
     lowercase: bool("lowercase"),
+    tagRule: bool("tagRule"),
+    stopWords: typeof r.stopWords === "string" && r.stopWords.trim() ? r.stopWords : d.stopWords,
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,

@@ -67,3 +67,8 @@ export function setBookmark(tabs: readonly BookmarkTab[], id: string, kind: Book
 export function forgetGroup(tabs: readonly BookmarkTab[], groupId: string): BookmarkTab[] {
   return tabs.map((t) => (t.groups.includes(groupId) ? { ...t, groups: t.groups.filter((g) => g !== groupId) } : t));
 }
+
+/** Follows a vault-wide tag fix: each bookmarked tag that is mapped is replaced by its replacements, once each. */
+export function replaceTagsInTabs(tabs: readonly BookmarkTab[], mapping: ReadonlyMap<string, readonly string[]>): BookmarkTab[] {
+  return tabs.map((t) => (t.tags.some((x) => mapping.has(x)) ? { ...t, tags: [...new Set(t.tags.flatMap((x) => mapping.get(x) ?? [x]))] } : t));
+}

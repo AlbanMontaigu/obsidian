@@ -180,6 +180,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.render();
   }
 
+  /** The search as it is, taken before a vault-wide tag fix (renders during the fix drop tags no item carries). */
+  searchSnapshot(): { selected: string[]; excluded: string[] } {
+    return { selected: [...this.selected], excluded: [...this.excluded] };
+  }
+
+  /** After a vault-wide tag fix: the search taken before it, with the new tag names. */
+  replaceTags(before: { selected: string[]; excluded: string[] }, fn: (tags: readonly string[]) => string[]): void {
+    this.selected = fn(before.selected);
+    this.excluded = fn(before.excluded).filter((t) => !this.selected.includes(t));
+    this.app.workspace.requestSaveLayout();
+    this.render();
+  }
+
   // ---- tag groups (stored in settings.groups, logic in src/groups.ts)
 
   private get groups(): gr.TagGroup[] {

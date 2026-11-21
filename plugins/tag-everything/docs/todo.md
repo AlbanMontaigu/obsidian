@@ -17,3 +17,7 @@ Offer an integration with claude code to help user to generate tags automaticall
 # Skills for claude to work with
 
 # MCP to connect to obsidian ?
+
+# Create with it an alternative file explorer 
+
+(showing by default any kind of file) that is proposiing either the normal view (folder) with tags and follow the file  clicked in the other panel. Ten other mode full that navigator where folders as shown rather from tag perspective. At the root all tags, but then when click on it we see tags are together widh in the files.

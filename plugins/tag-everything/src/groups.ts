@@ -2,7 +2,7 @@
 // Groups live in the plugin's data.json (settings.groups). Every function returns a new array and never mutates.
 // A group without a formula searches for all its tags (AND); with one, its tags are exactly the formula's tags.
 
-import { type Expr, andOf, formatFormula, formulaTags, prune, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
+import { type Expr, andOf, formatFormula, formulaTags, prune, replaceTagsInExpr, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
 
 export interface TagGroup {
   /** Stable id ("g1", "g2"...), never reused while the group exists. */
@@ -157,4 +157,19 @@ export function moveGroup(groups: readonly TagGroup[], id: string, beforeId: str
   const at = beforeId === null ? rest.length : rest.findIndex((g) => g.id === beforeId);
   rest.splice(at < 0 ? rest.length : at, 0, moving);
   return rest;
+}
+
+/**
+ * Follows a vault-wide tag fix (src/naming.ts): each mapped tag is replaced by its replacements, in the tag list and
+ * in the formula (as `a AND b`; a tag mapped to nothing is pruned). An unparsable formula is left alone. Groups not
+ * naming a mapped tag are returned as they are.
+ */
+export function replaceTagsInGroups(groups: readonly TagGroup[], mapping: ReadonlyMap<string, readonly string[]>): TagGroup[] {
+  return groups.map((g) => {
+    if (!g.tags.some((t) => mapping.has(t))) return g;
+    if (formulaError(g)) return g;
+    const expr = parsedFormula(g);
+    if (expr) return withFormula(g, replaceTagsInExpr(expr, mapping));
+    return { ...g, tags: [...new Set(g.tags.flatMap((t) => mapping.get(t) ?? [t]))] };
+  });
 }

@@ -1,7 +1,7 @@
 {
   "id": "tag-everything",
   "name": "TagEverything",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "minAppVersion": "1.13.0",
   "description": "Tag any file or folder from the file explorer: notes in their frontmatter, other files in the file name (report[tax receipt].pdf) or in .ts sidecar files.",
   "author": "local",

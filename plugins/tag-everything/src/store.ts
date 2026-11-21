@@ -48,7 +48,10 @@ export class MetaStore {
     ];
     for (const [from, to] of pairs) {
       if (from === to || !(await this.adapter.exists(from))) continue;
-      if (await this.adapter.exists(to)) {
+      // A case-only rename (`[B27]` -> `[b27]`): on a case-insensitive disk the target "exists", it is the same file.
+      // On a case-sensitive disk both may really exist: then the listing names both, and nothing is overwritten.
+      const sameFile = from.toLowerCase() === to.toLowerCase() && !(await this.adapter.list(ts.parentOf(to))).files.includes(to);
+      if (!sameFile && (await this.adapter.exists(to))) {
         console.warn(`[tag-everything] sidecar not moved, target exists  from=${from}  to=${to}`);
         continue;
       }

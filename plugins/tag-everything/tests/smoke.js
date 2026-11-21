@@ -192,6 +192,36 @@ ed.querySelector(".mod-cta").click();
 check("editor: once fixed, Save closes and applies", (await waitFor(() => plugin.index.tagsOf("report.md").includes("kept"))) && !document.querySelector(".tag-everything-modal"));
 await plugin.applyTags([file("report.md")], { added: [], removed: ["kept"] });
 
+// ---- naming rule in the editor: lower-cased, a compound refused with its fix in the box, liaison word left out
+plugin.editTags([file("report.md")]);
+await sleep(300);
+const rd = document.querySelector(".tag-everything-modal");
+const rdInput = rd.querySelector("input.tag-everything-input");
+const rdChips = () => [...rd.querySelectorAll(".tag-everything-chip")].map((c) => c.firstChild.textContent);
+rdInput.value = "Urgent Tax-Receipt de ";
+rdInput.dispatchEvent(new Event("input"));
+const rdError = rd.querySelector(".tag-everything-error").textContent;
+check(
+  "rule: editor lower-cases, puts the fix of a compound in the box, leaves a liaison word out",
+  rdChips().includes("urgent") && !rdChips().includes("Urgent") && rdInput.value === "tax receipt" && /one word per tag/.test(rdError) && /liaison word/.test(rdError),
+  JSON.stringify({ chips: rdChips(), value: rdInput.value, rdError }),
+);
+rdInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+check("rule: Enter accepts the fix as two tags", rdChips().includes("tax") && rdChips().includes("receipt") && rdInput.value === "", JSON.stringify(rdChips()));
+rdInput.value = "Other_Thing";
+rd.querySelector(".mod-cta").click();
+await sleep(200);
+check("rule: Save with a compound in the box refuses it and shows the fix", !!document.querySelector(".tag-everything-modal") && rdInput.value === "other thing", rdInput.value);
+rd.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+const beforeRefused = plugin.index.tagsOf("report.md").join();
+await plugin.applyTags([file("report.md")], { added: ["Tax-Receipt"], removed: [] });
+check(
+  "rule: applyTags refuses a new tag breaking it, nothing written",
+  plugin.index.tagsOf("report.md").join() === beforeRefused && [...document.querySelectorAll(".notice")].some((n) => /lower-case single words/.test(n.textContent)),
+  plugin.index.tagsOf("report.md").join(),
+);
+
 // ---- UI: panel opens and lists the tags; explorer badges appear
 const view = await plugin.openView();
 await sleep(500);
@@ -251,15 +281,26 @@ if (settingTab) {
   const row = (name) => [...el.querySelectorAll(".setting-item")].find((i) => i.querySelector(".setting-item-name")?.textContent === name);
   const disabledCount = () => el.querySelectorAll(".setting-item.is-disabled").length;
   const toggle = row("Show tag badges")?.querySelector(".checkbox-container");
-  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 0, String(disabledCount()));
+  // The naming rule is on by default: "Lower-case new tags" is implied, so disabled (1 row).
+  const isDisabled = (name) => !!row(name)?.classList.contains("is-disabled");
+  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 1 && isDisabled("Lower-case new tags"), String(disabledCount()));
+  const ruleToggle = row("Tag naming rule")?.querySelector(".checkbox-container");
+  check("settings: naming rule on by default, liaison words editable", plugin.settings.tagRule === true && !!row("Liaison words")?.querySelector("textarea") && !isDisabled("Liaison words"));
+  ruleToggle?.click();
+  await sleep(300);
+  const ruleOff = { liaison: isDisabled("Liaison words"), lower: isDisabled("Lower-case new tags"), saved: (await plugin.loadData())?.tagRule, rule: plugin.rule };
+  ruleToggle?.click();
+  await sleep(300);
+  check("settings: naming rule off disables the liaison words, frees lower-case, is saved", ruleOff.liaison && !ruleOff.lower && ruleOff.saved === false && ruleOff.rule === null, JSON.stringify(ruleOff));
+  check("settings: naming rule back on", plugin.settings.tagRule === true && plugin.rule !== null && isDisabled("Lower-case new tags"));
   toggle?.click();
   await sleep(300);
   const off = disabledCount();
   const saved = (await plugin.loadData())?.showBadges;
   toggle?.click();
   await sleep(300);
-  check("settings: badge options disabled while badges are off", off === 2 && saved === false, `disabled=${off} saved=${saved}`);
-  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 0 && (await plugin.loadData())?.showBadges === true);
+  check("settings: badge options disabled while badges are off", off === 3 && saved === false, `disabled=${off} saved=${saved}`);
+  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 1 && (await plugin.loadData())?.showBadges === true);
   app.setting.close();
 } else check("settings: tab found", false);
 
@@ -496,6 +537,60 @@ check("edit modal shows merged chips", document.querySelectorAll(".tag-everythin
 const wheres = [...document.querySelectorAll(".tag-everything-modal .tag-everything-where")].map((e) => e.textContent);
 check("edit modal says note tags go to frontmatter", wheres.length === 1 && wheres[0].includes("frontmatter"), JSON.stringify(wheres));
 document.querySelector(".tag-everything-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+
+// ---- Check tag names: the vault-wide engine lists the tags breaking the rule and fixes them where they are
+plugin.settings.tagRule = false; // to plant tags breaking the rule, as an older version (or another app) would
+await plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["Tax-Receipt"], removed: [] });
+await plugin.applyTags([file("report.md")], { added: ["plan_de_charge", "de"], removed: [] });
+await waitFor(() => plugin.index.tagsOf("report.md").includes("de"));
+plugin.settings.tagRule = true;
+await plugin.checkTagNames();
+await sleep(300);
+const fxEl = document.querySelector(".tag-everything-fix-modal");
+const fxRow = (tag) => [...(fxEl?.querySelectorAll(".tag-everything-fix-row") ?? [])].find((r) => r.querySelector(".tag-everything-fix-input")?.dataset.tag === tag);
+const fxTags = [...(fxEl?.querySelectorAll(".tag-everything-fix-input") ?? [])].map((i) => i.dataset.tag);
+check(
+  "fix: the dialog lists exactly the tags breaking the rule",
+  ["B27", "INC", "IMAC", "Tax-Receipt", "plan_de_charge", "de"].every((t) => fxTags.includes(t)) && !fxTags.includes("paper") && !fxTags.includes("proj/alpha"),
+  JSON.stringify(fxTags),
+);
+const fxVal = (tag) => fxRow(tag)?.querySelector(".tag-everything-fix-input").value;
+check(
+  "fix: suggestions (split, lower-case, liaison word removed)",
+  fxVal("Tax-Receipt") === "tax receipt" && fxVal("B27") === "b27" && fxVal("plan_de_charge") === "plan charge" && fxVal("de") === "",
+  JSON.stringify(fxTags.map((t) => [t, fxVal(t)])),
+);
+const fxBtn = fxEl.querySelector("button.mod-cta");
+const incInput = fxRow("INC").querySelector(".tag-everything-fix-input");
+incInput.value = "Inc";
+incInput.dispatchEvent(new Event("input"));
+check("fix: an edited fix breaking the rule is flagged, Fix disabled", fxBtn.disabled && /lower-case/.test(fxRow("INC").querySelector(".tag-everything-error").textContent));
+incInput.value = "inc";
+incInput.dispatchEvent(new Event("input"));
+fxRow("plan_de_charge").querySelector("input[type=checkbox]").click(); // left as it is
+check("fix: Fix enabled again, counts the checked tags", !fxBtn.disabled && /^Fix \d+ tags$/.test(fxBtn.textContent), fxBtn.textContent);
+fxBtn.click();
+await waitFor(() => !!file("Projects/Alpha/budget[b27 inc].md") && !!file("Docs/scan[paper tax receipt].pdf") && !(fmTags("report.md") ?? []).includes("de"), 8000);
+await sleep(300);
+check(
+  "fix: name tags rewritten in the name (case-only rename too)",
+  !!file("Projects/Alpha/budget[b27 inc].md") && !file("Projects/Alpha/budget[B27 INC].md") && !!file("Projects/Alpha/meeting - [imac] SteerCo.md"),
+  vault.getFiles().map((f) => f.path).filter((p) => p.startsWith("Projects")).join(" | "),
+);
+check("fix: compound split where it was", !!file("Docs/scan[paper tax receipt].pdf"), plugin.index.tagsOf("Docs/scan[paper tax receipt].pdf").join());
+check("fix: liaison-word tag removed, unchecked tag left alone", JSON.stringify(fmTags("report.md")).includes("plan_de_charge") && !(fmTags("report.md") ?? []).includes("de"), JSON.stringify(fmTags("report.md")));
+check("fix: other tags of the fixed note kept", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join() === "b27,inc,q3", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join());
+check("fix: the group formula follows", fGroup().formula === "(shared OR b27) AND (final OR inc) AND NOT imac", fGroup().formula);
+check("fix: saved in data.json", (await plugin.loadData()).groups.find((g) => g.id === formulaId)?.formula === fGroup().formula);
+check("fix: the panel's search follows", resultNames() === "budget[b27 inc].md", resultNames());
+const fx2 = await plugin.checkTagNames();
+await sleep(300);
+const left = [...document.querySelectorAll(".tag-everything-fix-modal .tag-everything-fix-input")].map((i) => i.dataset.tag);
+check("fix: checking again lists only what was left", left.join() === "plan_de_charge", left.join());
+fx2.close();
+await plugin.applyTags([file("report.md")], { added: [], removed: ["plan_de_charge"] });
+check("command: Check tag names registered", !!app.commands.commands["tag-everything:check-tag-names"]);
 
 // Screenshot: the panel with its groups and a group search, one of its tags switched off.
 document.querySelectorAll(".notice").forEach((n) => n.remove()); // the refusals provoked above

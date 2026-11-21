@@ -2,6 +2,7 @@ import { AbstractInputSuggest, App, Modal, Setting, TAbstractFile, TFile, TFolde
 import * as ts from "./format.ts";
 import type { TagIndex } from "./index.ts";
 import { TagEverythingSettings, targetFor } from "./settings.ts";
+import { type NamingRule, followsRule, parseTypedTags, ruleMessage, suggestFix } from "./naming.ts";
 
 export interface TagEdit {
   added: string[];
@@ -61,6 +62,8 @@ export class TagEditorModal extends Modal {
     private index: TagIndex,
     private settings: TagEverythingSettings,
     private onSubmit: (edit: TagEdit) => Promise<void>,
+    /** Tag naming rule (null = off): new tags must follow it. */
+    private rule: NamingRule | null = null,
   ) {
     super(app);
     for (const item of items) for (const t of index.tagsOf(item.path)) this.initial.set(t, (this.initial.get(t) ?? 0) + 1);
@@ -90,13 +93,16 @@ export class TagEditorModal extends Modal {
     this.suggest = new TagSuggest(
       this.app,
       this.input,
-      () => this.index.ranked().filter((t) => !this.has(t)),
+      // With the naming rule, tags breaking it are not offered (the command "Check tag names" fixes them).
+      () => this.index.ranked().filter((t) => !this.has(t) && (!this.rule || followsRule(t, this.rule))),
       counts,
       (tag) => {
         // A tag picked from the vault may not be valid here, e.g. a nested note tag for a PDF.
         const { error } = ts.normalizeTag(tag, false, this.allFrontmatter());
-        if (!error && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
-        this.renderChips(error ?? "");
+        const broken = !error && this.rule ? ruleMessage(tag, this.rule) : null;
+        if (broken) this.input.value = suggestFix(tag, this.rule!)?.join(" ") ?? "";
+        else if (!error && !this.has(tag)) this.chips.push({ tag, count: this.items.length });
+        this.renderChips(error ?? broken ?? "");
         this.input.focus();
       },
     );
@@ -158,14 +164,16 @@ export class TagEditorModal extends Modal {
 
   /**
    * Turns the typed text into chips. Invalid words stay in the box, with their error, so they can be fixed
-   * (they used to vanish). Returns false if any word was invalid.
+   * (they used to vanish). With the naming rule, a word breaking it is replaced in the box by its fix
+   * (`Tax-Receipt` -> `tax receipt`, Enter accepts it) and a liaison word is left out. Returns false while
+   * something is left in the box to fix or accept.
    */
   private commitInput(): boolean {
-    const { tags, errors, rest } = ts.parseTagInput(this.input.value, this.settings.lowercase, this.allFrontmatter());
+    const { tags, errors, rest } = parseTypedTags(this.input.value, this.rule, this.settings.lowercase, this.allFrontmatter());
     for (const tag of tags) if (!this.has(tag)) this.chips.push({ tag, count: this.items.length });
     if (this.input.value !== rest) this.input.value = rest;
     this.renderChips(errors.join(" · "));
-    return !errors.length;
+    return !rest;
   }
 
   private renderChips(error = ""): void {

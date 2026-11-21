@@ -6,7 +6,14 @@ import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { ExplorerBadges } from "./badges.ts";
 import { failureMessage, plural, progressMessage } from "./messages.ts";
+import { type NamingRule, type TagMapping, makeRule, mapTagList, replacePlan, ruleMessage } from "./naming.ts";
+import { TagFixModal } from "./fix-modal.ts";
+import { replaceTagsInGroups } from "./groups.ts";
+import { replaceTagsInTabs } from "./tabs.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
+
+/** Plans one item's change from its current tags and where its new tags go. */
+type Planner = (state: ts.TagState, target: ts.TagTarget) => ts.TagPlan;
 
 export default class TagEverythingPlugin extends Plugin {
   settings: TagEverythingSettings = { ...DEFAULT_SETTINGS };
@@ -17,6 +24,7 @@ export default class TagEverythingPlugin extends Plugin {
   private ownRenames = new Set<string>();
   /** Edits run one after the other: two quick edits of the same file must not interleave their reads and writes. */
   private queue: Promise<void> = Promise.resolve();
+  private ruleCache: { words: string; rule: NamingRule } | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -41,6 +49,11 @@ export default class TagEverythingPlugin extends Plugin {
         if (!checking) this.editTags([file]);
         return true;
       },
+    });
+    this.addCommand({
+      id: "check-tag-names",
+      name: "Check tag names (naming rule) and fix them",
+      callback: () => void this.checkTagNames(),
     });
     this.addCommand({
       id: "rebuild-index",
@@ -126,6 +139,57 @@ export default class TagEverythingPlugin extends Plugin {
     }
   }
 
+  /** The tag naming rule (src/naming.ts) when the setting is on, else null. */
+  get rule(): NamingRule | null {
+    if (!this.settings.tagRule) return null;
+    const words = this.settings.stopWords;
+    if (this.ruleCache?.words !== words) this.ruleCache = { words, rule: makeRule(words) };
+    return this.ruleCache.rule;
+  }
+
+  /** Opens the vault check: every tag breaking the naming rule, with its fix (works with the rule off too). */
+  async checkTagNames(): Promise<TagFixModal> {
+    if (!this.index.ready) await this.index.rebuild();
+    const modal = new TagFixModal(this.app, this, this.rule ?? makeRule(this.settings.stopWords));
+    modal.open();
+    return modal;
+  }
+
+  /**
+   * Vault-wide fix: every item carrying a mapped tag gets it replaced by its replacements, where the tag was (name,
+   * frontmatter, sidecar; `replacePlan`). Tag groups and bookmark tabs follow. Queued like `applyTags`.
+   */
+  async replaceTags(mapping: TagMapping): Promise<{ items: number; failed: number }> {
+    if (!mapping.size) return { items: 0, failed: 0 };
+    const items: TAbstractFile[] = [];
+    for (const path of this.index.paths()) {
+      if (!this.index.tagsOf(path).some((t) => mapping.has(t))) continue;
+      const item = this.app.vault.getAbstractFileByPath(path);
+      if (item) items.push(item);
+    }
+    const panels = this.app.workspace
+      .getLeavesOfType(VIEW_TYPE)
+      .map((leaf) => leaf.view)
+      .filter((v): v is TagEverythingView => v instanceof TagEverythingView)
+      .map((view) => ({ view, before: view.searchSnapshot() }));
+    const failed = await this.enqueue(items, (state) => replacePlan(state, mapping));
+    const { groups, tabs } = this.settings;
+    const nextGroups = replaceTagsInGroups(groups, mapping);
+    const nextTabs = replaceTagsInTabs(tabs, mapping);
+    if (nextGroups.some((g, i) => g !== groups[i]) || nextTabs.some((t, i) => t !== tabs[i])) {
+      this.settings.groups = nextGroups;
+      this.settings.tabs = nextTabs;
+      try {
+        await this.saveSettings();
+      } catch (err) {
+        console.error("[tag-everything] saving the tag groups after the fix failed", err);
+      }
+    }
+    // The panel's own search follows too.
+    for (const { view, before } of panels) view.replaceTags(before, (tags) => mapTagList(tags, mapping));
+    return { items: items.length, failed };
+  }
+
   async openView(): Promise<TagEverythingView | null> {
     const { workspace } = this.app;
     try {
@@ -150,7 +214,7 @@ export default class TagEverythingPlugin extends Plugin {
   }
 
   editTags(items: TAbstractFile[]): void {
-    new TagEditorModal(this.app, items, this.index, this.settings, (edit) => this.applyTags(items, edit)).open();
+    new TagEditorModal(this.app, items, this.index, this.settings, (edit) => this.applyTags(items, edit), this.rule).open();
   }
 
   /**
@@ -158,10 +222,26 @@ export default class TagEverythingPlugin extends Plugin {
    * starts once the first is written, so two quick edits of the same file never interleave.
    */
   applyTags(items: TAbstractFile[], edit: TagEdit): Promise<void> {
+    // Naming rule: a new tag that breaks it is refused (the editor already offers the fix).
+    const rule = this.rule;
+    const broken = rule ? edit.added.map((t) => ruleMessage(t, rule)).filter((m): m is string => !!m) : [];
+    if (broken.length) {
+      new Notice(["Tags not changed: tags are lower-case single words.", ...broken.slice(0, 5)].join("\n"), 10000);
+      return Promise.resolve();
+    }
+    const run = this.enqueue(items, (state, target) => {
+      const all = ts.dedupe([...state.nameTags, ...(state.frontTags ?? []), ...state.sideTags]);
+      return ts.planTags(state, ts.mergeEdit(all, edit.added, edit.removed), target);
+    });
+    return run.then(() => undefined);
+  }
+
+  /** Runs one batch after the previous one; resolves to the number of items that failed. */
+  private enqueue(items: TAbstractFile[], planner: Planner): Promise<number> {
     const previous = this.queue;
-    const run = (async (): Promise<void> => {
+    const run = (async (): Promise<number> => {
       await previous; // never rejects: see below
-      await this.applyNow(items, edit);
+      return this.applyNow(items, planner);
     })();
     this.queue = (async (): Promise<void> => {
       try {
@@ -173,14 +253,14 @@ export default class TagEverythingPlugin extends Plugin {
     return run;
   }
 
-  private async applyNow(items: TAbstractFile[], edit: TagEdit): Promise<void> {
+  private async applyNow(items: TAbstractFile[], planner: Planner): Promise<number> {
     const failures: string[] = [];
     let changed = 0;
     const progress = items.length > 5 ? new Notice(progressMessage(0, items.length), 0) : null;
     try {
       for (const [i, item] of items.entries()) {
         try {
-          if (await this.applyOne(item, edit)) changed++;
+          if (await this.applyOne(item, planner)) changed++;
         } catch (err) {
           failures.push(`${item.name}: ${(err as Error).message}`);
           console.error(`[tag-everything] tagging failed  path=${item.path}`, err);
@@ -195,27 +275,27 @@ export default class TagEverythingPlugin extends Plugin {
     } else if (items.length > 1) {
       new Notice(`Tags updated on ${changed} of ${describe(items)}`);
     }
+    return failures.length;
   }
 
-  private async applyOne(item: TAbstractFile, edit: TagEdit): Promise<boolean> {
+  private async applyOne(item: TAbstractFile, planner: Planner): Promise<boolean> {
     // The editor may have stayed open while the item was deleted (or replaced by another with the same path).
     if (this.app.vault.getAbstractFileByPath(item.path) !== item) throw new Error("it no longer exists");
     // Sidecars are re-read here, not taken from the index: another app may have changed them since.
     const side = await this.store.readTags(item);
 
     if (item instanceof TFolder) {
-      const desired = ts.mergeEdit(side, edit.added, edit.removed);
-      if (ts.sameTags(desired, side)) return false;
-      await this.store.writeTags(ts.folderMetaPath(item.path), desired);
-      this.index.setSide(item.path, desired);
+      const { sideTags, sideChanged } = planner({ nameTags: [], sideTags: side, frontTags: [] }, "sidecar");
+      if (!sideChanged) return false;
+      await this.store.writeTags(ts.folderMetaPath(item.path), sideTags);
+      this.index.setSide(item.path, sideTags);
       return true;
     }
     if (!(item instanceof TFile)) return false;
 
     const nameTags = ts.parseNameTags(item.name);
     const front = await this.readFrontTags(item);
-    const desired = ts.mergeEdit(ts.dedupe([...nameTags, ...front, ...side]), edit.added, edit.removed);
-    const plan = ts.planTags({ nameTags, sideTags: side, frontTags: front }, desired, targetFor(item, this.settings));
+    const plan = planner({ nameTags, sideTags: side, frontTags: front }, targetFor(item, this.settings));
     if (!plan.renamed && !plan.sideChanged && !plan.frontChanged) return false;
     // A tag picked from the vault (e.g. a nested note tag `a/b`) may not be valid where it is about to go.
     ts.assertWritable(plan.nameTags.filter((t) => !nameTags.includes(t)), "filename");
