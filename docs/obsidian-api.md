@@ -120,6 +120,11 @@ positives on placeholders and operator words).
   `.modal-close-button`; use `.querySelector(".modal-close-button, .modal-header-button")`. A pending modal (e.g.
   the vault-trust dialog `.modal.mod-trust-folder`) blocks every other modal from opening, with no error. Never
   match a core dialog by its text: the UI follows the OS language.
+- **Settings have their own window (1.15)**: `app.setting.open()` renders the settings in a separate window, so a
+  `Notice` or `Modal` opened from a settings row (e.g. an action row `{ name, desc, action }`, rendered as
+  `.setting-item.mod-action`, `.click()` triggers it) lands in **that** window's document. In a test, look in
+  `settingTab.containerEl.ownerDocument`, not `document`. Obsidian's `createEl` / `Notice` / `Modal` already
+  follow the active window; code that uses the global `document` directly would not.
 - **Frontmatter**: write with `fileManager.processFrontMatter` (keeps other properties; it throws on invalid YAML,
   which is what you want). Right after a write, `metadataCache.getFileCache` can still hold the old values: re-read
   the file (`getFrontMatterInfo` + `parseYaml`) when you need the current state, and follow live edits with

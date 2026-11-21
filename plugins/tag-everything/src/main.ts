@@ -58,10 +58,7 @@ export default class TagEverythingPlugin extends Plugin {
     this.addCommand({
       id: "rebuild-index",
       name: "Re-read all tags (after editing them outside Obsidian)",
-      callback: async () => {
-        await this.index.rebuild();
-        new Notice(`File tags: ${plural(this.index.size, "tagged item")}`);
-      },
+      callback: () => void this.reindex(),
     });
 
     this.registerEvent(
@@ -147,9 +144,18 @@ export default class TagEverythingPlugin extends Plugin {
     return this.ruleCache.rule;
   }
 
-  /** Opens the vault check: every tag breaking the naming rule, with its fix (works with the rule off too). */
+  /** Re-reads every tag (sidecars, names, frontmatter) and says how many items carry one. */
+  async reindex(): Promise<void> {
+    await this.index.rebuild();
+    new Notice(`File tags: ${plural(this.index.size, "tagged item")}`);
+  }
+
+  /**
+   * Opens the vault check: every tag breaking the naming rule, with its fix (works with the rule off too). All tags
+   * are re-read first, so tags edited outside Obsidian are checked too.
+   */
   async checkTagNames(): Promise<TagFixModal> {
-    if (!this.index.ready) await this.index.rebuild();
+    await this.index.rebuild();
     const modal = new TagFixModal(this.app, this, this.rule ?? makeRule(this.settings.stopWords));
     modal.open();
     return modal;

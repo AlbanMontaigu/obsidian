@@ -301,6 +301,20 @@ if (settingTab) {
   await sleep(300);
   check("settings: badge options disabled while badges are off", off === 3 && saved === false, `disabled=${off} saved=${saved}`);
   check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 1 && (await plugin.loadData())?.showBadges === true);
+  // Tag maintenance: the vault check and the re-read are buttons of the settings too. Settings have their own
+  // window in Obsidian 1.15: the notice and the dialog open there.
+  check("settings: tag maintenance rows indexed", names.includes("Check and fix tag names") && names.includes("Re-read all tags"), JSON.stringify(names));
+  const setDoc = el.ownerDocument;
+  const setNotice = () => [...setDoc.querySelectorAll(".notice")].some((n) => /tagged item/.test(n.textContent));
+  row("Re-read all tags")?.click();
+  await waitFor(setNotice, 5000);
+  check("settings: Re-read all tags re-reads and says how many items", setNotice());
+  row("Check and fix tag names")?.click();
+  await waitFor(() => !!setDoc.querySelector(".tag-everything-fix-modal"), 5000);
+  const fromSettings = setDoc.querySelector(".tag-everything-fix-modal");
+  check("settings: Check and fix tag names opens the check", !!fromSettings && /follow the rule|break the rule/.test(fromSettings.textContent), fromSettings?.textContent.slice(0, 120));
+  fromSettings?.querySelector(".modal-close-button, .modal-header-button")?.click();
+  await sleep(200);
   app.setting.close();
 } else check("settings: tab found", false);
 
@@ -545,17 +559,21 @@ await plugin.applyTags([file("Docs/scan[paper].pdf")], { added: ["Tax-Receipt"],
 await plugin.applyTags([file("report.md")], { added: ["plan_de_charge", "de"], removed: [] });
 await waitFor(() => plugin.index.tagsOf("report.md").includes("de"));
 plugin.settings.tagRule = true;
+// a folder tag written outside Obsidian (no vault event: the index doesn't know it yet); the check re-reads first
+await adapter.write("Notes/.ts/tsm.json", JSON.stringify({ tags: [{ title: "Hors_Ligne", type: "sidecar" }] }));
+const knownBefore = plugin.index.tagsOf("Notes").includes("Hors_Ligne");
 await plugin.checkTagNames();
 await sleep(300);
 const fxEl = document.querySelector(".tag-everything-fix-modal");
 const fxRow = (tag) => [...(fxEl?.querySelectorAll(".tag-everything-fix-row") ?? [])].find((r) => r.querySelector(".tag-everything-fix-input")?.dataset.tag === tag);
 const fxTags = [...(fxEl?.querySelectorAll(".tag-everything-fix-input") ?? [])].map((i) => i.dataset.tag);
+const fxVal = (tag) => fxRow(tag)?.querySelector(".tag-everything-fix-input").value;
+check("fix: the check re-reads tags edited outside Obsidian", !knownBefore && fxTags.includes("Hors_Ligne") && fxVal("Hors_Ligne") === "hors ligne", JSON.stringify(fxTags));
 check(
   "fix: the dialog lists exactly the tags breaking the rule",
-  ["B27", "INC", "IMAC", "Tax-Receipt", "plan_de_charge", "de"].every((t) => fxTags.includes(t)) && !fxTags.includes("paper") && !fxTags.includes("proj/alpha"),
+  ["B27", "INC", "IMAC", "Tax-Receipt", "plan_de_charge", "de", "Hors_Ligne"].every((t) => fxTags.includes(t)) && !fxTags.includes("paper") && !fxTags.includes("proj/alpha"),
   JSON.stringify(fxTags),
 );
-const fxVal = (tag) => fxRow(tag)?.querySelector(".tag-everything-fix-input").value;
 check(
   "fix: suggestions (split, lower-case, liaison word removed)",
   fxVal("Tax-Receipt") === "tax receipt" && fxVal("B27") === "b27" && fxVal("plan_de_charge") === "plan charge" && fxVal("de") === "",
@@ -580,6 +598,7 @@ check(
 );
 check("fix: compound split where it was", !!file("Docs/scan[paper tax receipt].pdf"), plugin.index.tagsOf("Docs/scan[paper tax receipt].pdf").join());
 check("fix: liaison-word tag removed, unchecked tag left alone", JSON.stringify(fmTags("report.md")).includes("plan_de_charge") && !(fmTags("report.md") ?? []).includes("de"), JSON.stringify(fmTags("report.md")));
+check("fix: a folder's sidecar tag fixed in its sidecar", (await readJson("Notes/.ts/tsm.json")).tags.map((t) => t.title).join() === "hors,ligne", await adapter.read("Notes/.ts/tsm.json"));
 check("fix: other tags of the fixed note kept", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join() === "b27,inc,q3", plugin.index.tagsOf("Projects/Alpha/budget[b27 inc].md").join());
 check("fix: the group formula follows", fGroup().formula === "(shared OR b27) AND (final OR inc) AND NOT imac", fGroup().formula);
 check("fix: saved in data.json", (await plugin.loadData()).groups.find((g) => g.id === formulaId)?.formula === fGroup().formula);

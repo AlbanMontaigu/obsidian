@@ -49,7 +49,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       },
       {
         name: "Tag naming rule",
-        desc: "New tags must be lower-case single words: no space, - or _ (two tags instead), no liaison word. Command Check tag names lists and fixes existing tags.",
+        desc: "New tags must be lower-case single words: no space, - or _ (two tags instead), no liaison word. Existing tags: Check and fix tag names, below.",
         aliases: ["normalise", "normalize", "lower case", "liaison words", "stop words"],
         control: { type: "toggle", key: "tagRule" },
       },
@@ -103,6 +103,24 @@ export class TagEverythingSettingTab extends PluginSettingTab {
             desc: "Turn on Files and links → Detect all file extensions to right-click them there; the File tags panel already edits them.",
             searchable: false,
             visible: () => this.detectAllExtensions() === false,
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Tag maintenance",
+        items: [
+          {
+            name: "Check and fix tag names",
+            desc: "Re-reads every tag, then lists those breaking the naming rule with a fix you can edit; nothing changes until you click Fix.",
+            aliases: ["normalise", "normalize", "naming rule", "fix tags"],
+            action: () => void this.plugin.checkTagNames(),
+          },
+          {
+            name: "Re-read all tags",
+            desc: "Rebuilds the tag index, e.g. after tags were edited outside Obsidian.",
+            aliases: ["reindex", "rebuild", "refresh", "index"],
+            action: () => void this.plugin.reindex(),
           },
         ],
       },
