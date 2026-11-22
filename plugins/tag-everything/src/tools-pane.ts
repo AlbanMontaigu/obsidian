@@ -58,5 +58,5 @@ export function renderTools(el: HTMLElement, plugin: TagEverythingPlugin): void 
     () => void plugin.checkConsistency(),
     "consistency",
   );
-  row("Rename or merge a tag", "Everywhere in the vault, with the tag groups, tabs and searches following.", "Rename…", () => new TagPickerModal(app, plugin).open(), "rename");
+  row("Rename or merge a tag", "Everywhere in the vault, with the tag groups, sections and searches following.", "Rename…", () => new TagPickerModal(app, plugin).open(), "rename");
 }

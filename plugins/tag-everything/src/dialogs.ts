@@ -1,9 +1,9 @@
-// Small dialogs and input completions: a name (bookmark tab), a group (name and formula); tag and folder completion.
+// Small dialogs and input completions: a name (section), a group (name and formula); tag and folder completion.
 
 import { AbstractInputSuggest, App, Menu, Modal, TFolder, setIcon } from "obsidian";
 import * as fx from "./formula.ts";
 import { DATE_FIELDS, DATE_PRESETS, type DateFilters, type DateRange, rangeText, sameRange } from "./dates.ts";
-import { plural } from "./messages.ts";
+import { PLUGIN_NAME, plural } from "./messages.ts";
 import { matchTags, onEnter, renderTagSuggestion } from "./ui.ts";
 
 /**
@@ -25,7 +25,7 @@ function addSubmitButtons(modal: Modal, inputs: HTMLInputElement[], error: HTMLE
   for (const input of inputs) onEnter(input, () => void submit());
 }
 
-/** Asks for a tab name. If `done` throws (empty name), the message shows and the dialog stays open. */
+/** Asks for a section name. If `done` throws (empty name), the message shows and the dialog stays open. */
 export class NameModal extends Modal {
   constructor(
     app: App,
@@ -39,7 +39,7 @@ export class NameModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("tag-everything-dialog", "tag-everything-group-modal");
-    this.setTitle(this.heading);
+    this.setTitle(`${PLUGIN_NAME}: ${this.heading}`);
     const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: this.placeholder } });
     input.value = this.initial;
     const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
@@ -160,7 +160,7 @@ export class GroupModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("tag-everything-dialog", "tag-everything-group-modal");
-    this.setTitle(this.heading);
+    this.setTitle(`${PLUGIN_NAME}: ${this.heading}`);
     const { tags, counts, countMatches } = this.ctx;
     const named = this.name !== null;
     const nameInput = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: "Group name", "aria-label": "Group name" } });

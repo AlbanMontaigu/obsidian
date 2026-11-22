@@ -69,7 +69,7 @@ export class TagEditorModal extends Modal {
   onOpen(): void {
     const { contentEl, items } = this;
     this.modalEl.addClass("tag-everything-dialog", "tag-everything-modal");
-    this.setTitle(items.length === 1 ? `${PLUGIN_NAME}: ${items[0].name}` : `${PLUGIN_NAME}: ${items.length} items`);
+    this.setTitle(items.length === 1 ? `${PLUGIN_NAME}: tags of ${items[0].name}` : `${PLUGIN_NAME}: tags of ${items.length} items`);
 
     contentEl.createDiv({ cls: "tag-everything-where", text: this.whereText() });
 

@@ -322,6 +322,7 @@
 .tag-everything-view-actions {
   flex-basis: 100%;
   display: flex;
+  flex-wrap: wrap; /* three labelled buttons: a narrow panel puts the last on a line of its own */
   justify-content: flex-end;
   gap: 8px;
   margin-top: var(--size-4-2);
@@ -329,7 +330,7 @@
 
 .tag-everything-view-actions .tag-everything-icon-button {
   font-size: var(--font-ui-smaller);
-  padding: 4px 12px;
+  padding: 4px 10px;
   height: auto;
   gap: 4px;
 }

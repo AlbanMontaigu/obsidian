@@ -7,7 +7,7 @@ import { dateMenu } from "./dialogs.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS, countRangeOf, setCountRange } from "./view.ts";
-import { inCountRange } from "./cloud.ts";
+import { inCountRange, rangeText } from "./cloud.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
 import { type CountRangeControl, clickable, countRangeControl, dateChip, onEnter, paintTag, renderExpr } from "./ui.ts";
 import { InboxPane } from "./inbox-pane.ts";
@@ -313,14 +313,15 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
     const shown = keep ? root.tags.filter(([t, n]) => keep(t, n)).length : root.tags.length;
-    const tagsText =
-      shown < root.tags.length ? `${shown} of ${plural(root.tags.length, "tag")}${shown ? "" : " (none in the range: See all shows them)"}` : plural(root.tags.length, "tag");
+    const tagsText = shown < root.tags.length ? `${shown} of ${plural(root.tags.length, "tag")}` : plural(root.tags.length, "tag");
+    // the range hides every tag: say why the tree is empty and the way out
+    const allHidden = !shown && root.tags.length ? `. None is used ${rangeText(range)} times: change the numbers, or click See all` : "";
     this.statusEl.setText(
       !index.ready
         ? "Reading tags…"
         : !index.counts(undefined, true).size
           ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
-          : [found ?? `${tagsText} on ${plural(tagged, "item")}`, search.problem].filter(Boolean).join(". "),
+          : [found ?? `${tagsText} on ${plural(tagged, "item")}${allHidden}`, search.problem].filter(Boolean).join(". "),
     );
     this.statusEl.toggleClass("mod-warning", !!search.problem);
     this.contentEl.scrollTop = scroll;

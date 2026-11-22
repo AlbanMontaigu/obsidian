@@ -372,7 +372,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   private newSection(tags: readonly string[] = [], groups: readonly string[] = []): void {
-    new NameModal(this.app, "New section", "", "Section name", async (name) => void (await this.createSection(name, tags, groups))).open();
+    new NameModal(this.app, "new section", "", "Section name", async (name) => void (await this.createSection(name, tags, groups))).open();
   }
 
   /** Moves a tag or group into a section (null: out of its section, back to the top). Public for the smoke test. */
@@ -615,7 +615,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       button("tag-everything-view-formula", "square-function", "Formula…", "Edit this search as a formula (AND, OR, NOT, parentheses)", () =>
         this.groupsPane.editSearch(this.searchExpr(), (expr) => this.setSearchFormula(expr)),
       );
-      button("tag-everything-view-save-group", "folder-plus", "", "Save this search as a group", () => this.groupsPane.newGroup(this.searchExpr(), true));
+      button("tag-everything-view-save-group", "folder-plus", "Save as group", "Save this search as a group in All", () => this.groupsPane.newGroup(this.searchExpr(), true));
     }
     button("tag-everything-view-clear", "search-x", "Clear", "Clear the search", () => {
       this.resetSearch();
@@ -645,7 +645,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     // the number of tags shown, of how many when the range hides some
     const hidden = named.length - rows.length;
-    this.tagsCountEl.setText(hidden ? `${rows.length} of ${named.length}` : String(rows.length));
+    this.tagsCountEl.setText(hidden ? `${rows.length} of ${plural(named.length, "tag")}` : plural(rows.length, "tag"));
     this.tagsCountEl.setAttr("aria-label", hidden ? `${plural(hidden, "tag")} outside the range ${rangeText(range)}` : null);
     this.range.update(range);
     const ext = this.plugin.settings.panelExtensionTags;
@@ -734,6 +734,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.statusEl.createSpan({ cls: "tag-everything-section-title", text: "Results" });
     this.statusEl.createSpan({ cls: "tag-everything-section-count", text: plural(items.length, "item") + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : "") });
 
+    if (!items.length) {
+      this.resultsEl.createDiv({ cls: "tag-everything-view-empty", text: "Nothing matches this search: take a tag out above (its ×), or click Clear." });
+      return;
+    }
     const small = (t: string): string => "is-small" + (this.selected.includes(t) ? " is-selected" : "");
     for (const item of items.slice(0, MAX_RESULTS)) {
       const { row } = renderItemRow(this.resultsEl, item, index, (parent, t) => this.chip(parent, t, small(t)));

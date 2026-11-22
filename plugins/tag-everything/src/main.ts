@@ -117,7 +117,7 @@ export default class TagEverythingPlugin extends Plugin {
     });
     this.addCommand({
       id: "write-guide-root",
-      name: "Write AI assistant guide in the vault root",
+      name: "Write a guide for AI assistants (CLAUDE.md) in the vault root",
       callback: () => void this.writeGuide(this.app.vault.getRoot()),
     });
 
@@ -344,7 +344,7 @@ export default class TagEverythingPlugin extends Plugin {
 
   /**
    * Vault-wide fix: every item carrying a mapped tag gets it replaced by its replacements, where the tag was (name,
-   * frontmatter, sidecar; `replacePlan`). Tag groups and bookmark tabs follow. Queued like `applyTags`.
+   * frontmatter, sidecar; `replacePlan`). Tag groups and sections follow. Queued like `applyTags`.
    */
   async replaceTags(mapping: ts.TagMapping): Promise<{ items: number; failed: number }> {
     if (!mapping.size) return { items: 0, failed: 0 };

@@ -60,7 +60,7 @@ export class RenameTagModal extends Modal {
     this.hint = contentEl.createDiv({ cls: "tag-everything-rename-hint" });
     contentEl.createDiv({
       cls: "tag-everything-where",
-      text: "Files whose name holds the tag are renamed (links follow). Tag groups and bookmark tabs follow too.",
+      text: "Files whose name holds the tag are renamed (links follow). Tag groups and sections follow too.",
     });
     new Setting(contentEl)
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
@@ -203,7 +203,7 @@ export class TagReviewModal extends Modal {
 
     this.footerError = contentEl.createDiv({ cls: "tag-everything-error" });
     new Setting(contentEl)
-      .setDesc("Files whose name holds a changed tag are renamed (links follow). Tag groups and bookmark tabs follow too.")
+      .setDesc("Files whose name holds a changed tag are renamed (links follow). Tag groups and sections follow too.")
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((b) => {
         this.applyButton = b.setCta().onClick(() => void this.apply());

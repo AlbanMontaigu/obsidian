@@ -48,7 +48,10 @@ export interface TagEverythingSettings {
   excluded: string[];
   /** Exclusion rules (src/exclude.ts): the items they cover are excluded from TagEverything. */
   excludeRules: ExcludeRule[];
-  /** The panel's All tab shows only the tags used between `tagRangeMin` and `tagRangeMax` times (src/cloud.ts `inCountRange`). */
+  /**
+   * The panel's All tab shows only the tags used between `tagRangeMin` and `tagRangeMax` times (src/cloud.ts `inCountRange`).
+   * Off by default: a new vault's first tags are used once or twice, and a range would hide them all.
+   */
   tagRangeOn: boolean;
   /** Fewest uses of a tag the All tab shows while `tagRangeOn` (1 or more). */
   tagRangeMin: number;
@@ -83,7 +86,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   bringIn: [],
   excluded: [],
   excludeRules: [],
-  tagRangeOn: true,
+  tagRangeOn: false,
   tagRangeMin: 10,
   tagRangeMax: 100,
   panelExtensionTags: false,

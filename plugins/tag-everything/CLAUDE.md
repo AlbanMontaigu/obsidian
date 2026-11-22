@@ -89,8 +89,8 @@ name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:
 `guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `put away:`, `bring in:`, `sections:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
 `ext:`, `dates:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
-engine with `noteTagsInFrontmatter` off, then turns it on; the count range is turned off at the start (the fixture's
-tags are used once or twice); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle
+engine with `noteTagsInFrontmatter` off, then turns it on; the count range is off by default (the fixture's
+tags are used once or twice; its section turns it on); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle
 and the panel's date criteria, `dates:`);
 Claude Code is faked (`plugin.runClaude`). It ends with the explorer under `shared AND NOT final` and the panel's
 section "Work" holding the group of its formula group search, for the screenshot.

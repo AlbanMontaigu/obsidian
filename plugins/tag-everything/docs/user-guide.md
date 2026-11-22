@@ -95,8 +95,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   one would change nothing; click one to add it to the search), then **Results** with their number. **Formula…** (function icon), next to **Clear** on the line under the search, opens the search as a formula
   (Section 6), no name needed, to combine its tags with `OR`, `NOT` and parentheses; **Search** runs it: its plain
   tags, `NOT` tags and dates show as the usual chips, the rest (the `OR`s, the parentheses) as one chip with the
-  function icon (click it to take it out; **Formula…** again to edit it). Nothing is saved: the **folder-plus** icon
-  next to it saves the search as a group (a name, then the group's search runs). On a group search the button reads
+  function icon (click it to take it out; **Formula…** again to edit it). Nothing is saved: **Save as group**
+  next to it saves the search as a group (a name, then the group's search runs). A search that finds nothing says so. On a group search the button reads
   **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.
 - **Dates**: the **calendar** icon next to the filter box picks a date for the search: **Created** or **Modified**,
@@ -110,13 +110,15 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
-- **Focus on the tags that matter** (All only): the *Tags* heading reads **used [10] to [100] times  See all**. All shows only
-  the tags used 10 to 100 times: neither the one-offs nor the tags on almost everything; the count reads *42 of 180*.
-  Type other numbers in the boxes: the tags follow as you type, **Enter** or leaving the box saves; an empty second
-  box means *no limit*. **See all** shows every tag (the numbers are kept; typing one turns it off again). The tags
+- **Focus on the tags that matter** (All only): the *Tags* heading reads **used [10] to [100] times  See all**. Off at
+  first (**See all** pressed: every tag shows, the count reads *180 tags*); once the vault has many tags, type numbers
+  in the boxes and All shows only the tags used that many times, neither the one-offs nor the tags on almost
+  everything; the count reads *42 of 180 tags*. The tags follow as you type, **Enter** or leaving the box saves; an
+  empty second box means *no limit*. **See all** shows every tag again (the numbers are kept; typing one turns the
+  range on again). If no tag is in the range, All says so. The tags
   in the search always stay, and typing in the filter finds every tag. The tags of a section are not filtered (you
-  put them there). The TagEverything explorer has the same boxes (Section 10). Default 10–100; also in the settings
-  (Section 14).
+  put them there). The TagEverything explorer has the same boxes (Section 10). Default off, with 10–100 in the boxes; also in
+  the settings (Section 14).
 - **Extension tags** (`pdf`, `md`, Section 1) are hidden from the tag lists (All, Narrow) by default: the **file type**
   icon in the *Tags* heading (All) shows them, click again to hide them; remembered. They still work everywhere else:
   in formulas, in the explorer, as the badge before a result's name, and a badge click searches with one.
@@ -218,7 +220,8 @@ the groups that are in no section.
 An AI coding assistant working in your vault (Claude Code reads `CLAUDE.md` from the folder it starts in and from
 its parents) does not know how TagEverything stores tags. Give it a guide:
 
-- **Right-click a folder → TagEverything → Write AI assistant guide**, or the command *Write AI assistant guide in the vault root*.
+- **Right-click a folder → TagEverything → Write a guide for AI assistants (CLAUDE.md)**, or the command *Write a guide
+  for AI assistants (CLAUDE.md) in the vault root*.
 - It writes `CLAUDE.md` in that folder: where tags live with your current settings, how to read them, the naming rule
   and its liaison words, how to add a tag without breaking anything (sidecar moved along on a rename, links to fix,
   `.ts` files to keep), the tags used in that folder and the most used tags of the vault, so the assistant reuses them.
@@ -269,8 +272,9 @@ the inbox of Section 13 (rule tags, the ⋮ menu of actions), so you can empty i
   one with the **calendar** icon next to the box (the same menu as the panel's; it replaces the box's dates); each is
   a chip with a × (*created in the last 30 days*), and the icon turns to the accent colour. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
   clears the box. The search is not remembered across restarts.
-- Under the box, **used [10] to [100] times  See all**: the same numbers as the panel's All tab (Section 5), so the root holds
-  only the tags used that many times (the line under it reads *12 of 180 tags*). Type other numbers (an empty second
+- Under the box, **used [10] to [100] times  See all**: the same numbers as the panel's All tab (Section 5); once the
+  range is on, the root holds only the tags used that many times (the line under it reads *12 of 180 tags*, and says
+  so when none is in the range). Type other numbers (an empty second
   box: no limit), or **See all** for every tag; it changes the panel too. A tag you opened stays, and while a formula
   is in the box the root holds every tag of what it finds.
 - At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are the other
@@ -413,7 +417,7 @@ The inbox lists the files **without tags that arrived lately** (created in the v
 *Tags*, with the number of files waiting; or the command *Open the inbox (files without tags)*, which opens the explorer
 on it. A file leaves the inbox as soon as it has a tag.
 
-- **Focus on one folder**: right-click the folder → *TagEverything → Inbox of this folder*, or *Settings → Inbox →
+- **Focus on one folder**: right-click the folder → *TagEverything → Show the inbox of this folder*, or *Settings → Inbox →
   Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and accents ignored; empty = the whole vault). The
   inbox then lists only the files there and says so at the top; its **Whole vault** button stops the focus. Rules and
   *Tag new files with the rules automatically* still work everywhere.
@@ -447,7 +451,7 @@ the inbox; one notice says what was tagged. Tags go where new tags go (Section 1
 ### Put files away
 
 Once a file has tags, TagEverything can move it to the folder where files with the same tags already are: right-click
-a file, a folder (every file below it) or a selection → *TagEverything → Put away (N files)*. The item shows only
+a file, a folder (every file below it) or a selection → *TagEverything → Put away in the usual folder (N files)*. The item shows only
 when some file there has a better folder to go to.
 
 - A folder's **usual tags** are the tags most of its own tagged files carry (at least 2 files and 3 in 4 of them; its
@@ -505,7 +509,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Check tag names (naming rule) and fix them | Section 4 |
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
 | Open the tag tools (re-read, rules, check, review) | Section 5: the panel's Tools tab |
-| Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
+| Write a guide for AI assistants (CLAUDE.md) in the vault root | Section 9 (folders: right-click → *TagEverything → Write a guide for AI assistants (CLAUDE.md)*) |
 | Suggest tags for the current file with Claude Code | Section 9 (folders, selections: right-click → *TagEverything → Suggest tags with Claude Code*) |
 | Insert a tag query block | Section 11 |
 | Rename or merge a tag | Section 12 (also right-click a tag in the panel or the explorer) |
@@ -523,7 +527,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along. Off: they stay under the old name, so the file loses its sidecar tags; the files of a renamed folder keep theirs (the folder's `.ts` moves with it) |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
 | Colour tags automatically | On | Section 8 |
-| Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | On / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
+| Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
 | Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |

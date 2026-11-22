@@ -53,7 +53,7 @@ export class TagFixModal extends Modal {
     for (const issue of issues) this.rows.push(this.renderRow(list, issue));
 
     new Setting(contentEl)
-      .setDesc("Files whose name holds a fixed tag are renamed (links follow). Tag groups and bookmark tabs follow too.")
+      .setDesc("Files whose name holds a fixed tag are renamed (links follow). Tag groups and sections follow too.")
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((b) => {
         this.fixButton = b.setCta().onClick(() => void this.fix());

@@ -23,9 +23,8 @@ plugin.settings.extensionTags = false;
 plugin.index.setExtensionTags(false);
 check("extension tags off: none left", !plugin.index.tagsOf("Docs/scan.pdf").includes("pdf") && !plugin.index.counts().has("md"));
 
-// All's count range is on at 10–100 by default; the fixture's tags are used fewer than 10 times: off until its section.
-check("tag count range on by default, 10–100", plugin.settings.tagRangeOn === true && plugin.settings.tagRangeMin === 10 && plugin.settings.tagRangeMax === 100);
-plugin.settings.tagRangeOn = false;
+// All's count range is off by default (10–100 ready in its boxes); it stays off until its section.
+check("tag count range off by default, 10–100 ready", plugin.settings.tagRangeOn === false && plugin.settings.tagRangeMin === 10 && plugin.settings.tagRangeMax === 100);
 
 // Sections up to "UI" exercise the name / sidecar engine on notes: frontmatter storage off for them.
 check("note tags go to frontmatter by default", plugin.settings.noteTagsInFrontmatter === true);
@@ -53,7 +52,7 @@ check("files-menu has bulk edit, suggestions and exclude in the submenu", multiM
 single.click("Edit tags");
 await sleep(300);
 check("menu item opens the editor", !!document.querySelector(".tag-everything-modal"));
-check("editor title names the plugin", document.querySelector(".tag-everything-modal .modal-title")?.textContent === "TagEverything: report.md", document.querySelector(".tag-everything-modal .modal-title")?.textContent);
+check("editor title names the plugin and the item", document.querySelector(".tag-everything-modal .modal-title")?.textContent === "TagEverything: tags of report.md", document.querySelector(".tag-everything-modal .modal-title")?.textContent);
 document.querySelector(".tag-everything-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click(); // 1.15 calls the close button .modal-header-button
 await sleep(200);
 check("editor closes", !document.querySelector(".tag-everything-modal"));
@@ -605,7 +604,7 @@ await sleep(100);
 check("selection tab: a marked tag clicked in All leaves the search", view.getState().selected.join() === "shared" && !cloudChip(narrowTag).classList.contains("is-selected"), JSON.stringify(view.getState().selected));
 selTab().click();
 await sleep(100);
-// The Selection tab's Formula… button: the search as a formula (no name), run at once; Save as group is its own icon.
+// The Selection tab's Formula… button: the search as a formula (no name), run at once; Save as group is its own button.
 const formulaBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-formula");
 const searchChipBottom = panel().querySelector(".tag-everything-view-selected > .tag-everything-chip")?.getBoundingClientRect().bottom ?? Infinity;
 check(
@@ -636,7 +635,7 @@ const gInput = gModal?.querySelector(".tag-everything-formula-input");
 const opButtons = [...(gModal?.querySelectorAll(".tag-everything-formula-op") ?? [])];
 check(
   "formula button: edits the search as a formula, no name to give, with operator buttons",
-  gModal?.querySelector(".modal-title")?.textContent === "Search formula" && !gModal.querySelector(".tag-everything-group-input") && gInput?.value === "shared" &&
+  gModal?.querySelector(".modal-title")?.textContent === "TagEverything: search formula" && !gModal.querySelector(".tag-everything-group-input") && gInput?.value === "shared" &&
     opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( ) Date" && gModal.querySelector(".mod-cta")?.textContent === "Search",
   `${gInput?.value} / ${opButtons.map((b) => b.textContent)}`,
 );
@@ -658,12 +657,12 @@ check(
   JSON.stringify(view.getState()) + ` ${results()} vs ${eitherN}`,
 );
 const saveGroupBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-save-group");
-check("formula button: Save as group is its own icon next to it", iconOf(saveGroupBtn())?.classList.contains("lucide-folder-plus") && saveGroupBtn()?.getAttribute("aria-label") === "Save this search as a group", saveGroupBtn()?.outerHTML);
+check("formula button: Save as group is its own labelled button next to it", iconOf(saveGroupBtn())?.classList.contains("lucide-folder-plus") && saveGroupBtn()?.textContent === "Save as group" && saveGroupBtn()?.getAttribute("aria-label") === "Save this search as a group in All", saveGroupBtn()?.outerHTML);
 await snap("search-formula");
 saveGroupBtn().click();
 await sleep(300);
 const sgModal = document.querySelector(".tag-everything-group-modal");
-check("formula button: Save as group asks a name, the formula filled", sgModal?.querySelector(".modal-title")?.textContent === "New group from this search" && sgModal.querySelector(".tag-everything-formula-input")?.value === "shared OR B27", sgModal?.querySelector(".tag-everything-formula-input")?.value);
+check("formula button: Save as group asks a name, the formula filled", sgModal?.querySelector(".modal-title")?.textContent === "TagEverything: new group from this search" && sgModal.querySelector(".tag-everything-formula-input")?.value === "shared OR B27", sgModal?.querySelector(".tag-everything-formula-input")?.value);
 sgModal.querySelector(".tag-everything-group-input").value = "Either";
 sgModal.querySelector(".mod-cta").click();
 await sleep(300);
@@ -755,7 +754,7 @@ check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-
   const want = within(top, 100);
   check(
     "range: a number typed applies at once, See all off, the count says of how many, the box keeps the focus",
-    plugin.settings.tagRangeOn && cloudTags() === want && want.split(",").length < counts.size && headCount() === `${want.split(",").length} of ${counts.size}` && !seeAll().classList.contains("is-active") && box("min") === minEl && document.activeElement === minEl,
+    plugin.settings.tagRangeOn && cloudTags() === want && want.split(",").length < counts.size && headCount() === `${want.split(",").length} of ${counts.size} tags` && !seeAll().classList.contains("is-active") && box("min") === minEl && document.activeElement === minEl,
     `${cloudTags()} vs ${want} / ${headCount()}`,
   );
   await commit("min");
@@ -786,7 +785,7 @@ check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-
   check("range: an unreadable number goes back to the stored one", box("min").value === String(top) && plugin.settings.tagRangeMin === top, box("min").value);
   seeAll().click();
   await sleep(300);
-  check("range: See all shows every tag, keeps the numbers, saved", !plugin.settings.tagRangeOn && cloudTags().split(",").length === counts.size && headCount() === String(counts.size) && box("min").value === String(top) && seeAll().classList.contains("is-active") && (await plugin.loadData())?.tagRangeOn === false);
+  check("range: See all shows every tag, keeps the numbers, saved", !plugin.settings.tagRangeOn && cloudTags().split(",").length === counts.size && headCount() === `${counts.size} tags` && box("min").value === String(top) && seeAll().classList.contains("is-active") && (await plugin.loadData())?.tagRangeOn === false);
 }
 
 // ---- sections: groups and tags sorted under foldable headings in All, each in one section at most, saved
@@ -929,8 +928,8 @@ check("command: Check tag names registered", !!app.commands.commands["tag-everyt
 const folderMenu = fakeMenu();
 app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
 const guideMenu = folderMenu.sub("TagEverything");
-check("guide: folder submenu has Edit tags, suggestions, its inbox, the consistency check, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Inbox of this folder,Check tag consistency,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
-guideMenu.click("Write AI assistant guide");
+check("guide: folder submenu has Edit tags, suggestions, its inbox, the consistency check, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Show the inbox of this folder,Check tag consistency,Write a guide for AI assistants (CLAUDE.md),Exclude from the tag engine", guideMenu?.titles().join(" | "));
+guideMenu.click("Write a guide for AI assistants (CLAUDE.md)");
 await waitFor(() => !!file("Projects/CLAUDE.md"));
 const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
 check("guide: written with the folder's tags", /## Tags used in `Projects`[^\n]*\n\n[^\n]*`client` 1/.test(guideText) && guideText.includes("## Most used tags in the vault"), guideText.slice(-300));
@@ -1192,11 +1191,11 @@ for (const n of ["new[bill power 2026]", "dup[bill power]", "other[holiday]"]) a
 await waitFor(() => plugin.index.ownTagsOf("Drop/other[holiday].pdf").length);
 const paMenu = fakeMenu();
 app.workspace.trigger("file-menu", paMenu, file("Drop"), "file-explorer");
-check("put away: the folder menu offers it for its files with a better folder", !!paMenu.sub("TagEverything")?.titles().includes("Put away (2 files)"), paMenu.sub("TagEverything")?.titles().join(" | "));
+check("put away: the folder menu offers it for its files with a better folder", !!paMenu.sub("TagEverything")?.titles().includes("Put away in the usual folder (2 files)"), paMenu.sub("TagEverything")?.titles().join(" | "));
 const inPlace = fakeMenu();
 app.workspace.trigger("file-menu", inPlace, file("Bills/Power/a[bill power].pdf"), "file-explorer");
 check("put away: not offered for a file already in its place", !inPlace.sub("TagEverything")?.titles().some((t) => t.startsWith("Put away")), inPlace.sub("TagEverything")?.titles().join(" | "));
-paMenu.sub("TagEverything").click("Put away (2 files)");
+paMenu.sub("TagEverything").click("Put away in the usual folder (2 files)");
 await waitFor(() => !!document.querySelector(".tag-everything-putaway-modal"));
 const paEl = document.querySelector(".tag-everything-putaway-modal");
 const paRows = [...(paEl?.querySelectorAll(".tag-everything-fix-row") ?? [])];
@@ -1380,9 +1379,9 @@ app.workspace.trigger("file-menu", ibMenu, file("Inbox"), "file-explorer");
 const ibSub = ibMenu.sub("TagEverything");
 // EDF still lacks facture (left out above), Orange lacks both; photo and scan are no PDF.
 check("menu: Apply auto-tag rules on a folder, with the files it would tag", ibSub?.titles().includes("Apply auto-tag rules (2 files)"), ibSub?.titles().join(" | "));
-ibSub?.click("Inbox of this folder");
+ibSub?.click("Show the inbox of this folder");
 await sleep(500);
-check("menu: Inbox of this folder focuses the inbox there and shows it", plugin.settings.inboxFolder === "Inbox" && ibView.getState().tab === "inbox" && /without tags in Inbox/.test(ibEl.textContent), plugin.settings.inboxFolder + " / " + ibView.getState().tab);
+check("menu: Show the inbox of this folder focuses the inbox there and shows it", plugin.settings.inboxFolder === "Inbox" && ibView.getState().tab === "inbox" && /without tags in Inbox/.test(ibEl.textContent), plugin.settings.inboxFolder + " / " + ibView.getState().tab);
 ibEl.querySelector(".tag-everything-inbox-actions button:last-child")?.click(); // "Whole vault"
 await sleep(400);
 check("inbox: Whole vault stops the focus", plugin.settings.inboxFolder === "", plugin.settings.inboxFolder);

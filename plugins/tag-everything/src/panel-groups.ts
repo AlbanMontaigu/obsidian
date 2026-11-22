@@ -119,7 +119,7 @@ export class PanelGroups {
    * (from the Selection tab), the search becomes the new group's, so its formula's results show at once.
    */
   newGroup(expr: fx.Expr | null, run = false, section: sc.Section | null = null): void {
-    const heading = run ? "New group from this search" : section ? `New group in "${section.name}"` : "New group";
+    const heading = run ? "new group from this search" : section ? `new group in "${section.name}"` : "new group";
     new GroupModal(this.host.app, heading, "", expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (name, text) => {
       const id = await this.createGroupFrom(name, this.parseFormula(text), section?.id ?? null);
       if (run) this.host.selectGroup(id);
@@ -128,7 +128,7 @@ export class PanelGroups {
 
   /** Formula… in the Selection tab: the search as a formula, edited, then `run` (nothing is saved; an empty one: null). */
   editSearch(expr: fx.Expr | null, run: (expr: fx.Expr | null) => void): void {
-    new GroupModal(this.host.app, "Search formula", null, expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (_name, text) => {
+    new GroupModal(this.host.app, "search formula", null, expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (_name, text) => {
       run(this.parseFormula(text)); // a syntax error throws first: the dialog stays open
     }).open();
   }
@@ -137,7 +137,7 @@ export class PanelGroups {
   editGroup(group: gr.TagGroup): void {
     const expr = gr.groupExpr(group);
     const current = group.formula ?? (expr ? fx.formatFormula(expr) : "");
-    new GroupModal(this.host.app, `Edit group "${group.name}"`, group.name, current, this.formulaContext(), async (name, text) => {
+    new GroupModal(this.host.app, `edit group "${group.name}"`, group.name, current, this.formulaContext(), async (name, text) => {
       const parsed = this.parseFormula(text); // first: a syntax error keeps the dialog open, nothing saved
       await this.saveGroups(this.withFormula(gr.renameGroup(this.groups, group.id, name), group.id, parsed));
     }).open();
@@ -277,7 +277,7 @@ export class PanelGroups {
       i
         .setTitle("Rename section")
         .setIcon("pencil")
-        .onClick(() => new NameModal(host.app, "Rename section", section.name, "Section name", (name) => host.save({ tabs: sc.renameSection(this.sections, section.id, name) })).open()),
+        .onClick(() => new NameModal(host.app, "rename section", section.name, "Section name", (name) => host.save({ tabs: sc.renameSection(this.sections, section.id, name) })).open()),
     );
     menu.addItem((i) =>
       i

@@ -63,9 +63,9 @@ export function fileMenuEntries(plugin: TagEverythingPlugin, file: TAbstractFile
   const away = putAwayEntry(plugin, [file]);
   if (away) entries.push(away);
   if (file instanceof TFolder) {
-    entries.push({ title: "Inbox of this folder", icon: "inbox", run: () => void plugin.focusInbox(file.isRoot() ? "" : file.path) });
+    entries.push({ title: "Show the inbox of this folder", icon: "inbox", run: () => void plugin.focusInbox(file.isRoot() ? "" : file.path) });
     entries.push({ title: "Check tag consistency", icon: "list-checks", run: () => void plugin.checkConsistency(file) });
-    entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void plugin.writeGuide(file) });
+    entries.push({ title: "Write a guide for AI assistants (CLAUDE.md)", icon: "bot", run: () => void plugin.writeGuide(file) });
   }
   if (taggable) entries.push({ title: "Exclude from the tag engine", icon: "eye-off", run: () => void plugin.setExcluded([file.path], true) });
   return entries;
@@ -103,7 +103,7 @@ function rulesEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile[]
 function putAwayEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile[]): MenuEntry | null {
   const n = putAwayPlan(plugin, items).size;
   if (!n) return null;
-  return { title: `Put away (${plural(n, "file")})`, icon: "folder-input", run: () => void openPutAway(plugin, items) };
+  return { title: `Put away in the usual folder (${plural(n, "file")})`, icon: "folder-input", run: () => void openPutAway(plugin, items) };
 }
 
 /** The entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */
