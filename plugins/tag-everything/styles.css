@@ -261,7 +261,8 @@
   align-items: center;
 }
 
-.tag-everything-view-tags > .tag-everything-chip {
+.tag-everything-view-tags > .tag-everything-chip,
+.tag-everything-view-inherited > .tag-everything-chip {
   font-size: calc(var(--font-ui-small) * (1 + 0.4 * var(--tag-everything-weight, 0)));
   padding: 0.15em 0.6em;
 }
@@ -271,6 +272,40 @@
   flex: 1;
   min-height: 0;
   align-content: flex-start;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+/* All's Inherited section (the tags only folders give): under the tags, always in view; its own scroll past a
+   third of the panel. Its heading folds it. */
+.tag-everything-inherited-head {
+  cursor: pointer;
+}
+
+.tag-everything-inherited-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-everything-inherited-fold {
+  display: flex;
+  color: var(--text-faint);
+}
+
+.tag-everything-inherited-fold svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.tag-everything-view-inherited {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  align-content: flex-start;
+  flex-shrink: 0;
+  max-height: 33%;
   overflow-y: auto;
   padding-bottom: 8px;
 }

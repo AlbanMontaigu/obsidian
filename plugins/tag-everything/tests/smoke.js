@@ -23,6 +23,12 @@ plugin.settings.extensionTags = false;
 plugin.index.setExtensionTags(false);
 check("extension tags off: none left", !plugin.index.tagsOf("Docs/scan.pdf").includes("pdf") && !plugin.index.counts().has("md"));
 
+// Inherited tags are on by default; off until their own section below (the fixture's folder names would add tags).
+check("inherit: both settings on by default", plugin.settings.inheritFolderTags === true && plugin.settings.folderNameTags === true && plugin.index.inheritedOf("Docs/scan.pdf").includes("docs"), plugin.index.inheritedOf("Docs/scan.pdf").join());
+plugin.settings.inheritFolderTags = plugin.settings.folderNameTags = false;
+plugin.index.setInheritance({ inherit: false, folderNames: false }, plugin.settings.stopWords);
+check("inherit: off: none left", !plugin.index.inheritedOf("Docs/scan.pdf").length && !plugin.index.hasTag("Docs/scan.pdf", "docs"));
+
 // All's count range is off by default (10–100 ready in its boxes); it stays off until its section.
 check("tag count range off by default, 10–100 ready", plugin.settings.tagRangeOn === false && plugin.settings.tagRangeMin === 10 && plugin.settings.tagRangeMax === 100);
 
@@ -1710,7 +1716,6 @@ await sleep(300);
 
 // ---- inherited tags: a folder's tags and the words of its name pass to what is inside it; computed, never written,
 // drawn apart (italic, dotted, ↳). On a folder of its own, deleted at the end, both settings put back off.
-check("inherit: both settings off by default", plugin.settings.inheritFolderTags === false && plugin.settings.folderNameTags === false);
 await vault.createFolder("Inherit");
 await vault.createFolder("Inherit/2. Client Work");
 const inhMemo = await vault.create("Inherit/2. Client Work/memo.md", "plain");
@@ -1749,6 +1754,36 @@ check(
   plugin.index.inheritedFrom(inhMemo.path, "acme") === "Inherit" && plugin.index.inheritedFrom(inhMemo.path, "work") === inhSub && plugin.index.inheritedFrom(inhSub, "work") === inhSub,
 );
 check("inherit: a tag only folders give is only inherited, a stored one is not", plugin.index.onlyInherited("work") && !plugin.index.onlyInherited("acme") && !plugin.index.onlyInherited("urgent"));
+// panel All: the tags only folders give in an Inherited section of their own, under the others, open by default
+view.showAll();
+await sleep(300);
+const inhHead = () => panel().querySelector(".tag-everything-inherited-head");
+const inhSection = () => panel().querySelector(".tag-everything-view-inherited");
+const inhTagsIn = (el) => [...(el?.querySelectorAll(":scope > .tag-everything-chip") ?? [])].map((c) => c.dataset.tag);
+const mainTags = () => inhTagsIn(panel().querySelector(".tag-everything-view-tags"));
+check(
+  "inherit: section: All lists the tags only folders give under Inherited, drawn apart, not among the others; stored ones stay there",
+  inhHead()?.isShown() && inhSection()?.isShown() && ["work", "inherit"].every((t) => inhTagsIn(inhSection()).includes(t)) &&
+    [...inhSection().querySelectorAll(":scope > .tag-everything-chip")].every((c) => c.classList.contains("tag-everything-inherited")) &&
+    !mainTags().includes("work") && ["acme", "client"].every((t) => mainTags().includes(t) && !inhTagsIn(inhSection()).includes(t)), // client: stored in the fixture
+  `inherited: ${inhTagsIn(inhSection())} / main: ${mainTags()}`,
+);
+check(
+  "inherit: section: below the tags, in view",
+  inhHead().getBoundingClientRect().top >= panel().querySelector(".tag-everything-view-tags").getBoundingClientRect().bottom - 1 && inhSection().getBoundingClientRect().bottom <= panel().getBoundingClientRect().bottom + 1,
+);
+await snap("inherit-section"); // All: the tags, then the Inherited section
+inhSection().querySelector('.tag-everything-chip[data-tag="work"]')?.click();
+await sleep(300);
+check("inherit: section: a click searches the tag", view.getState().selected?.includes("work"), JSON.stringify(view.getState().selected));
+view.showAll();
+await sleep(200);
+inhHead().click();
+await sleep(300);
+check("inherit: section: its heading folds it, saved", inhHead().isShown() && !inhSection().isShown() && (await plugin.loadData())?.panelInheritedCollapsed === true);
+inhHead().click();
+await sleep(300);
+check("inherit: section: and unfolds it", inhSection().isShown() && plugin.settings.panelInheritedCollapsed === false);
 // panel: the search finds the untagged note by an inherited tag; its row draws that tag apart
 await plugin.showTag("work");
 await sleep(300);
@@ -1802,6 +1837,9 @@ plugin.settings.folderNameTags = false;
 await plugin.saveSettings();
 await sleep(300);
 check("inherit: both off: nothing inherited, the note back out of the index's tags", inh("Inherit/3. Archive/memo.md") === "" && !plugin.index.onlyInherited("archive") && !plugin.index.hasTag("Inherit/3. Archive/memo.md", "acme"));
+view.showAll();
+await sleep(300);
+check("inherit: section: hidden when no tag is only inherited", !inhHead().isShown() && !inhSection().isShown());
 await vault.delete(vault.getAbstractFileByPath("Inherit"), true);
 if (await adapter.exists("Inherit")) await adapter.rmdir("Inherit", true); // its .ts folder is invisible to the vault
 await plugin.index.rebuild();

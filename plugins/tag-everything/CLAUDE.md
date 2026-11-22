@@ -54,7 +54,7 @@ and `docs/user-guide.md` when users see it.
 
 1. A file's tags = name tags ∪ frontmatter tags (`.md` only) ∪ sidecar tags, whatever the settings. A folder's
    tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
-   `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, off by
+   `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, on by
    default; src/inherit.ts) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
    (`markInherited`). What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
    rules, inbox, consistency, put away) uses `ownTagsOf` / `counts(paths, true)`.
@@ -94,7 +94,8 @@ name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is off by default (the fixture's
 tags are used once or twice; its section turns it on); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle
-and the panel's date criteria, `dates:`);
+and the panel's date criteria, `dates:`); inherited tags (on by default) are turned off at the start and checked in
+their own section (`inherit:`, on a folder of its own, deleted after);
 Claude Code is faked (`plugin.runClaude`). It ends with the explorer under `shared AND NOT final` and the panel's
 section "Work" holding the group of its formula group search, for the screenshot.
 

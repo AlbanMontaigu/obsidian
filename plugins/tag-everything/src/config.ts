@@ -21,9 +21,9 @@ export interface TagEverythingSettings {
   stopWords: string;
   /** Every file also carries its extension as a tag (`pdf`, `md`), read from its name, never written. */
   extensionTags: boolean;
-  /** Files and folders also carry the tags of the folders they are in (src/inherit.ts): computed, never written. */
+  /** Files and folders also carry the tags of the folders they are in (src/inherit.ts): computed, never written. On by default. */
   inheritFolderTags: boolean;
-  /** A folder's name, split like a tag, is a tag of the folder and of what is in it (src/inherit.ts): never written. */
+  /** A folder's name, split like a tag, is a tag of the folder and of what is in it (src/inherit.ts): never written. On by default. */
   folderNameTags: boolean;
   showBadges: boolean;
   /** Tags without a sidecar colour get a stable colour picked from their name. */
@@ -63,6 +63,8 @@ export interface TagEverythingSettings {
   tagRangeMax: number;
   /** The panel's tag lists (All, Narrow) show the extension tags too; off: only stored tags (a tag in the search stays). */
   panelExtensionTags: boolean;
+  /** The panel's Inherited section (the tags only folders give) is folded: only its heading shows. */
+  panelInheritedCollapsed: boolean;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Sections of the panel's All tab (src/sections.ts; bookmark tabs before 0.37, same key). Edited in the panel. */
@@ -76,8 +78,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   tagRule: true,
   stopWords: DEFAULT_STOP_WORDS,
   extensionTags: true,
-  inheritFolderTags: false,
-  folderNameTags: false,
+  inheritFolderTags: true,
+  folderNameTags: true,
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
@@ -96,6 +98,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   tagRangeMin: 10,
   tagRangeMax: 100,
   panelExtensionTags: false,
+  panelInheritedCollapsed: false,
   groups: [],
   tabs: [],
 };
@@ -142,6 +145,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     tagRangeMin: int("tagRangeMin", 1, 1_000_000),
     tagRangeMax: int("tagRangeMax", 0, 1_000_000),
     panelExtensionTags: bool("panelExtensionTags"),
+    panelInheritedCollapsed: bool("panelInheritedCollapsed"),
     groups,
     tabs: normalizeSections(r.tabs, groups.map((g) => g.id)),
   };

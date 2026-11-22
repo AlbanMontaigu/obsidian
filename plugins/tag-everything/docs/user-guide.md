@@ -37,7 +37,7 @@ editor doesn't show it, *Check tag names* ignores it, and the AI assistant guide
 A name with no plain extension (`README`, more than 10 characters, or not only letters and digits) has none.
 Other fields of a sidecar or `tsm.json` (id, description, colours…) and other note properties are kept.
 
-**Inherited tags** (two settings, both off by default): an item can also carry tags because of the folders it is in.
+**Inherited tags** (two settings, both on by default; turn them off in the settings): an item can also carry tags because of the folders it is in.
 
 - *Inherit folder tags*: a folder's tags pass to every file and folder inside it, at any depth. Tag `Clients/Acme`
   with `acme` once, and every document under it is found by `acme`.
@@ -107,6 +107,10 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   under a line, with the number of tags shown), using the panel's full height, and always
   every tag with its count in the whole vault, whatever the search: the tags in the search stay in place, highlighted
   (click one to take it out).
+- **Inherited**, under *Tags* in All, always in view (its own scroll past a third of the panel): the tags only your
+  folders give (their names, Section 1), drawn as inherited, with their counts; click one to search it, as any tag.
+  Click its heading to fold it (remembered). It shows only when there are such tags; a folder name that is also a tag
+  you wrote somewhere stays in *Tags*. The filter box and the count range apply to it too.
 - **Click tags** to list the files and folders carrying all of them (AND). The panel then switches to the
   **Selection** tab (at the right end of the tab strip, with the number of items found): the search in a box at the
   top (click a tag there to take it out, **Clear** to stop), then **Narrow**: the tags that can still narrow it, all
@@ -557,8 +561,8 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along. Off: they stay under the old name, so the file loses its sidecar tags; the files of a renamed folder keep theirs (the folder's `.ts` moves with it) |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
-| Inherit folder tags | Off | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written |
-| Folder names as tags | Off | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written |
+| Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written |
+| Folder names as tags | On | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written; listed in the panel's *Inherited* section (Section 5) |
 | Colour tags automatically | On | Section 8 |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |

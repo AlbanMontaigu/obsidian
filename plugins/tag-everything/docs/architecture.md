@@ -281,7 +281,8 @@ change walks the vault once (`getAllLoadedFiles`) and keeps, per item, its store
 delete / rename then counts as a change (a new file under a tagged folder inherits). Off, the layer is the entries
 themselves: nothing is computed. Drawing: `items.ts` `markInherited` adds `tag-everything-inherited` (styles.css:
 italic, dotted, ↳) to a chip of an item's inherited tag (its tooltip says from where), or, without an item, of a tag
-only folders give.
+only folders give. The panel's All tab lists those (`onlyInherited`) in an *Inherited* section of their own under the
+tags (`view.ts` `renderInherited`, folded state in `panelInheritedCollapsed`).
 
 A scan is asynchronous: while it runs, sidecar edits, renames and deletions are both applied live and logged in
 `scanLog`, then replayed on the scan's result before the swap, so nothing that happens during a scan is lost.

@@ -73,6 +73,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** In All's Tags heading: the count range (src/ui.ts `countRangeControl`). */
   private range!: CountRangeControl;
   private tagsEl!: HTMLElement;
+  /** Under All's tags: the Inherited section (tags only folders give, src/inherit.ts), foldable, its own scroll. */
+  private inheritedHeadEl!: HTMLElement;
+  private inheritedFoldEl!: HTMLElement;
+  private inheritedCountEl!: HTMLElement;
+  private inheritedEl!: HTMLElement;
   /** In the Selection tab: the tags that can still narrow the search. */
   private refineEl!: HTMLElement;
   private selectedEl!: HTMLElement;
@@ -152,7 +157,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (evt.isComposing) return;
       if (evt.key === "Enter") {
         // the first tag shown not in the search yet, i.e. the most used one matching the filter
-        const tag = this.tagsEl.querySelector<HTMLElement>(":scope > .tag-everything-chip:not(.is-selected)")?.dataset.tag;
+        const first = (el: HTMLElement): string | undefined => el.querySelector<HTMLElement>(":scope > .tag-everything-chip:not(.is-selected)")?.dataset.tag;
+        const tag = first(this.tagsEl) ?? first(this.inheritedEl);
         if (!tag) return;
         evt.preventDefault();
         search.value = this.filter = "";
@@ -201,6 +207,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (!save) this.renderTags(); // saved: every view redraws (index "changed")
     });
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
+    this.inheritedHeadEl = root.createDiv({ cls: "tag-everything-section-head tag-everything-tags-head tag-everything-inherited-head" });
+    const title = this.inheritedHeadEl.createDiv({ cls: "tag-everything-inherited-title" });
+    this.inheritedFoldEl = title.createSpan({ cls: "tag-everything-inherited-fold" });
+    title.createSpan({ cls: "tag-everything-section-title", text: "Inherited" });
+    this.inheritedCountEl = this.inheritedHeadEl.createSpan({ cls: "tag-everything-section-count" });
+    clickable(this.inheritedHeadEl, () => {
+      this.plugin.settings.panelInheritedCollapsed = !this.plugin.settings.panelInheritedCollapsed;
+      this.renderTags();
+      this.plugin.saveSettings().catch((err) => {
+        console.error("[tag-everything] saving the Inherited section's fold failed", err);
+        new Notice("TagEverything: the option could not be saved.");
+      });
+    });
+    this.inheritedEl = root.createDiv({ cls: "tag-everything-view-inherited" });
     this.statusEl = root.createDiv({ cls: "tag-everything-view-status" });
     this.resultsEl = root.createDiv({ cls: "tag-everything-view-results" });
     this.pageEl = root.createDiv({ cls: "tag-everything-view-page" });
@@ -631,6 +651,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
    */
   private renderTags(): void {
     this.tagsEl.empty();
+    this.inheritedEl.empty();
     const index = this.plugin.index;
     const counts = index.counts();
     // The extension tags only with the option on (a tag in the search stays).
@@ -641,12 +662,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
     // and a tag in the search always stays (a click takes it out).
     const range = countRangeOf(this.plugin.settings);
     const ranged = !this.filter && range.on;
-    const rows = named
+    const kept = named
       .filter(([t, n]) => !ranged || inCountRange(n, range) || this.selected.includes(t) || this.excluded.includes(t))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    // The tags only folders give (src/inherit.ts) go to the Inherited section, under the others.
+    const rows = kept.filter(([t]) => !index.onlyInherited(t));
+    const inherited = kept.filter(([t]) => index.onlyInherited(t));
+    this.renderInherited(inherited);
     // the number of tags shown, of how many when the range hides some
-    const hidden = named.length - rows.length;
-    this.tagsCountEl.setText(hidden ? `${rows.length} of ${plural(named.length, "tag")}` : plural(rows.length, "tag"));
+    const hidden = named.filter(([t]) => !index.onlyInherited(t)).length - rows.length;
+    this.tagsCountEl.setText(hidden ? `${rows.length} of ${plural(rows.length + hidden, "tag")}` : plural(rows.length, "tag"));
     this.tagsCountEl.setAttr("aria-label", hidden ? `${plural(hidden, "tag")} outside the range ${rangeText(range)}` : null);
     this.range.update(range);
     const ext = this.plugin.settings.panelExtensionTags;
@@ -656,7 +681,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
         text: this.filter
-          ? `No tag matches "${this.filter}".`
+          ? inherited.length
+            ? `None of your own tags matches "${this.filter}": see Inherited below.`
+            : `No tag matches "${this.filter}".`
           : hidden
               ? `No tag is used ${rangeText(range)} times. Change the numbers above, or click See all.`
               : "No tags yet. Right-click a file or folder → Edit tags.",
@@ -664,6 +691,23 @@ export class TagEverythingView extends ItemView implements HoverParent {
       return;
     }
     this.cloud(this.tagsEl, rows);
+  }
+
+  /**
+   * The Inherited section of All: the tags only folders give (their names, src/inherit.ts), as a cloud of their own
+   * under the others, drawn as inherited. Hidden when there are none; its heading folds it (saved in the settings).
+   */
+  private renderInherited(rows: [string, number][]): void {
+    const show = !this.page && rows.length > 0;
+    const folded = this.plugin.settings.panelInheritedCollapsed;
+    this.inheritedHeadEl.toggle(show);
+    this.inheritedEl.toggle(show && !folded);
+    if (!show) return;
+    setIcon(this.inheritedFoldEl, folded ? "chevron-right" : "chevron-down");
+    this.inheritedCountEl.setText(plural(rows.length, "tag"));
+    this.inheritedHeadEl.setAttr("aria-label", `Tags your folders give (their names), never written. Click: ${folded ? "unfold" : "fold"}`);
+    this.inheritedHeadEl.setAttr("aria-expanded", String(!folded));
+    if (!folded) this.cloud(this.inheritedEl, rows);
   }
 
   /**
