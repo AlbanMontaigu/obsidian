@@ -43,6 +43,8 @@ export class TagEverythingSettingTab extends PluginSettingTab {
   ) {
     super(app, plugin);
     this.icon = "tags";
+    // Declarative rows take no class: styles.css finds the liaison words row (the tab's only textarea) through this one.
+    this.containerEl.addClass("tag-everything-settings");
   }
 
   getSettingDefinitions(): SettingDefinitionItem<ControlKey>[] {

@@ -881,6 +881,27 @@
   flex-wrap: wrap;
 }
 
+/* ---- settings tab: the liaison words box (its only textarea) under its label, full width */
+.tag-everything-settings .setting-item:has(textarea) {
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.tag-everything-settings .setting-item:has(textarea) .setting-item-info {
+  flex-basis: 100%;
+  margin-inline-end: 0;
+}
+
+.tag-everything-settings .setting-item:has(textarea) .setting-item-control {
+  flex-basis: 100%;
+}
+
+.tag-everything-settings .setting-item:has(textarea) textarea {
+  width: 100%;
+  min-height: 6em;
+  resize: vertical;
+}
+
 /* ---- Check tag names (naming rule): list of tags breaking it, each with its fix */
 .tag-everything-fix-summary {
   margin: 8px 0;
