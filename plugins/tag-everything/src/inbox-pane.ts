@@ -1,4 +1,4 @@
-import { ButtonComponent, TFile, setIcon } from "obsidian";
+import { ButtonComponent, Menu, TFile, setIcon } from "obsidian";
 import { MAX_SUGGEST_ITEMS } from "./suggest.ts";
 import { ageText, inboxPaths } from "./inbox.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
@@ -29,8 +29,8 @@ export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
 /**
  * The inbox, a tab of the tags panel (src/view.ts) and of the TagEverything explorer (src/explorer.ts), one instance
  * each: files with no tag that arrived in the last days (setting `inboxDays`), in one folder if `inboxFolder` is set,
- * newest first. Each row shows the tags the auto-tag rules would add (click one to leave it out) and four buttons: add
- * them, edit tags, new rule from this file, dismiss. At the top:
+ * newest first. Each row shows the tags the auto-tag rules would add (click one to leave it out) and one ⋮ icon whose
+ * menu holds its actions: add them, edit tags, suggest tags, new rule from this file, dismiss. At the top:
  * apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox as soon as it has a tag. Its
  * view redraws it on every index or vault change.
  */
@@ -122,7 +122,7 @@ export class InboxPane {
     if (!plugin.settings.rules.length) {
       el.createDiv({
         cls: "tag-everything-where",
-        text: "Auto-tag rules tag files for you, e.g. every PDF in Bank gets bank. Create one with New rule, or from a file below (its wand).",
+        text: "Auto-tag rules tag files for you, e.g. every PDF in Bank gets bank. Create one with New rule, or from a file below (its ⋮ menu).",
       });
     }
 
@@ -159,20 +159,31 @@ export class InboxPane {
         });
       }
     }
-    const buttons = row.createDiv({ cls: "tag-everything-inbox-buttons" });
-    const button = (icon: string, label: string, run: () => void): void => {
-      const b = buttons.createDiv({ cls: "clickable-icon", attr: { "aria-label": label, "data-action": icon } });
-      setIcon(b, icon);
-      clickable(b, (evt) => {
-        evt.stopPropagation();
-        run();
-      });
-    };
-    if (this.pending(file).length) button("check", "Add the rule tags", () => void this.applyRules([file]));
-    button("tags", "Edit tags…", () => plugin.editTags([file]));
-    button("sparkles", "Suggest tags with Claude Code…", () => void plugin.suggestTags([file]));
-    button("wand-sparkles", "New rule from this file…", () => new RuleModal(this.plugin.app, plugin, { folder: file.parent?.isRoot() ? "" : file.parent?.path, extensions: file.extension }).open());
-    button("x", "Dismiss: no tag needed", () => void this.dismiss(file));
+    // One icon for every action: a row of icons crowded the name.
+    const more = row.createDiv({ cls: "clickable-icon tag-everything-inbox-more", attr: { "aria-label": "Inbox actions", "data-action": "menu" } });
+    setIcon(more, "ellipsis-vertical");
+    clickable(more, (evt) => {
+      evt.stopPropagation();
+      const r = more.getBoundingClientRect(); // under the icon, from the mouse or the keyboard alike
+      this.rowMenu(file).showAtPosition({ x: r.left, y: r.bottom });
+    });
     wireItemRow(this.host, row, file);
+  }
+
+  /** The actions on one inbox file, behind the row's ⋮ icon. */
+  private rowMenu(file: TFile): Menu {
+    const { plugin } = this;
+    const menu = new Menu();
+    const item = (icon: string, title: string, run: () => void): void => {
+      menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(run));
+    };
+    const pending = this.pending(file);
+    if (pending.length) item("check", `Add the rule tags (${pending.join(", ")})`, () => void this.applyRules([file]));
+    item("tags", "Edit tags…", () => plugin.editTags([file]));
+    item("sparkles", "Suggest tags with Claude Code…", () => void plugin.suggestTags([file]));
+    item("wand-sparkles", "New rule from this file…", () => new RuleModal(plugin.app, plugin, { folder: file.parent?.isRoot() ? "" : file.parent?.path, extensions: file.extension }).open());
+    menu.addSeparator();
+    item("x", "Dismiss: no tag needed", () => void this.dismiss(file));
+    return menu;
   }
 }

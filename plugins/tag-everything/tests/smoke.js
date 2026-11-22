@@ -1117,13 +1117,28 @@ check(
 );
 check("inbox: opens, lists the new untagged files, newest first", !!ibRow("Inbox/Facture EDF.pdf") && !!ibRow("Inbox/photo.jpg") && inbox.files().slice(0, 2).every((f) => f.path.startsWith("Inbox/")), inbox?.files().slice(0, 4).map((f) => f.path).join());
 check("inbox: no rule yet: says what rules do", /Auto-tag rules tag files for you/.test(ibEl?.textContent ?? ""));
+// A row's actions are behind its one ⋮ icon: open its menu, click an item by its title.
+const ibAct = (path, title) => {
+  document.querySelectorAll(".menu").forEach((m) => m.remove());
+  ibRow(path)?.querySelector('[data-action="menu"]')?.click();
+  const items = [...document.querySelectorAll(".menu .menu-item")];
+  items.find((m) => m.textContent.startsWith(title))?.click();
+  return items.map((m) => m.textContent);
+};
+const ibMenuTitles = ibAct("Inbox/Facture EDF.pdf", "(none)");
+document.querySelectorAll(".menu").forEach((m) => m.remove());
+check(
+  "inbox: a row has one ⋮ icon, its menu holds the actions",
+  ibRow("Inbox/Facture EDF.pdf")?.querySelectorAll(".clickable-icon").length === 1 && ibMenuTitles.join() === "Edit tags…,Suggest tags with Claude Code…,New rule from this file…,Dismiss: no tag needed",
+  ibMenuTitles.join(" | "),
+);
 const realSuggestTags = plugin.suggestTags;
 let ibSuggested = null;
 plugin.suggestTags = (items) => ((ibSuggested = items.map((f) => f.path)), null); // the dialog itself is checked under suggest:
-ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="sparkles"]')?.click();
+ibAct("Inbox/Facture EDF.pdf", "Suggest tags");
 plugin.suggestTags = realSuggestTags;
-check("inbox: a row's sparkles suggests tags for that file", ibSuggested?.join() === "Inbox/Facture EDF.pdf", JSON.stringify(ibSuggested));
-ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="wand-sparkles"]')?.click();
+check("inbox: a row's Suggest tags suggests tags for that file", ibSuggested?.join() === "Inbox/Facture EDF.pdf", JSON.stringify(ibSuggested));
+ibAct("Inbox/Facture EDF.pdf", "New rule from this file");
 await sleep(200);
 const ruleEl = document.querySelector(".tag-everything-rule-modal");
 const ruleInputs = [...(ruleEl?.querySelectorAll("input") ?? [])];
@@ -1140,11 +1155,11 @@ check("inbox: the row shows the rule's tags", ibChip("energie")?.hasClass("is-se
 ibChip("facture").click();
 await sleep(300);
 check("inbox: a rule tag clicked is left out", !ibChip("facture")?.hasClass("is-selected"));
-ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="check"]')?.click();
+const ibAddTitles = ibAct("Inbox/Facture EDF.pdf", "Add the rule tags");
 await waitFor(() => !!file("Inbox/Facture EDF[energie].pdf"));
 await sleep(300);
-check("inbox: ✓ adds the rule tags left on, the file leaves the inbox", !!file("Inbox/Facture EDF[energie].pdf") && !ibRow("Inbox/Facture EDF[energie].pdf"));
-ibRow("Inbox/photo.jpg")?.querySelector('[data-action="x"]')?.click();
+check("inbox: Add the rule tags (first in the menu, names them) adds those left on, the file leaves the inbox", ibAddTitles[0] === "Add the rule tags (energie)" && !!file("Inbox/Facture EDF[energie].pdf") && !ibRow("Inbox/Facture EDF[energie].pdf"), ibAddTitles.join(" | "));
+ibAct("Inbox/photo.jpg", "Dismiss");
 await sleep(400);
 check("inbox: dismissed, saved", !ibRow("Inbox/photo.jpg") && (await plugin.loadData())?.inboxDismissed?.includes("Inbox/photo.jpg"));
 // focused on one folder (setting inboxFolder), also the Inbox tab of the TagEverything explorer
@@ -1172,7 +1187,7 @@ exIbTab()?.click();
 await sleep(200);
 check(
   "explorer: the Inbox tab holds the inbox (rule actions on its rows), the search box and tree hidden, saved",
-  !!exIbRow("Inbox/scan.png")?.querySelector('[data-action="x"]') && exIbTab()?.hasClass("is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-bar").isShown() && exIb.getState().tab === "inbox",
+  !!exIbRow("Inbox/scan.png")?.querySelector('[data-action="menu"]') && exIbTab()?.hasClass("is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-bar").isShown() && exIb.getState().tab === "inbox",
   exIb?.contentEl.textContent.slice(0, 200),
 );
 await settingTab.setControlValue("inboxFolder", "Nowhere");

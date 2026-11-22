@@ -1244,13 +1244,8 @@
   position: relative;
 }
 
-.tag-everything-inbox-buttons {
-  display: flex;
+.tag-everything-inbox-more {
   align-self: flex-start;
-  gap: 2px;
-}
-
-.tag-everything-inbox-buttons .clickable-icon {
   padding: 2px;
 }
 

@@ -228,7 +228,7 @@ view): open it with the ribbon `list-tree` icon or the command *Open the tag exp
 file explorer.
 
 It has two tabs at the top: **Tags**, the tree described below, and **Inbox**, with the number of files waiting:
-the inbox of Section 13, the same as the panel's Inbox tab (rule tags, ✓, dismiss), so you can empty it right next to
+the inbox of Section 13, the same as the panel's Inbox tab (rule tags, the ⋮ menu of actions), so you can empty it right next to
 your folders. The tab shown is remembered across restarts.
 
 - At the top, a **search box** that takes a formula, as the panel's group formulas do (§6): tags with AND, OR, NOT
@@ -370,9 +370,10 @@ inbox as soon as it has a tag.
   number of files waiting; everything below works there too.
 
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
-  the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
-  icon opens the tag editor, the sparkles ask Claude Code for tags for this file (Section 9), the wand creates a rule from this file (its folder and extension filled in), **×**
-  dismisses it (no tag needed; *Settings → Show dismissed files again* brings them back).
+  the tags your **rules** would add (dashed; click one to leave it out). On the right, one **⋮** icon opens its
+  actions: *Add the rule tags* (named; only when there are some), *Edit tags…*, *Suggest tags with Claude Code…*
+  (Section 9), *New rule from this file…* (its folder and extension filled in), *Dismiss: no tag needed*
+  (*Settings → Show dismissed files again* brings them back).
 - At the top: **Apply rules to N files** adds every row's rule tags at once; **Suggest tags** asks Claude Code for
   tags for the newest 50 (Section 9); **New rule** creates a rule.
 
