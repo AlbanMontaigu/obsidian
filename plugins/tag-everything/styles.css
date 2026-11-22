@@ -400,12 +400,15 @@
 
 .tag-everything-tags-head {
   flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 4px;
   min-height: var(--input-height);
   padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
 }
 
 .tag-everything-section-count {
+  white-space: nowrap;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }
@@ -418,16 +421,21 @@
   letter-spacing: 0.05em;
 }
 
-/* The tag count range (src/ui.ts countRangeControl): "used [10]–[100] See all", in All's Tags heading and under the
-   explorer's search box. Off (See all pressed): the numbers fade, still editable. */
+/* The tag count range (src/ui.ts countRangeControl): "used [10] to [100] times  See all", in All's Tags heading and under the
+   explorer's search box. Off (See all pressed): the numbers fade, still editable. In a narrow panel the heading wraps
+   and the range goes on its own line, flush right. */
 .tag-everything-tags-head-end {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  margin-left: auto;
 }
 
 .tag-everything-range {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
   color: var(--text-faint);

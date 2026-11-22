@@ -23,7 +23,7 @@ const g1 = await view.createGroup("Clients", ["client", "shared"]);
 const g2 = await view.createGroup("Formula");
 await view.setGroupFormula(g2, "(shared OR B27) AND NOT final");
 view.showTab(null);
-// The tag count range on (the gallery's tags are used a few times, not 10 to 100): "used [2]–[∞]".
+// The tag count range on (the gallery's tags are used a few times, not 10 to 100): "used [2] to [∞] times".
 plugin.settings.tagRangeMin = 2;
 plugin.settings.tagRangeMax = 0;
 plugin.settings.tagRangeOn = true;

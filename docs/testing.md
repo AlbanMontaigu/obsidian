@@ -25,7 +25,9 @@ those targeting what was modified and what it can affect**, never every test eac
   change and of what it affects: `npm run smoke -- <id> --only "explorer|inbox"` (a regular expression on check
   names, case ignored) still runs every check but prints only the matching ones, every failure, console errors and
   one count line (`3 check(s) matched; 290/290 ok in all`), not the 200+ `ok` lines. Run it
-  again only to confirm a fix of a smoke failure. CSS-only change: one gallery shot of the screen touched instead.
+  again only to confirm a fix of a smoke failure. CSS-only change, or a label / wording change: no smoke run and no
+  new `check()` (a check on a string tests nothing), one gallery shot of the screen touched instead (a second only if
+  that shot showed something to fix). Count the Obsidian launches before you start: each one is the cost.
 - **Full non-regression run** (`npm run typecheck`, `npm test` for all plugins, `npm run smoke -- <id>`, the plugin's
   read-only vault checks): only when it is really needed: a **minor or major** version, a change to a module many
   others use (the write path, the index, the format), when the owner asks, or when the last full run is several

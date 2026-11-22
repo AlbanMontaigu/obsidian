@@ -676,7 +676,7 @@ await sleep(200);
 await sleep(200);
 check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-everything-group.is-active"));
 
-// ---- the tag count range in All: "used [10]–[100] See all" in the Tags heading. A number typed applies at once (the box
+// ---- the tag count range in All: "used [10] to [100] times  See all" in the Tags heading. A number typed applies at once (the box
 // keeps the focus), Enter / leaving the box saves; See all shows every tag. Tags in the search, and every tag while
 // filtering by name, stay.
 {

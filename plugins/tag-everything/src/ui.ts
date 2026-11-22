@@ -119,7 +119,7 @@ export interface CountRangeControl {
 
 /**
  * The tag count range as two number boxes and a See all switch, for the panel's All tab and the explorer's root:
- * "used [10]–[100] See all". A readable number typed changes the range at once (`change(r, false)`: redraw the tags,
+ * "used [10] to [100] times  See all" (a sentence: two bare boxes read as nothing). A readable number typed changes the range at once (`change(r, false)`: redraw the tags,
  * the box keeps the focus) and turns See all off; Enter, Escape or leaving the box commits it (`change(r, true)`: save),
  * an unreadable one goes back to the last readable value. See all shows every tag and keeps the numbers.
  */
@@ -162,9 +162,10 @@ export function countRangeControl(parent: HTMLElement, initial: CountRange, chan
     boxes.push(input);
     return input;
   };
-  const min = box("min", "Fewest uses of a tag shown", "1");
-  el.createSpan({ cls: "tag-everything-range-dash", text: "–" });
-  const max = box("max", "Most uses of a tag shown (empty: no limit)", "∞");
+  const min = box("min", "Minimum: hide the tags used fewer times", "1");
+  el.createSpan({ cls: "tag-everything-range-label", text: "to" });
+  const max = box("max", "Maximum: hide the tags used more times (empty: no limit)", "∞");
+  el.createSpan({ cls: "tag-everything-range-label", text: "times" });
   const all = el.createEl("button", { cls: "tag-everything-range-all", text: "See all" });
   all.addEventListener("click", () => {
     current = { ...current, on: !current.on };
