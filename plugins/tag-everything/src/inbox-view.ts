@@ -14,7 +14,23 @@ export const INBOX_VIEW_TYPE = "tag-everything-inbox";
 const MAX_INBOX_ROWS = 200;
 
 /**
- * The inbox: files with no tag that arrived in the last days (setting `inboxDays`), newest first. Each row shows the
+ * The files of the inbox (settings `inboxDays`, `inboxFolder`, `inboxDismissed`), newest first: listed by this view
+ * and by the Inbox node of the TagEverything explorer.
+ */
+export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
+  const { index, settings, app } = plugin;
+  const candidates = app.vault
+    .getFiles()
+    .filter((f) => f.name !== GUIDE_FILE)
+    .map((f) => ({ path: f.path, ctime: f.stat.ctime, tagged: index.ownTagsOf(f.path).length > 0 }));
+  return inboxPaths(candidates, Date.now(), settings.inboxDays, new Set(settings.inboxDismissed), settings.inboxFolder)
+    .map((p) => app.vault.getAbstractFileByPath(p))
+    .filter((f): f is TFile => f instanceof TFile);
+}
+
+/**
+ * The inbox: files with no tag that arrived in the last days (setting `inboxDays`), in one folder if `inboxFolder` is
+ * set, newest first. Each row shows the
  * tags the auto-tag rules would add (click one to leave it out) and four buttons: add them, edit tags, new rule from
  * this file, dismiss. At the top: apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox
  * as soon as it has a tag.
@@ -62,14 +78,7 @@ export class TagInboxView extends ItemView implements HoverParent {
 
   /** The files of the inbox, newest first (public for the smoke test). */
   files(): TFile[] {
-    const { index, settings } = this.plugin;
-    const candidates = this.app.vault
-      .getFiles()
-      .filter((f) => f.name !== GUIDE_FILE)
-      .map((f) => ({ path: f.path, ctime: f.stat.ctime, tagged: index.ownTagsOf(f.path).length > 0 }));
-    return inboxPaths(candidates, Date.now(), settings.inboxDays, new Set(settings.inboxDismissed))
-      .map((p) => this.app.vault.getAbstractFileByPath(p))
-      .filter((f): f is TFile => f instanceof TFile);
+    return inboxFiles(this.plugin);
   }
 
   /** The rule tags of a file, without those left out. */
@@ -103,6 +112,8 @@ export class TagInboxView extends ItemView implements HoverParent {
     el.empty();
     const files = this.files();
     const days = plural(plugin.settings.inboxDays, "day");
+    const folder = plugin.settings.inboxFolder;
+    const where = folder ? ` in ${folder}` : "";
     const withRules = files.filter((f) => this.pending(f).length);
 
     const bar = el.createDiv({ cls: "tag-everything-inbox-bar" });
@@ -111,9 +122,13 @@ export class TagInboxView extends ItemView implements HoverParent {
       text: !plugin.index.ready
         ? "Reading tags…"
         : files.length
-          ? `${plural(files.length, "file")} without tags from the last ${days}.`
-          : `Inbox zero: every file from the last ${days} has tags.`,
+          ? `${plural(files.length, "file")} without tags${where} from the last ${days}.`
+          : `Inbox zero: every file${where} from the last ${days} has tags.`,
     });
+    // The folder matches without case or accents, so an exact lookup that misses may still list files: warn only if none.
+    if (folder && !files.length && !this.app.vault.getFolderByPath(folder)) {
+      el.createDiv({ cls: "tag-everything-where", text: `No folder ${folder} in the vault: check the inbox folder in the settings.` });
+    }
     const actions = bar.createDiv({ cls: "tag-everything-inbox-actions" });
     if (withRules.length) {
       new ButtonComponent(actions)

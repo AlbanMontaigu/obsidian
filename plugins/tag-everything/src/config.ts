@@ -5,7 +5,7 @@ import type { StorageMode } from "./format.ts";
 import { type TagGroup, cleanTagList, normalizeGroups } from "./groups.ts";
 import { type BookmarkTab, normalizeTabs } from "./tabs.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
-import { type AutoTagRule, normalizeRules } from "./inbox.ts";
+import { type AutoTagRule, cleanFolder, normalizeRules } from "./inbox.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -36,6 +36,8 @@ export interface TagEverythingSettings {
   autoApplyRules: boolean;
   /** The inbox lists the untagged files that arrived in the last this many days. */
   inboxDays: number;
+  /** The inbox lists only the files inside this vault folder, at any depth ("" = the whole vault). */
+  inboxFolder: string;
   /** Paths the user dismissed from the inbox (no tag needed). */
   inboxDismissed: string[];
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
@@ -60,6 +62,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   rules: [],
   autoApplyRules: false,
   inboxDays: 30,
+  inboxFolder: "",
   inboxDismissed: [],
   groups: [],
   tabs: [],
@@ -92,6 +95,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     rules: normalizeRules(r.rules),
     autoApplyRules: bool("autoApplyRules"),
     inboxDays: typeof r.inboxDays === "number" && Number.isInteger(r.inboxDays) && r.inboxDays >= 1 && r.inboxDays <= 365 ? r.inboxDays : d.inboxDays,
+    inboxFolder: typeof r.inboxFolder === "string" ? cleanFolder(r.inboxFolder) : d.inboxFolder,
     inboxDismissed: cleanTagList(r.inboxDismissed),
     groups,
     tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),

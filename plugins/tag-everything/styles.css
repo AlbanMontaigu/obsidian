@@ -808,6 +808,10 @@
   color: var(--tag-everything-color, var(--text-faint));
 }
 
+.tag-everything-explorer-row.is-inbox .tag-everything-explorer-icon {
+  color: var(--interactive-accent);
+}
+
 .tag-everything-explorer-row .tag-everything-ext {
   margin-right: 0;
   flex: none;

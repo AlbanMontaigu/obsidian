@@ -7,6 +7,7 @@ import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
 import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
+import { inboxFiles } from "./inbox-view.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -25,9 +26,10 @@ export const EXPLORER_ICON_SVG =
   '<path d="M12 15.5h8a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-8L10 18Z"/><circle cx="13" cy="18" r="0.6"/>' +
   "</svg>";
 
-/** What the explorer remembers across restarts (workspace.json): the open tag nodes, each as its trail of tags. */
+/** What the explorer remembers across restarts (workspace.json): the open tag nodes, each as its trail of tags, and the Inbox node. */
 interface ExplorerState {
   expanded: string[][];
+  inbox: boolean;
 }
 
 /** A node's key in `expanded`: its trail, joined by a character no tag holds. */
@@ -40,12 +42,15 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
  * tags are on every file, so they are the chip before a name, not a branch. Every file of the vault can show,
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
  * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed, a
- * picked tag becomes a chip with a ×): the tree then holds only the matching items.
+ * picked tag becomes a chip with a ×): the tree then holds only the matching items. Above the tags, while no formula
+ * is applied, an Inbox node holds the files of the inbox (untagged, arrived lately: src/inbox-view.ts `inboxFiles`).
  */
 export class TagExplorerView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
   /** Open tag nodes, by `keyOf(trail)`. */
   private expanded = new Map<string, string[]>();
+  /** The Inbox node is open. */
+  private inboxOpen = false;
   /** The file open in the editor: highlighted. */
   private activePath: string | null = null;
   /**
@@ -135,6 +140,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     setIcon(collapse, "chevrons-down-up");
     clickable(collapse, () => {
       this.expanded.clear();
+      this.inboxOpen = false;
       this.stateChanged();
     });
     this.statusEl = root.createDiv({ cls: "tag-everything-explorer-status" });
@@ -156,7 +162,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
   }
 
   getState(): Record<string, unknown> {
-    const state: ExplorerState = { expanded: [...this.expanded.values()] };
+    const state: ExplorerState = { expanded: [...this.expanded.values()], inbox: this.inboxOpen };
     return { ...super.getState(), ...state };
   }
 
@@ -170,6 +176,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
         if (trail.length) this.expanded.set(keyOf(trail), trail);
       }
     }
+    if (typeof s.inbox === "boolean") this.inboxOpen = s.inbox;
     this.render();
     await super.setState(state, result);
   }
@@ -178,6 +185,12 @@ export class TagExplorerView extends ItemView implements HoverParent {
   toggle(trail: readonly string[]): void {
     const key = keyOf(trail);
     if (!this.expanded.delete(key)) this.expanded.set(key, [...trail]);
+    this.stateChanged();
+  }
+
+  /** Opens or closes the Inbox node (public for the smoke test). */
+  toggleInbox(): void {
+    this.inboxOpen = !this.inboxOpen;
     this.stateChanged();
   }
 
@@ -239,6 +252,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
+    if (!expr) this.renderInbox(this.treeEl);
     const root = this.renderNode(this.treeEl, [], paths);
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
@@ -269,6 +283,36 @@ export class TagExplorerView extends ItemView implements HoverParent {
       setIcon(x, "x");
       clickable(x, () => this.removeChip(tag));
     });
+  }
+
+  /** The Inbox node, first in the tree and only while it holds files: the inbox's files, newest first, as item rows. */
+  private renderInbox(parent: HTMLElement): void {
+    const files = inboxFiles(this.plugin);
+    if (!files.length) return;
+    const { inboxDays, inboxFolder } = this.plugin.settings;
+    const box = parent.createDiv({ cls: "tree-item" });
+    box.toggleClass("is-collapsed", !this.inboxOpen);
+    const row = box.createDiv({ cls: "tree-item-self is-clickable mod-collapsible tag-everything-explorer-row is-inbox" });
+    row.setAttr("aria-expanded", String(this.inboxOpen));
+    setTooltip(row, `Files without tags${inboxFolder ? ` in ${inboxFolder}` : ""} from the last ${plural(inboxDays, "day")}. Right-click: open the inbox`);
+    const arrow = row.createDiv({ cls: "tree-item-icon collapse-icon" });
+    arrow.toggleClass("is-collapsed", !this.inboxOpen);
+    setIcon(arrow, "right-triangle");
+    const inner = row.createDiv({ cls: "tree-item-inner" });
+    setIcon(inner.createSpan({ cls: "tag-everything-explorer-icon" }), "inbox");
+    inner.createSpan({ cls: "tag-everything-explorer-name", text: "Inbox" });
+    row.createDiv({ cls: "tree-item-flair-outer" }).createSpan({ cls: "tree-item-flair", text: String(files.length) });
+    clickable(row, () => this.toggleInbox());
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const menu = new Menu();
+      menu.addItem((i) => i.setTitle("Open the inbox").setIcon("inbox").onClick(() => void this.plugin.openInbox()));
+      menu.showAtMouseEvent(evt);
+    });
+    if (!this.inboxOpen) return;
+    const children = box.createDiv({ cls: "tree-item-children" });
+    for (const file of files.slice(0, MAX_RESULTS)) this.itemRow(children, file);
+    if (files.length > MAX_RESULTS) children.createDiv({ cls: "tag-everything-explorer-more", text: `…and ${plural(files.length - MAX_RESULTS, "more file")}` });
   }
 
   /**

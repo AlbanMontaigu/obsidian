@@ -64,6 +64,12 @@ test("inboxPaths: untagged, arrived in the last days, not dismissed, newest firs
   assert.deepEqual(inboxPaths(files, now, 30, new Set(["gone.pdf"])), ["b.pdf", "a.pdf"]);
 });
 
+test("inboxPaths: focused on a folder, at any depth, case and accents ignored, whole segments", () => {
+  const files = ["Scans/a.pdf", "scans/2025/b.pdf", "ScansOld/c.pdf", "d.pdf", "Other/Scans/e.pdf"].map((path) => ({ path, ctime: 1, tagged: false }));
+  assert.deepEqual(inboxPaths(files, 1, 30, new Set(), "/Scáns/"), ["scans/2025/b.pdf", "Scans/a.pdf"]);
+  assert.equal(inboxPaths(files, 1, 30, new Set(), "").length, 5, "empty = the whole vault");
+});
+
 test("ageText", () => {
   assert.equal(ageText(10_000), "just now");
   assert.equal(ageText(5 * 60_000), "5 min");

@@ -72,6 +72,9 @@ test("normalizeSettings: inbox and auto-tag rules repaired, off by default", () 
   assert.deepEqual(s.inboxDismissed, ["a.pdf"]);
   assert.deepEqual(s.rules.map((r) => r.id), ["r1"]);
   assert.equal(normalizeSettings({ inboxDays: 7 }).inboxDays, 7);
+  assert.equal(d.inboxFolder, "");
+  assert.equal(normalizeSettings({ inboxFolder: 3 }).inboxFolder, "");
+  assert.equal(normalizeSettings({ inboxFolder: " \\Downloads\\Scans/ " }).inboxFolder, "Downloads/Scans");
 });
 
 test("claudeTook: time and cost when known", () => {

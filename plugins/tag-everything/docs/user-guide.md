@@ -242,6 +242,9 @@ Files behave as in the panel's results: click to open (Ctrl/Cmd-click or middle-
 their default app; a tagged folder is shown in the file explorer), Ctrl/Cmd + hover for a preview, drag into a note
 to link it, right-click for the file menu. A tag lists at most 500 files.
 
+Above the tags, an **Inbox** node holds the files of the inbox (Section 13: no tag, arrived lately, in the inbox
+folder if one is set), newest first, while the search box is empty.
+
 ## 11. Query blocks: live lists in your notes
 
 A `tag-everything` code block in any note lists, live, the files and folders matching a tag formula (the formula
@@ -317,6 +320,13 @@ The inbox lists the files **without tags that arrived lately** (created in the v
 *Days in the inbox*), newest first: open it with the ribbon `inbox` icon or the command *Open the inbox (files
 without tags)*. A file leaves the inbox as soon as it has a tag.
 
+- **Focus on one folder**: *Settings → Inbox → Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and
+  accents ignored; empty = the whole vault). The inbox then lists only the files there and says so at the top. Rules
+  and *Tag new files with the rules automatically* still work everywhere.
+- **In the TagEverything explorer** (Section 10): the same files show under an **Inbox** node, first in the tree,
+  with their count, while the search box is empty and the inbox is not empty. Click it to open it; right-click →
+  *Open the inbox* for the full view (rule tags, ✓, dismiss).
+
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
   the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
   icon opens the tag editor, the wand creates a rule from this file (its folder and extension filled in), **×**
@@ -364,7 +374,7 @@ the inbox; one notice says what was tagged. Tags go where new tags go (Section 1
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
 | Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
-| Inbox | | *Open the inbox*; *Days in the inbox* (30); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
+| Inbox | | *Open the inbox*; *Days in the inbox* (30); *Inbox folder* (empty: the whole vault); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
 | Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
 | Tag maintenance | | Buttons: *Review tags* (Section 12), *Check and fix tag names*, *Re-read all tags* |
 

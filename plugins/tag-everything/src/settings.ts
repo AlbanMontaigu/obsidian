@@ -144,6 +144,12 @@ export class TagEverythingSettingTab extends PluginSettingTab {
             control: { type: "number", key: "inboxDays", min: 1, max: 365, placeholder: "30" },
           },
           {
+            name: "Inbox folder",
+            desc: "Focus the inbox on one folder (its subfolders included), e.g. Downloads/Scans. Empty: the whole vault. Auto-tag rules still apply everywhere.",
+            aliases: ["focus", "folder", "scope"],
+            control: { type: "text", key: "inboxFolder", placeholder: "Whole vault" },
+          },
+          {
             name: "Tag new files with the rules automatically",
             desc: "A file created in the vault (download, scan, copy) gets the tags of the rules it matches at once, without going through the inbox. A PDF or Office file is renamed when its tags go in the file name.",
             aliases: ["auto-tag", "automatic"],

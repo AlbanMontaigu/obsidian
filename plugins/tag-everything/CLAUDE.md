@@ -24,7 +24,7 @@ matching a formula. **Rename or merge a tag** everywhere (tag menu, command) and
 locally, synonyms by Claude Code from the tag list alone with no tool, tags used once) rewrite the vault through the
 same engine as *Check tag names*. The **inbox** lists the untagged files that arrived lately with the tags the
 **auto-tag rules** (folder / words of the name / extension → tags) would add; a setting applies them to new files as
-they are created.
+they are created, another focuses it on one folder; its files also show under an *Inbox* node atop the explorer.
 
 ## Where to change what
 
@@ -41,7 +41,7 @@ they are created.
 | What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see *Known limits*) |
-| Inbox, auto-tag rules, auto-tag on arrival | `inbox.ts` (pure), `inbox-view.ts`, `rule-modal.ts`, `main.ts` `ruleTagsOf` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-view.ts` (`inboxFiles`, also the explorer's Inbox node), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -87,7 +87,7 @@ and `docs/user-guide.md` when users see it.
   `mergeMapping` (into kept, chains, conflicts, cycles), `cleanSynonyms` (spelling, unknown dropped, into put to the
   rule, a tag in one group), the synonym prompt.
 - `tests/inbox.test.ts`: rule matching (folder segment, words without the name's tags, accents, extensions, no
-  condition = nothing), `rulesTags`, `normalizeRules`, save / delete / describe, the inbox list, `ageText`.
+  condition = nothing), `rulesTags`, `normalizeRules`, save / delete / describe, the inbox list, focused on a folder, `ageText`.
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item; inside a tag, a tag on several items is a branch,
   an item alone under a tag shows directly, a tag on every item is no branch; from the parent's paths = from the
   vault, dead end), name order, folders first, the
@@ -99,7 +99,9 @@ and `docs/user-guide.md` when users see it.
   note's frontmatter), review (look-alike group ticked, typo unticked, rare tags; Claude Code faked: no tool, the tag
   list in the prompt, its group unticked with cost; *Change 4 tags* renames names and rewrites frontmatter), inbox
   (new untagged files first; a rule from a row's wand, prefilled, live preview, saved; rule chips, one left out, ✓
-  adds the rest and the file leaves; dismiss saved; the settings list; with `autoApplyRules` a created PDF is renamed
+  adds the rest and the file leaves; dismiss saved; the *Inbox folder* row: focused on `inbox/` (case, slashes) lists only its file and says where, the
+  explorer's Inbox node first with its count, opens on the file, `getState().inbox`; a missing folder said, the
+  empty node hidden; the settings list; with `autoApplyRules` a created PDF is renamed
   with its rule tags). Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the

@@ -912,6 +912,33 @@ check("inbox: ✓ adds the rule tags left on, the file leaves the inbox", !!file
 ibRow("Inbox/photo.jpg")?.querySelector('[data-action="x"]')?.click();
 await sleep(400);
 check("inbox: dismissed, saved", !ibRow("Inbox/photo.jpg") && (await plugin.loadData())?.inboxDismissed?.includes("Inbox/photo.jpg"));
+// focused on one folder (setting inboxFolder), shown at the top of the TagEverything explorer
+const ibFolderDef = settingTab?.getSettingDefinitions().find((d) => d.heading === "Inbox")?.items?.find((i) => i.control?.key === "inboxFolder");
+check("settings: the inbox folder row", ibFolderDef?.name === "Inbox folder" && ibFolderDef.control.type === "text", JSON.stringify(ibFolderDef));
+await vault.create("Inbox/scan.png", "");
+await settingTab.setControlValue("inboxFolder", " inbox/ "); // case ignored, slashes trimmed
+await sleep(300);
+check(
+  "inbox: focused on a folder, lists only its files, says where",
+  plugin.settings.inboxFolder === "inbox" && inbox.files().map((f) => f.path).join() === "Inbox/scan.png" && !!ibRow("Inbox/scan.png") && /1 file without tags in inbox from the last 30 days/.test(ibEl.textContent),
+  inbox.files().map((f) => f.path).join() + " / " + ibEl.querySelector(".tag-everything-inbox-status")?.textContent,
+);
+const exIb = await plugin.openExplorer();
+await sleep(300);
+const exIbNode = () => exIb?.contentEl.querySelector(".tag-everything-explorer-tree > .tree-item > .tag-everything-explorer-row.is-inbox");
+check(
+  "explorer: an Inbox node first in the tree, with the inbox's count",
+  exIb?.contentEl.querySelector(".tag-everything-explorer-tree .tree-item-self") === exIbNode() && exIbNode()?.querySelector(".tree-item-flair")?.textContent === "1",
+  exIb?.contentEl.querySelector(".tag-everything-explorer-tree")?.innerHTML.slice(0, 300),
+);
+exIbNode()?.click();
+await sleep(200);
+check("explorer: the Inbox node opens on the inbox's files", !!exIbNode()?.parentElement.querySelector(':scope > .tree-item-children .tag-everything-explorer-row[data-path="Inbox/scan.png"]') && exIb.getState().inbox === true);
+await settingTab.setControlValue("inboxFolder", "Nowhere");
+await sleep(300);
+check("inbox: a focus folder not in the vault is said; the explorer hides an empty Inbox node", /No folder Nowhere in the vault/.test(ibEl.textContent) && !exIbNode(), ibEl.textContent.slice(0, 200));
+await settingTab.setControlValue("inboxFolder", "");
+exIb?.toggleInbox();
 const ruleDefs = settingTab?.getSettingDefinitions().find((d) => d.heading === "Auto-tag rules");
 check("settings: the rules listed, with add and delete", ruleDefs?.type === "list" && ruleDefs.items?.[0]?.name === "In Inbox · name has facture · pdf → energie facture" && !!ruleDefs.addItem && !!ruleDefs.onDelete, ruleDefs?.items?.map((i) => i.name).join());
 plugin.settings.autoApplyRules = true;
@@ -1011,7 +1038,7 @@ check("explorer: its own tag-tree icon on the sidebar tab", exTabIcon?.querySele
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 const exKey = (r) => r.dataset.tag ?? r.dataset.path;
-const exTop = () => [...exEl.querySelectorAll(".tag-everything-explorer-tree > .tree-item > .tree-item-self")].map(exKey);
+const exTop = () => [...exEl.querySelectorAll(".tag-everything-explorer-tree > .tree-item > .tree-item-self:not(.is-inbox)")].map(exKey);
 const tagRow = (...trail) => [...exEl.querySelectorAll(".tag-everything-explorer-row.is-tag")].find((r) => r.dataset.trail === trail.join("\u001f"));
 // a tag row's children (Obsidian's tree classes: .tree-item > .tree-item-self + .tree-item-children); null when closed
 const childrenOf = (row) => {

@@ -31,6 +31,12 @@ export function cleanFolder(text: string): string {
   return text.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
 }
 
+/** Is `path` inside `folder`, at any depth? Case and accents ignored, a folder is whole path segments; "" = anywhere. */
+export function inFolder(path: string, folder: string): boolean {
+  const f = foldTag(cleanFolder(folder));
+  return !f || foldTag(path).startsWith(`${f}/`);
+}
+
 /** True when the rule has at least one condition: a rule without any would tag every file of the vault. */
 export function hasCondition(rule: Pick<AutoTagRule, "folder" | "words" | "extensions">): boolean {
   return !!(cleanFolder(rule.folder) || wordList(rule.words).length || wordList(rule.extensions).length);
@@ -59,9 +65,7 @@ export function normalizeRules(raw: unknown): AutoTagRule[] {
 /** Does the rule apply to the file at `path`? Its name is read without its tags and extension. */
 export function ruleMatches(rule: AutoTagRule, path: string): boolean {
   if (!hasCondition(rule)) return false;
-  const folder = foldTag(cleanFolder(rule.folder));
-  const p = foldTag(path);
-  if (folder && !p.startsWith(`${folder}/`)) return false;
+  if (!inFolder(path, rule.folder)) return false;
   const name = path.slice(path.lastIndexOf("/") + 1);
   const exts = wordList(rule.extensions);
   if (exts.length && !exts.includes(extensionTag(name) ?? "")) return false;
@@ -115,12 +119,12 @@ export interface InboxCandidate {
 
 /**
  * The inbox: files with no stored tag that arrived (were created in the vault) in the last `days` days, newest first,
- * without those the user dismissed.
+ * without those the user dismissed; only those inside `folder` when it is set (the inbox focused on one folder).
  */
-export function inboxPaths(files: readonly InboxCandidate[], now: number, days: number, dismissed: ReadonlySet<string>): string[] {
+export function inboxPaths(files: readonly InboxCandidate[], now: number, days: number, dismissed: ReadonlySet<string>, folder = ""): string[] {
   const since = now - days * DAY_MS;
   return files
-    .filter((f) => !f.tagged && f.ctime >= since && !dismissed.has(f.path))
+    .filter((f) => !f.tagged && f.ctime >= since && !dismissed.has(f.path) && inFolder(f.path, folder))
     .sort((a, b) => b.ctime - a.ctime || a.path.localeCompare(b.path))
     .map((f) => f.path);
 }
