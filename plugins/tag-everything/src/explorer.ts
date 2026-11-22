@@ -7,7 +7,7 @@ import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
 import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
-import { inboxFiles } from "./inbox-pane.ts";
+import { InboxPane } from "./inbox-pane.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -26,10 +26,13 @@ export const EXPLORER_ICON_SVG =
   '<path d="M12 15.5h8a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-8L10 18Z"/><circle cx="13" cy="18" r="0.6"/>' +
   "</svg>";
 
-/** What the explorer remembers across restarts (workspace.json): the open tag nodes, each as its trail of tags, and the Inbox node. */
+/** The explorer's two tabs: the tag tree, the inbox. */
+export type ExplorerTab = "tags" | "inbox";
+
+/** What the explorer remembers across restarts (workspace.json): the open tag nodes, each as its trail of tags, and the tab shown. */
 interface ExplorerState {
   expanded: string[][];
-  inbox: boolean;
+  tab: ExplorerTab;
 }
 
 /** A node's key in `expanded`: its trail, joined by a character no tag holds. */
@@ -42,15 +45,17 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
  * tags are on every file, so they are the chip before a name, not a branch. Every file of the vault can show,
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
  * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed, a
- * picked tag becomes a chip with a ×): the tree then holds only the matching items. Above the tags, while no formula
- * is applied, an Inbox node holds the files of the inbox (untagged, arrived lately: src/inbox-pane.ts `inboxFiles`).
+ * picked tag becomes a chip with a ×): the tree then holds only the matching items. A second tab, Inbox, holds the
+ * inbox (untagged files arrived lately, with their rule tags and actions), drawn by its own src/inbox-pane.ts `InboxPane`.
  */
 export class TagExplorerView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
   /** Open tag nodes, by `keyOf(trail)`. */
   private expanded = new Map<string, string[]>();
-  /** The Inbox node is open. */
-  private inboxOpen = false;
+  /** The tab shown. */
+  private tab: ExplorerTab = "tags";
+  /** The Inbox tab's content (public for the smoke test). */
+  readonly inbox: InboxPane;
   /** The file open in the editor: highlighted. */
   private activePath: string | null = null;
   /**
@@ -62,6 +67,9 @@ export class TagExplorerView extends ItemView implements HoverParent {
   /** The box's last valid formula (kept while it holds a syntax error) and the formula applied at the last render. */
   private parsed: Expr | null = null;
   private applied: Expr | null = null;
+  private tabsEl!: HTMLElement;
+  private barEl!: HTMLElement;
+  private pageEl!: HTMLElement;
   private chipsEl!: HTMLElement;
   private inputEl!: HTMLInputElement;
   private statusEl!: HTMLElement;
@@ -74,6 +82,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     private plugin: TagEverythingPlugin,
   ) {
     super(leaf);
+    this.inbox = new InboxPane(plugin, this.rowHost());
   }
 
   getViewType(): string {
@@ -98,7 +107,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
     root.empty();
     root.addClass("tag-everything-explorer");
 
-    const bar = root.createDiv({ cls: "tag-everything-explorer-bar" });
+    this.tabsEl = root.createDiv({ cls: "tag-everything-tabs tag-everything-explorer-tabs", attr: { role: "tablist" } });
+    const bar = (this.barEl = root.createDiv({ cls: "tag-everything-explorer-bar" }));
     // looks like one input: the chips, then the text being typed
     const box = bar.createDiv({ cls: "tag-everything-explorer-search" });
     this.chipsEl = box.createDiv({ cls: "tag-everything-formula" });
@@ -140,11 +150,11 @@ export class TagExplorerView extends ItemView implements HoverParent {
     setIcon(collapse, "chevrons-down-up");
     clickable(collapse, () => {
       this.expanded.clear();
-      this.inboxOpen = false;
       this.stateChanged();
     });
     this.statusEl = root.createDiv({ cls: "tag-everything-explorer-status" });
     this.treeEl = root.createDiv({ cls: "tag-everything-explorer-tree" });
+    this.pageEl = root.createDiv({ cls: "tag-everything-explorer-page" });
 
     const redraw = (): void => void this.requestRender();
     this.registerEvent(this.plugin.index.on("changed", redraw));
@@ -162,7 +172,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
   }
 
   getState(): Record<string, unknown> {
-    const state: ExplorerState = { expanded: [...this.expanded.values()], inbox: this.inboxOpen };
+    const state: ExplorerState = { expanded: [...this.expanded.values()], tab: this.tab };
     return { ...super.getState(), ...state };
   }
 
@@ -176,7 +186,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
         if (trail.length) this.expanded.set(keyOf(trail), trail);
       }
     }
-    if (typeof s.inbox === "boolean") this.inboxOpen = s.inbox;
+    if (s.tab === "tags" || s.tab === "inbox") this.tab = s.tab;
     this.render();
     await super.setState(state, result);
   }
@@ -188,9 +198,11 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** Opens or closes the Inbox node (public for the smoke test). */
-  toggleInbox(): void {
-    this.inboxOpen = !this.inboxOpen;
+  /** Shows a tab: the tag tree or the inbox. */
+  showTab(tab: ExplorerTab): void {
+    if (this.tab === tab) return;
+    this.tab = tab;
+    this.contentEl.scrollTop = 0;
     this.stateChanged();
   }
 
@@ -246,13 +258,22 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.requestRender.cancel();
     const index = this.plugin.index;
     const scroll = this.contentEl.scrollTop; // a redraw after a tag change must not jump to the top
+    const inbox = this.tab === "inbox";
+    this.renderTabs();
+    for (const el of [this.barEl, this.statusEl, this.treeEl]) el.toggle(!inbox);
+    this.pageEl.toggle(inbox);
     this.treeEl.empty();
+    this.pageEl.empty();
+    if (inbox) {
+      this.inbox.render(this.pageEl);
+      this.contentEl.scrollTop = scroll;
+      return;
+    }
     this.renderChips();
     const search = treeSearch(joinFormula(this.chips, this.query), [...index.counts().keys()], this.parsed ?? this.chips);
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
-    if (!expr) this.renderInbox(this.treeEl);
     const root = this.renderNode(this.treeEl, [], paths);
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
@@ -285,34 +306,22 @@ export class TagExplorerView extends ItemView implements HoverParent {
     });
   }
 
-  /** The Inbox node, first in the tree and only while it holds files: the inbox's files, newest first, as item rows. */
-  private renderInbox(parent: HTMLElement): void {
-    const files = inboxFiles(this.plugin);
-    if (!files.length) return;
-    const { inboxDays, inboxFolder } = this.plugin.settings;
-    const box = parent.createDiv({ cls: "tree-item" });
-    box.toggleClass("is-collapsed", !this.inboxOpen);
-    const row = box.createDiv({ cls: "tree-item-self is-clickable mod-collapsible tag-everything-explorer-row is-inbox" });
-    row.setAttr("aria-expanded", String(this.inboxOpen));
-    setTooltip(row, `Files without tags${inboxFolder ? ` in ${inboxFolder}` : ""} from the last ${plural(inboxDays, "day")}. Right-click: open the inbox`);
-    const arrow = row.createDiv({ cls: "tree-item-icon collapse-icon" });
-    arrow.toggleClass("is-collapsed", !this.inboxOpen);
-    setIcon(arrow, "right-triangle");
-    const inner = row.createDiv({ cls: "tree-item-inner" });
-    setIcon(inner.createSpan({ cls: "tag-everything-explorer-icon" }), "inbox");
-    inner.createSpan({ cls: "tag-everything-explorer-name", text: "Inbox" });
-    row.createDiv({ cls: "tree-item-flair-outer" }).createSpan({ cls: "tree-item-flair", text: String(files.length) });
-    clickable(row, () => this.toggleInbox());
-    row.addEventListener("contextmenu", (evt) => {
-      evt.preventDefault();
-      const menu = new Menu();
-      menu.addItem((i) => i.setTitle("Open the inbox").setIcon("inbox").onClick(() => void this.plugin.openInbox()));
-      menu.showAtMouseEvent(evt);
-    });
-    if (!this.inboxOpen) return;
-    const children = box.createDiv({ cls: "tree-item-children" });
-    for (const file of files.slice(0, MAX_RESULTS)) this.itemRow(children, file);
-    if (files.length > MAX_RESULTS) children.createDiv({ cls: "tag-everything-explorer-more", text: `…and ${plural(files.length - MAX_RESULTS, "more file")}` });
+  /** The tab strip: Tags, then Inbox with the number of files waiting. */
+  private renderTabs(): void {
+    this.tabsEl.empty();
+    const tabEl = (tab: ExplorerTab, icon: string, text: string, label: string): HTMLElement => {
+      const active = this.tab === tab;
+      const t = this.tabsEl.createDiv({ cls: `tag-everything-tab tag-everything-explorer-tab-${tab}`, attr: { role: "tab", "aria-label": label, "aria-selected": String(active) } });
+      setIcon(t.createSpan({ cls: "tag-everything-tab-icon" }), icon);
+      t.createSpan({ text });
+      t.toggleClass("is-active", active);
+      clickable(t, () => this.showTab(tab));
+      return t;
+    };
+    tabEl("tags", "tags", "Tags", "The vault as a tree of tags");
+    const waiting = this.inbox.files().length;
+    const inbox = tabEl("inbox", "inbox", "Inbox", `${plural(waiting, "file")} without tags that arrived lately`);
+    if (waiting) inbox.createSpan({ cls: "tag-everything-chip-count", text: String(waiting) });
   }
 
   /**

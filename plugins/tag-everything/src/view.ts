@@ -902,18 +902,24 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const taken = [...this.selected, ...this.excluded, ...(group?.tags ?? [])];
     const rows = narrowingTags(this.plugin.index.counts(matches), matches.length, taken);
     if (!rows.length) return;
-    this.refineEl.createDiv({ cls: "tag-everything-view-scope", text: "Narrow the selection, counted in it:" });
-    this.cloud(this.refineEl, rows);
+    const head = this.refineEl.createDiv({ cls: "tag-everything-section-head tag-everything-refine-head" });
+    head.createSpan({ cls: "tag-everything-section-title", text: "Narrow" });
+    head.createSpan({ cls: "tag-everything-section-count", text: `counted in the ${plural(matches.length, "item")}` });
+    // one size: the counts already rank them, and a cloud's big chips crowd the results out
+    this.cloud(this.refineEl.createDiv({ cls: "tag-everything-refine-chips" }), rows, false);
   }
 
-  /** Tag chips sized by use among `rows`, each with its count: a click puts it in the search (or takes it out). */
-  private cloud(parent: HTMLElement, rows: [string, number][]): void {
-    const weights = cloudWeights(rows);
+  /**
+   * Tag chips with their count, sized by use among `rows` unless `sized` is false: a click puts one in the search
+   * (or takes it out).
+   */
+  private cloud(parent: HTMLElement, rows: [string, number][], sized = true): void {
+    const weights = sized ? cloudWeights(rows) : new Map<string, number>();
     for (const [tag, n] of rows) {
       const on = this.selected.includes(tag);
       const not = this.excluded.includes(tag);
       const el = this.chip(parent, tag, [n ? "" : "is-missing", on || not ? "is-selected" : "", not ? "is-negated" : ""].join(" "));
-      el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
+      if (sized) el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       if (on || not) el.setAttr("aria-label", "In the search: click to take it out (right-click: more)");
       if (n || on || not) clickable(el, () => this.toggle(tag));
@@ -926,6 +932,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.resultsEl.empty();
     const index = this.plugin.index;
     const total = index.size;
+    this.statusEl.toggleClass("tag-everything-section-head", !!matches);
     if (!matches) {
       this.statusEl.setText(
         this.activeGroup
@@ -939,7 +946,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
       .map((p) => vault.getAbstractFileByPath(p))
       .filter((f): f is TAbstractFile => !!f)
       .sort((a, b) => Number(a instanceof TFile) - Number(b instanceof TFile) || a.path.localeCompare(b.path));
-    this.statusEl.setText(plural(items.length, "item") + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : ""));
+    // a titled section, as Narrow above it
+    this.statusEl.empty();
+    this.statusEl.createSpan({ cls: "tag-everything-section-title", text: "Results" });
+    this.statusEl.createSpan({ cls: "tag-everything-section-count", text: plural(items.length, "item") + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : "") });
 
     const small = (t: string): string => "is-small" + (this.selected.includes(t) ? " is-selected" : "");
     for (const item of items.slice(0, MAX_RESULTS)) {

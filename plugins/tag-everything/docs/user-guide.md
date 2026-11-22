@@ -89,10 +89,10 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   every tag with its count in the whole vault, whatever the search: the tags in the search stay in place, highlighted
   (click one to take it out).
 - **Click tags** to list the files and folders carrying all of them (AND). The panel then switches to the
-  **Selection** tab (at the right end of the tab strip, with the number of items found): the search at the top
-  (click a tag there to take it out, **Clear** to stop), then the tags that can still narrow it, counted in what it
-  finds (only those on some of the items found, not on all of them: a tag on every one would change nothing; click
-  one to add it to the search), the results below. **Σ Formula…**, next to **Clear** on the line under the search, opens the search in the group
+  **Selection** tab (at the right end of the tab strip, with the number of items found): the search in a box at the
+  top (click a tag there to take it out, **Clear** to stop), then **Narrow**: the tags that can still narrow it, all
+  the same size, counted in what it finds (only those on some of the items found, not on all of them: a tag on every
+  one would change nothing; click one to add it to the search), then **Results** with their number. **Σ Formula…**, next to **Clear** on the line under the search, opens the search in the group
   dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
   runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.
@@ -218,6 +218,10 @@ read your files and suggest tags for them:
 Your vault as a **tree of tags**, in the left sidebar next to Obsidian's file explorer (which keeps the folder
 view): open it with the ribbon `list-tree` icon or the command *Open the tag explorer*. It looks and indents like the
 file explorer.
+
+It has two tabs at the top: **Tags**, the tree described below, and **Inbox**, with the number of files waiting:
+the inbox of Section 13, the same as the panel's Inbox tab (rule tags, ✓, dismiss), so you can empty it right next to
+your folders. The tab shown is remembered across restarts.
 
 - At the top, a **search box** that takes a formula, as the panel's group formulas do (§6): tags with AND, OR, NOT
   (or ET, OU, NON) and parentheses, e.g. `tax AND NOT receipt`; two tags side by side = AND. While you type a tag,
@@ -350,9 +354,8 @@ inbox as soon as it has a tag.
   Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and accents ignored; empty = the whole vault). The
   inbox then lists only the files there and says so at the top; its **Whole vault** button stops the focus. Rules and
   *Tag new files with the rules automatically* still work everywhere.
-- **In the TagEverything explorer** (Section 10): the same files show under an **Inbox** node, first in the tree,
-  with their count, while the search box is empty and the inbox is not empty. Click it to open it; right-click →
-  *Open the inbox* for the panel's Inbox tab (rule tags, ✓, dismiss).
+- **In the TagEverything explorer** (Section 10): the same inbox is its **Inbox** tab, next to *Tags*, with the
+  number of files waiting; everything below works there too.
 
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
   the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag

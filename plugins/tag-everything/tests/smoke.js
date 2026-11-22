@@ -557,13 +557,22 @@ check("selection tab: clicking it shows the search again", selTab().classList.co
 check("selection tab: one item, no tag to narrow it", !panel().querySelector(".tag-everything-view-refine .tag-everything-chip"));
 view.selectOnly("shared");
 await sleep(200);
-const refineChips = () => [...panel().querySelectorAll(".tag-everything-view-refine > .tag-everything-chip")];
+const refineChips = () => [...panel().querySelectorAll(".tag-everything-view-refine .tag-everything-refine-chips > .tag-everything-chip")];
 const sharedN = results();
 const refineOk = refineChips().length > 0 && refineChips().every((c) => {
   const n = Number(c.querySelector(".tag-everything-chip-count").textContent);
   return c.dataset.tag !== "shared" && n > 0 && n < sharedN;
 });
 check("selection tab: the tags that narrow it, counted in it", shown(".tag-everything-view-refine") && refineOk, refineChips().map((c) => c.textContent).join() + ` / ${sharedN}`);
+// one size: no cloud weight (the fixture's counts are too close to tell sizes apart)
+const sizes = new Set(refineChips().map((c) => getComputedStyle(c).fontSize + (c.style.getPropertyValue("--tag-everything-weight") ? " weighted" : "")));
+check(
+  "selection tab: titled sections Narrow and Results with their counts, narrowing chips one size, the search in a card",
+  panel().querySelector(".tag-everything-refine-head")?.textContent === `Narrowcounted in the ${sharedN} items` &&
+    panel().querySelector(".tag-everything-view-status.tag-everything-section-head")?.textContent === `Results${sharedN} items` &&
+    sizes.size === 1 && ![...sizes][0].endsWith("weighted") && getComputedStyle(panel().querySelector(".tag-everything-view-selected")).borderTopStyle === "solid",
+  panel().querySelector(".tag-everything-refine-head")?.textContent + " / " + panel().querySelector(".tag-everything-view-status")?.textContent + " / " + [...sizes].join(),
+);
 const narrowTag = refineChips()[0]?.dataset.tag;
 refineChips()[0]?.click();
 await sleep(200);
@@ -623,7 +632,7 @@ view.selectOnly("shared");
 await sleep(100);
 panel().querySelector(".tag-everything-view-clear").click();
 await sleep(100);
-check("selection tab: gone once the search is cleared, back on All", !selTab() && allTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && !panel().querySelector(".tag-everything-view-scope"));
+check("selection tab: gone once the search is cleared, back on All", !selTab() && allTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && !panel().querySelector(".tag-everything-refine-head"));
 await sleep(100);
 const searchLabel = () => groupEl("Formula").querySelector(".tag-everything-group-search-label")?.textContent;
 check("groups: the search button is labelled", searchLabel() === "Search", searchLabel());
@@ -1022,7 +1031,7 @@ check("inbox: ✓ adds the rule tags left on, the file leaves the inbox", !!file
 ibRow("Inbox/photo.jpg")?.querySelector('[data-action="x"]')?.click();
 await sleep(400);
 check("inbox: dismissed, saved", !ibRow("Inbox/photo.jpg") && (await plugin.loadData())?.inboxDismissed?.includes("Inbox/photo.jpg"));
-// focused on one folder (setting inboxFolder), shown at the top of the TagEverything explorer
+// focused on one folder (setting inboxFolder), also the Inbox tab of the TagEverything explorer
 const ibFolderDef = settingTab?.getSettingDefinitions().find((d) => d.heading === "Inbox")?.items?.find((i) => i.control?.key === "inboxFolder");
 check("settings: the inbox folder row", ibFolderDef?.name === "Inbox folder" && ibFolderDef.control.type === "text", JSON.stringify(ibFolderDef));
 await vault.create("Inbox/scan.png", "");
@@ -1035,20 +1044,30 @@ check(
 );
 const exIb = await plugin.openExplorer();
 await sleep(300);
-const exIbNode = () => exIb?.contentEl.querySelector(".tag-everything-explorer-tree > .tree-item > .tag-everything-explorer-row.is-inbox");
+const exIbTab = () => exIb?.contentEl.querySelector(".tag-everything-explorer-tabs > .tag-everything-explorer-tab-inbox");
+const exIbRow = (path) => exIb?.contentEl.querySelector(`.tag-everything-explorer-page .tag-everything-inbox-row[data-path="${path}"]`);
 check(
-  "explorer: an Inbox node first in the tree, with the inbox's count",
-  exIb?.contentEl.querySelector(".tag-everything-explorer-tree .tree-item-self") === exIbNode() && exIbNode()?.querySelector(".tree-item-flair")?.textContent === "1",
-  exIb?.contentEl.querySelector(".tag-everything-explorer-tree")?.innerHTML.slice(0, 300),
+  "explorer: two tabs, Tags (shown) then Inbox with the inbox's count",
+  [...(exIb?.contentEl.querySelectorAll(".tag-everything-explorer-tabs > .tag-everything-tab") ?? [])].map((t) => t.textContent).join() === "Tags,Inbox1" &&
+    exIb.contentEl.querySelector(".tag-everything-explorer-tab-tags.is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-tree .is-inbox"),
+  exIb?.contentEl.querySelector(".tag-everything-explorer-tabs")?.textContent,
 );
-exIbNode()?.click();
+exIbTab()?.click();
 await sleep(200);
-check("explorer: the Inbox node opens on the inbox's files", !!exIbNode()?.parentElement.querySelector(':scope > .tree-item-children .tag-everything-explorer-row[data-path="Inbox/scan.png"]') && exIb.getState().inbox === true);
+check(
+  "explorer: the Inbox tab holds the inbox (rule actions on its rows), the search box and tree hidden, saved",
+  !!exIbRow("Inbox/scan.png")?.querySelector('[data-action="x"]') && exIbTab()?.hasClass("is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-bar").isShown() && exIb.getState().tab === "inbox",
+  exIb?.contentEl.textContent.slice(0, 200),
+);
 await settingTab.setControlValue("inboxFolder", "Nowhere");
 await sleep(300);
-check("inbox: a focus folder not in the vault is said; the explorer hides an empty Inbox node", /No folder Nowhere in the vault/.test(ibEl.textContent) && !exIbNode(), ibEl.textContent.slice(0, 200));
+check(
+  "inbox: a focus folder not in the vault is said, in the panel and in the explorer's Inbox tab (no count)",
+  /No folder Nowhere in the vault/.test(ibEl.textContent) && /No folder Nowhere in the vault/.test(exIb.contentEl.textContent) && exIbTab()?.textContent === "Inbox",
+  ibEl.textContent.slice(0, 200),
+);
 await settingTab.setControlValue("inboxFolder", "");
-exIb?.toggleInbox();
+exIb?.showTab("tags");
 // Targeted actions in the folder menu: its inbox, the rules on the files below it.
 await vault.create("Inbox/Facture Orange.pdf", "");
 await sleep(300);
@@ -1257,7 +1276,7 @@ check("explorer: its own tag-tree icon on the sidebar tab", exTabIcon?.querySele
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 const exKey = (r) => r.dataset.tag ?? r.dataset.path;
-const exTop = () => [...exEl.querySelectorAll(".tag-everything-explorer-tree > .tree-item > .tree-item-self:not(.is-inbox)")].map(exKey);
+const exTop = () => [...exEl.querySelectorAll(".tag-everything-explorer-tree > .tree-item > .tree-item-self")].map(exKey);
 const tagRow = (...trail) => [...exEl.querySelectorAll(".tag-everything-explorer-row.is-tag")].find((r) => r.dataset.trail === trail.join("\u001f"));
 // a tag row's children (Obsidian's tree classes: .tree-item > .tree-item-self + .tree-item-children); null when closed
 const childrenOf = (row) => {

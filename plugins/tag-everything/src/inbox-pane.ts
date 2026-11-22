@@ -12,8 +12,8 @@ import type TagEverythingPlugin from "./main.ts";
 const MAX_INBOX_ROWS = 200;
 
 /**
- * The files of the inbox (settings `inboxDays`, `inboxFolder`, `inboxDismissed`), newest first: listed by this view
- * and by the Inbox node of the TagEverything explorer.
+ * The files of the inbox (settings `inboxDays`, `inboxFolder`, `inboxDismissed`), newest first: listed by
+ * `InboxPane`, counted on the Inbox tabs of the panel and of the TagEverything explorer.
  */
 export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
   const { index, settings, app } = plugin;
@@ -27,11 +27,12 @@ export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
 }
 
 /**
- * The inbox, a tab of the tags panel (src/view.ts): files with no tag that arrived in the last days (setting
- * `inboxDays`), in one folder if `inboxFolder` is set, newest first. Each row shows the tags the auto-tag rules would
- * add (click one to leave it out) and four buttons: add them, edit tags, new rule from this file, dismiss. At the top:
- * apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox as soon as it has a tag. The
- * panel redraws it on every index or vault change.
+ * The inbox, a tab of the tags panel (src/view.ts) and of the TagEverything explorer (src/explorer.ts), one instance
+ * each: files with no tag that arrived in the last days (setting `inboxDays`), in one folder if `inboxFolder` is set,
+ * newest first. Each row shows the tags the auto-tag rules would add (click one to leave it out) and four buttons: add
+ * them, edit tags, new rule from this file, dismiss. At the top:
+ * apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox as soon as it has a tag. Its
+ * view redraws it on every index or vault change.
  */
 export class InboxPane {
   /** Rule tags the user left out, per path: not added. */

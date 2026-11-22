@@ -25,7 +25,7 @@ await view.setGroupFormula(g2, "(shared OR B27) AND NOT final");
 view.showTab(null);
 await sleep(300);
 await snap("panel-all");
-view.selectOnly("shared");
+view.selectOnly("md"); // on every note of the gallery vault: results and tags to narrow them
 await sleep(300);
 await snap("panel-selection");
 view.selectGroup(g2);
@@ -39,7 +39,7 @@ await sleep(300);
 await snap("dialog-group-edit");
 await closeModals();
 view.selectGroup(g2); // stop
-view.selectOnly("shared");
+view.selectOnly("md");
 await sleep(200);
 document.querySelector(".tag-everything-view-formula")?.click();
 await sleep(300);
@@ -110,10 +110,15 @@ await sleep(400);
 if (document.querySelector(".tag-everything-rule-modal")) await snap("dialog-rule");
 await closeModals();
 
-// Explorer.
-await plugin.openExplorer();
+// Explorer: its Tags tab, then its Inbox tab.
+const explorer = await plugin.openExplorer();
+explorer?.showTab("tags");
 await sleep(500);
 await snap("view-explorer");
+explorer?.showTab("inbox");
+await sleep(500);
+await snap("view-explorer-inbox");
+explorer?.showTab("tags");
 
 // Settings: top, then each section.
 app.setting.open();

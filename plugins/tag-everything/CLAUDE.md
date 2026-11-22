@@ -24,7 +24,7 @@ matching a formula. **Rename or merge a tag** everywhere (tag menu, command) and
 locally, synonyms by Claude Code from the tag list alone with no tool, tags used once) rewrite the vault through the
 same engine as *Check tag names*. The **inbox** (a tab of the panel) lists the untagged files that arrived lately with the tags the
 **auto-tag rules** (folder / words of the name / extension → tags) would add; a setting applies them to new files as
-they are created, another (or a folder's menu) focuses it on one folder; its files also show under an *Inbox* node atop the explorer.
+they are created, another (or a folder's menu) focuses it on one folder; the explorer has it too, as its *Inbox* tab next to *Tags*.
 The rules also run on demand: a file / folder / selection menu, or the panel's **Tools** tab for the vault, which
 holds every vault-wide action (re-read, apply rules, check names, review, rename). UI surfaces follow the root rule:
 explorers, the *TagEverything* context submenu, the panel (tags, Selection, Inbox, Tools) and the settings (options). Files and folders can be
@@ -46,7 +46,7 @@ their tags kept on disk, an eye-off icon in the file explorer.
 | What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see *Known limits*) |
-| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, also the explorer's Inbox node and the tab count), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab counts; `InboxPane`, drawn in the Inbox tab of the panel and of the explorer), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
 | Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
@@ -112,8 +112,8 @@ and `docs/user-guide.md` when users see it.
   list in the prompt, its group unticked with cost; *Change 4 tags* renames names and rewrites frontmatter), inbox
   (a tab of the panel, active, its count on the tab, no inbox view or ribbon icon; new untagged files first; a rule from a row's wand, prefilled, live preview, saved; rule chips, one left out, ✓
   adds the rest and the file leaves; dismiss saved; the *Inbox folder* row: focused on `inbox/` (case, slashes) lists only its file and says where, the
-  explorer's Inbox node first with its count, opens on the file, `getState().inbox`; a missing folder said, the
-  empty node hidden; the folder menu's *Apply auto-tag rules (2 files)* and *Inbox of this folder* (focus, tab shown), *Whole vault* undoes it;
+  explorer's tabs *Tags* then *Inbox* with its count, its Inbox tab holding the inbox's rows with their actions, bar
+  and tree hidden, `getState().tab`; a missing folder said in both, the count gone; the folder menu's *Apply auto-tag rules (2 files)* and *Inbox of this folder* (focus, tab shown), *Whole vault* undoes it;
   the Tools tab: its five actions, *Apply to 2 files* tags them and is then disabled, re-read notice, check dialog;
   a 0.27 inbox sidebar leaf closed by `closeOldInbox`; the settings list; with `autoApplyRules` a created PDF is renamed
   with its rule tags); exclusions (the folder menu's *Exclude from the tag engine* drops `Projects` and everything under
@@ -136,7 +136,7 @@ and `docs/user-guide.md` when users see it.
   saved state, the Selection tab: a selected tag switches to it with search and results only, All shows only groups
   and every tag with its vault count, the selected one marked (a click there takes it out); with one item no narrowing
   tag, with `shared` the narrowing tags (on some items, not all, not `shared`) and a click on one narrows and stays
-  in Selection; its *Σ Formula…* button (with Clear on their own line under the search) opens the group dialog with the search and the operator buttons, OR inserted
+  in Selection; the sections *Narrow* and *Results* titled with their counts, narrowing chips without cloud weight, the search in a card; its *Σ Formula…* button (with Clear on their own line under the search) opens the group dialog with the search and the operator buttons, OR inserted
   with its spaces, live count, saved as a group whose search runs at once, *Edit group* on a group search; gone once cleared, labelled group search button "Search", then "Selection" on the group searching (opens the Selection tab, search kept), *⋯ → Stop the search* clears it, draggable results, hover source), bookmark tabs (+ creates and shows one,
   bookmark by dropping a tag and a group on the tab and through the tag menu, All unchanged, a tab shows only its bookmarks, `data.json` and panel state, a group
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a
@@ -158,7 +158,7 @@ and `docs/user-guide.md` when users see it.
   bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
-- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs including Tools and Inbox, a group searching (accent header band), group / name / tag / check /
+- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs including Tools and Inbox, the explorer's two tabs, a group searching (accent header band), group / name / tag / check /
   rename / review / suggest / rule dialogs, explorer, each settings section in the settings window) to
   `dist/tag-everything-*.png`: `npm run smoke -- tag-everything --script gallery`, then look at them after any UI
   change. Every dialog carries `.tag-everything-dialog` (styles.css *Dialogs*: the title in a header band of `--background-secondary`, 24px margins, muted intro, section headings, padded

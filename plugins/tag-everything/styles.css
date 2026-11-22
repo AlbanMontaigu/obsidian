@@ -220,7 +220,7 @@
 }
 
 .tag-everything-view-selected,
-.tag-everything-view-refine,
+.tag-everything-refine-chips,
 .tag-everything-view-tags {
   display: flex;
   flex-wrap: wrap;
@@ -229,12 +229,11 @@
 
 /* Tag cloud: --tag-everything-weight (0..1, from src/cloud.ts) scales a chip between the normal chip size (floor,
    the least used tags stay readable) and 1.4x that size (ceiling, no giant tags). */
-.tag-everything-view-refine,
+.tag-everything-refine-chips,
 .tag-everything-view-tags {
   align-items: center;
 }
 
-.tag-everything-view-refine > .tag-everything-chip,
 .tag-everything-view-tags > .tag-everything-chip {
   font-size: calc(var(--font-ui-small) * (1 + 0.4 * var(--tag-everything-weight, 0)));
   padding: 0.15em 0.6em;
@@ -249,24 +248,47 @@
   padding-bottom: 8px;
 }
 
-/* Selection tab: the narrowing tags above the results, which keep most of the height. */
+/* Selection tab: the search in a card, then the titled sections Narrow (one-size chips) and Results, which keep
+   most of the height. */
+.tag-everything-view-selected {
+  flex-shrink: 0;
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary-alt);
+}
+
+.tag-everything-view-selected:empty {
+  display: none;
+}
+
 .tag-everything-view-refine {
   flex-shrink: 0;
   max-height: 35%;
   overflow-y: auto;
-  align-content: flex-start;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
 }
 
 .tag-everything-view-refine:empty {
   display: none;
 }
 
-.tag-everything-view-scope {
-  flex-basis: 100%;
-  color: var(--text-muted);
+.tag-everything-refine-chips {
+  align-content: flex-start;
+  gap: 6px;
+}
+
+.tag-everything-refine-chips > .tag-everything-chip {
   font-size: var(--font-ui-smaller);
+  padding: 2px 8px;
+}
+
+/* Results: a heading under a line, rows set apart by a faint line */
+.tag-everything-view-status.tag-everything-section-head {
+  padding-top: var(--size-4-2);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 /* Selection tab: Formula… and Clear on their own line under the search, with room around them. */
@@ -275,7 +297,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin: 8px 0 6px;
+  margin-top: var(--size-4-2);
 }
 
 .tag-everything-view-formula,
@@ -311,9 +333,13 @@
 .tag-everything-result {
   display: flex;
   gap: 8px;
-  padding: 6px 4px;
+  padding: 8px 6px;
   border-radius: var(--radius-s);
   cursor: pointer;
+}
+
+.tag-everything-view-results > .tag-everything-result + .tag-everything-result {
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .tag-everything-result:hover {
@@ -746,15 +772,22 @@
   padding-bottom: 8px;
 }
 
-/* Tools tab (src/tools-pane.ts): settings-like rows, narrow enough for a sidebar */
-.tag-everything-tools .setting-item {
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 0;
+/* Tools tab (src/tools-pane.ts): one bordered card per action, as the group cards, narrow enough for a sidebar */
+.tag-everything-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding-top: var(--size-4-2);
 }
 
-.tag-everything-tools .setting-item:first-child {
-  border-top: none;
+.tag-everything-tools .setting-item {
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin: 0;
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary-alt);
 }
 
 .tag-everything-tools .setting-item-info {
@@ -893,6 +926,17 @@
   padding: var(--size-4-2) var(--size-4-2) var(--size-4-4);
 }
 
+/* the explorer's tabs: Tags, Inbox (with its count) */
+.tag-everything-explorer-tabs {
+  margin-bottom: var(--size-4-2);
+}
+
+.tag-everything-explorer-tabs > .tag-everything-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .tag-everything-explorer-bar {
   display: flex;
   align-items: center;
@@ -975,10 +1019,6 @@
 
 .tag-everything-explorer-row.is-tag .tag-everything-explorer-icon {
   color: var(--tag-everything-color, var(--text-faint));
-}
-
-.tag-everything-explorer-row.is-inbox .tag-everything-explorer-icon {
-  color: var(--interactive-accent);
 }
 
 .tag-everything-explorer-row .tag-everything-ext {
@@ -1124,7 +1164,7 @@
   color: var(--text-muted);
 }
 
-/* ---- Inbox tab of the panel (src/inbox-pane.ts): untagged files that arrived lately, with the tags the rules would add */
+/* ---- Inbox tab of the panel and of the explorer (src/inbox-pane.ts): untagged files that arrived lately, with the tags the rules would add */
 .tag-everything-inbox {
   display: flex;
   flex-direction: column;
