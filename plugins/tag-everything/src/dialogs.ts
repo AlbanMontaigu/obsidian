@@ -1,6 +1,6 @@
-// Small dialogs of the TagEverything panel: a name (group, bookmark tab) and a group's search formula.
+// Small dialogs and input completions: a name (group, bookmark tab), a group's search formula; tag and folder completion.
 
-import { AbstractInputSuggest, App, Modal } from "obsidian";
+import { AbstractInputSuggest, App, Modal, TFolder } from "obsidian";
 import * as fx from "./formula.ts";
 import { plural } from "./messages.ts";
 import { matchTags, onEnter, renderTagSuggestion } from "./ui.ts";
@@ -92,6 +92,35 @@ export class FormulaTagSuggest extends AbstractInputSuggest<string> {
     this.close();
     this.input.dispatchEvent(new Event("input")); // refreshes the preview
     this.onPick?.();
+  }
+}
+
+/** Completes a vault folder path in a text box (the auto-tag rule dialog). */
+export class FolderSuggest extends AbstractInputSuggest<TFolder> {
+  constructor(
+    app: App,
+    private input: HTMLInputElement,
+  ) {
+    super(app, input);
+  }
+
+  protected getSuggestions(query: string): TFolder[] {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return this.app.vault
+      .getAllLoadedFiles()
+      .filter((f): f is TFolder => f instanceof TFolder && !f.isRoot() && f.path.toLowerCase().includes(q))
+      .slice(0, 50);
+  }
+
+  renderSuggestion(folder: TFolder, el: HTMLElement): void {
+    el.setText(folder.path);
+  }
+
+  selectSuggestion(folder: TFolder): void {
+    this.setValue(folder.path);
+    this.close();
+    this.input.dispatchEvent(new Event("input")); // refreshes the preview
   }
 }
 

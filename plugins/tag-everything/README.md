@@ -24,6 +24,12 @@ TagSpaces.
   way TagEverything reads them and reuses your tags.
 - **Suggest tags with Claude Code**: it reads the files of a folder (read-only) and suggests tags, reusing the ones
   already in your vault; you pick which to add.
+- Put **live lists in your notes**: a `tag-everything` code block (`invoice AND NOT paid`) lists the matching files,
+  PDFs and Office files included, and follows the vault as it changes.
+- **Rename or merge a tag** everywhere in one step, and **review your tags**: look-alikes (`facture`, `factures`),
+  synonyms found by Claude Code from the tag list alone (`banque`, `bancaire`), tags used once.
+- Empty the **inbox** of files without tags: **auto-tag rules** ("every PDF in Bank whose name has invoice gets bank
+  invoice") offer the tags in one click, or tag new files as they arrive.
 
 ## Install
 
@@ -42,7 +48,7 @@ Office files, turn on **Settings → Files and links → Detect all file extensi
 
 ```powershell
 npm test -- tag-everything                      # unit tests of the pure modules
-npm run smoke -- tag-everything                 # ~180 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
+npm run smoke -- tag-everything                 # ~220 checks in a throwaway Obsidian + dist/tag-everything-smoke.png
 npm run dev -- tag-everything                   # rebuild + redeploy on save
 node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every tagged name round-trips
 ```
@@ -79,8 +85,16 @@ src/suggest-modal.ts  the suggestions dialog: runs Claude Code, chips to leave t
 src/view.ts        TagEverything panel: cloud, search, groups, bookmark tabs, results
 src/explorer.ts    TagEverything explorer: the tree of tags
 src/explore.ts     the explorer's tree nodes and row order (pure, tested)
-src/items.ts       what a file row does in both views: open, preview, drag, file menu
-src/dialogs.ts     the panel's name and formula dialogs
+src/items.ts       a file row in every view: how it looks, open, preview, drag, file menu
+src/query.ts       query blocks: read the block, match, order (pure, tested)
+src/query-block.ts query blocks rendered in notes, live
+src/taxonomy.ts    tag review: look-alikes, synonym prompt and answer, merge map (pure, tested)
+src/curator.ts     rename / merge a tag, tag picker, review dialog
+src/inbox.ts       auto-tag rules and the inbox list (pure, tested)
+src/inbox-view.ts  the inbox view
+src/rule-modal.ts  the auto-tag rule dialog
+src/menu.ts        the TagEverything context submenu
+src/dialogs.ts     name and formula dialogs, tag and folder completion
 src/settings.ts    settings tab
 src/badges.ts      explorer badges
 docs/              user guide, architecture, storage format

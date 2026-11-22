@@ -19,7 +19,12 @@ for the vault root) writes a `CLAUDE.md` telling an AI assistant how tags are st
 existing one. *Suggest tags with Claude Code* (folder, file or selection menu, a command) runs `claude -p` read-only in
 the folder and lists the tags it suggests, reusing the vault's tags; the user picks, the plugin writes. A **tag naming rule** (on by default) makes every
 new tag one lower-case plain word, no liaison word; the command *Check tag names* audits the vault and fixes the tags
-that break it, where they are.
+that break it, where they are. **Query blocks**: a `tag-everything` code block in a note lists, live, the items
+matching a formula. **Rename or merge a tag** everywhere (tag menu, command) and **Review tags** (look-alikes found
+locally, synonyms by Claude Code from the tag list alone with no tool, tags used once) rewrite the vault through the
+same engine as *Check tag names*. The **inbox** lists the untagged files that arrived lately with the tags the
+**auto-tag rules** (folder / words of the name / extension → tags) would add; a setting applies them to new files as
+they are created.
 
 ## Where to change what
 
@@ -29,11 +34,14 @@ that break it, where they are.
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
 | Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts`, `dialogs.ts` | user guide §5-7 |
-| A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §11 |
+| A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
 | Claude Code suggestions (prompt, flags, answer) | `suggest.ts` (pure), `claude.ts` (process), `suggest-modal.ts`, `main.ts` `suggestTags` / `runClaude` / `addTagsEach` | user guide §9; check a real run by hand (smoke fakes it) |
 | The TagEverything explorer (tree nodes, rows, icon) | `explore.ts` (pure), `explorer.ts` | user guide §10 |
-| What a file row does (open, preview, drag, file menu), panel and explorer | `items.ts` | |
+| What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
+| Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
+| Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see *Known limits*) |
+| Inbox, auto-tag rules, auto-tag on arrival | `inbox.ts` (pure), `inbox-view.ts`, `rule-modal.ts`, `main.ts` `ruleTagsOf` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -56,9 +64,12 @@ and `docs/user-guide.md` when users see it.
    and sidecar.
 5. One failing item never stops a batch; failures are listed in one `Notice`.
 6. Renames go through `fileManager.renameFile` so links in notes are updated.
-7. Claude Code never writes: it gets only the Read, Glob and Grep tools (`--tools`, `dontAsk`), and its answer is
-   cleaned (`cleanSuggestions`) and written by the plugin through `addTagsEach`, after the user's review. Started
-   without a shell (no quoting of the prompt or the schema), the prompt on stdin.
+7. Claude Code never writes: for suggestions it gets only the Read, Glob and Grep tools (`--tools`, `dontAsk`), for
+   synonyms no tool at all (`--tools ""`); its answer is cleaned (`cleanSuggestions`, `cleanSynonyms`) and written by
+   the plugin (`addTagsEach`, `replaceTags`) after the user's review. Started without a shell (no quoting of the
+   prompt or the schema), the prompt on stdin.
+8. Auto-tagging only adds tags (`addTagsEach`, the usual write path): a rule never removes or renames a tag, and
+   runs on a new file only when the user turned `autoApplyRules` on (off by default).
 
 ## Tests
 
@@ -71,11 +82,25 @@ and `docs/user-guide.md` when users see it.
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution, `requiredTags`.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
+- `tests/query.test.ts`: query block options, comments, warnings, errors; matching with unknown tags kept; row order.
+- `tests/taxonomy.test.ts`: look-alikes (case, accents, plural; typos only on 5+ letters without digits), rare tags,
+  `mergeMapping` (into kept, chains, conflicts, cycles), `cleanSynonyms` (spelling, unknown dropped, into put to the
+  rule, a tag in one group), the synonym prompt.
+- `tests/inbox.test.ts`: rule matching (folder segment, words without the name's tags, accents, extensions, no
+  condition = nothing), `rulesTags`, `normalizeRules`, save / delete / describe, the inbox list, `ageText`.
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item; inside a tag, a tag on several items is a branch,
   an item alone under a tag shows directly, a tag on every item is no branch; from the parent's paths = from the
   vault, dead end), name order, folders first, the
   formula box (`joinFormula`: chips in parentheses then the text; `treeSearch`: empty, vault spelling, unknown tags pruned and named, syntax error keeps the last).
-- `tests/smoke.js` + `tests/fixtures/vault/`: ~180 in-app checks. Extension tags are checked on by default, then
+- `tests/smoke.js` + `tests/fixtures/vault/`: ~220 in-app checks. After the Claude Code section: query blocks (two
+  blocks in reading view: chips with NOT and a faded unknown tag, count, `limit` + "more", warnings, a syntax error;
+  live after a tag added elsewhere; a row click opens, a chip click searches the panel (its state put back); the
+  insert command wraps the selection), rename / merge (title, a rule-breaking name refused, *Merge* said, applied to a
+  note's frontmatter), review (look-alike group ticked, typo unticked, rare tags; Claude Code faked: no tool, the tag
+  list in the prompt, its group unticked with cost; *Change 4 tags* renames names and rewrites frontmatter), inbox
+  (new untagged files first; a rule from a row's wand, prefilled, live preview, saved; rule chips, one left out, ✓
+  adds the rest and the file leaves; dismiss saved; the settings list; with `autoApplyRules` a created PDF is renamed
+  with its rule tags). Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
   name of a revealed PDF row with Obsidian's label hidden, panel result rows with the extension chip in place of the
@@ -152,8 +177,8 @@ Deliberate exceptions, each for a reason:
 - Explorer ideas: reveal the active file in the tree, keyboard arrows between rows,
   extension tags as branches (an option).
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.
-- Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded); they do follow a
-  *Check tag names* fix.
+- Tag groups don't follow a tag renamed outside the plugin (they keep the old name, shown faded); they do follow a
+  *Check tag names* fix, a rename / merge and a review (all through `replaceTags`).
 - Naming rule: inline `#tags` in a note body are neither read nor fixed. `/` splits like `-`, so the rule allows no
   nested tag (turn it off to use them in notes). A tag fixed in a file name on a case-sensitive disk relies on Obsidian's rename (tested on
   Windows only). The liaison word list is a guess: the owner can edit it in the settings.
@@ -168,6 +193,19 @@ Deliberate exceptions, each for a reason:
   the setting must point to the `.exe`. At most 50 items per run; the prompt lists at most 300 vault tags. Folder
   tags are suggested from what the folder holds. Claude Code's `--safe-mode` / `--tools` flags are from 2.1.x: an
   older CLI refuses them (the dialog shows its error).
-- Ideas: rename / merge a tag everywhere (the engine exists: `plugin.replaceTags(new Map([[old, [new]]]))`; only a
-  UI is missing, e.g. a tag menu item *Rename tag…*); colours editable in settings; tag search in the quick
-  switcher; a command to move a note's name tags into its frontmatter (renames the note, so opt-in).
+- Query blocks: only indexed items are found (every file with extension tags on, tagged items only with them off).
+  A block doesn't follow a renamed tag (it names the tag no item carries). No date conditions yet (the owner's todo:
+  modified / created within N days); `sort: modified` only orders.
+- Review: look-alikes are a heuristic (stem = folded, final s / x dropped; one typo between 5+ letter words without
+  digits): `livre` / `libre` are offered unticked. Synonyms send at most 1 000 tags (most used first). The synonym
+  prompt was checked for real on 2026-11-21 (haiku: 3 s, $0.001 for 8 tags, translations and synonyms grouped,
+  related-only tags kept apart); after changing it or `SYNONYM_TASK`, run it again by hand.
+- Inbox: "arrived" = `stat.ctime` (created in the vault: a download, a sync, a copy; a move inside the vault is not
+  new). Dismissed paths are kept in `data.json` and don't follow a rename. The inbox lists notes too (any untagged
+  file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
+  written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
+- `main.ts` is ~600 lines (over the ~500 guideline): the next feature there should first move the Claude Code
+  runner (`nodeModules`, `runClaude`, `suggestTags`) to its own module.
+- Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
+  its frontmatter (renames the note, so opt-in); date conditions in query blocks and the panel; a rename / merge
+  that also rewrites query blocks.

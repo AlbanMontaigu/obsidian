@@ -9,11 +9,11 @@ Inherit on the child files ?
 
 # Tag Search engine
 
-On tag search engine, include a criteria of date of create (optional) and another of modification.Then we can combine tag plus recent / old
+On tag search engine, include a criteria of date of create (optional) and another of modification.Then we can combine tag plus recent / old. Show extension tags should be an option in the panel disabled by default 
 
 # Tags optimisation
 
-Propose a way with claude to optimise tags by detecting potential duplicate or very similar and group them. By the way general rule, one tag one key works point.
+Propose a way with claude to optimise tags by detecting potential duplicate or very similar and group them. By the way general rule, one tag one key works point. Ex sur les synonymes (genre bancaire et banque)
 
 # Tag sliders (min max)
 

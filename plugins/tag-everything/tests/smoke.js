@@ -761,6 +761,172 @@ plugin.settings.claudeCommand = "";
 check("command: suggest tags for the current file registered", !!app.commands.commands["tag-everything:suggest-tags-active-file"]);
 document.querySelectorAll(".notice").forEach((n) => n.remove());
 
+// ---- query blocks: a `tag-everything` code block lists, live, the items matching its formula
+const FENCE = "```";
+const b27Count = () => plugin.index.paths().filter((p) => plugin.index.hasTag(p, "b27")).length;
+await vault.create("Queries.md", `# Queries\n\n${FENCE}tag-everything\n// my B27 files\nB27 AND NOT gone\nsort: modified\nlimit: 1\nbogus: x\n${FENCE}\n\n${FENCE}tag-everything\nb27 AND\n${FENCE}\n`);
+const qLeaf = app.workspace.getLeaf(true);
+await qLeaf.openFile(file("Queries.md"));
+await qLeaf.setViewState({ type: "markdown", state: { file: "Queries.md", mode: "preview" } });
+await waitFor(() => qLeaf.view.containerEl.querySelectorAll(".tag-everything-query").length === 2);
+const qBlocks = () => [...qLeaf.view.containerEl.querySelectorAll(".tag-everything-query")];
+const qText = (i) => qBlocks()[i]?.textContent ?? "";
+const qHead = (i) => [...(qBlocks()[i]?.querySelectorAll(".tag-everything-query-head .tag-everything-chip") ?? [])];
+check("query: two blocks rendered in reading view", qBlocks().length === 2);
+check(
+  "query: the formula as chips, vault spelling, NOT struck, an unknown tag faded",
+  qHead(0).map((c) => c.dataset.tag).join() === "b27,gone" && qHead(0)[1].hasClass("is-negated") && qHead(0)[1].hasClass("is-missing"),
+  qHead(0).map((c) => c.outerHTML).join(" "),
+);
+const n27 = b27Count();
+check("query: counts the matches, shows `limit` rows, then how many more", qText(0).includes(`${n27} item`) && qBlocks()[0].querySelectorAll(".tag-everything-result").length === 1 && (n27 < 2 || /and \d+ more item/.test(qText(0))), qText(0));
+check("query: unknown tags and bad options are named", /No item carries gone/.test(qText(0)) && /"bogus:" is not an option/.test(qText(0)), qText(0));
+check("query: a syntax error is explained with the syntax", /TagEverything query: /.test(qText(1)) && /Options on their own line/.test(qText(1)), qText(1));
+await plugin.applyTags([file("report.md")], { added: ["b27"], removed: [] });
+await waitFor(() => qText(0).includes(`${n27 + 1} item`));
+check("query: follows the vault live (a tag added elsewhere)", qText(0).includes(`${n27 + 1} item`), qText(0));
+const qRowPath = qBlocks()[0].querySelector(".tag-everything-result")?.dataset.path;
+qBlocks()[0].querySelector(".tag-everything-result")?.click();
+await sleep(300);
+check("query: clicking a row opens the item", !!qRowPath && app.workspace.getActiveFile()?.path === qRowPath, qRowPath);
+await app.workspace.revealLeaf(qLeaf);
+await qLeaf.openFile(file("Queries.md"));
+await qLeaf.setViewState({ type: "markdown", state: { file: "Queries.md", mode: "preview" } });
+await waitFor(() => qBlocks().length === 2);
+const qPanel = app.workspace.getLeavesOfType("tag-everything-view")[0]?.view;
+const qPanelState = qPanel?.getState(); // the group search set up for the screenshot, put back below
+qHead(0)[0]?.click();
+await sleep(400);
+check("query: clicking a chip shows the tag in the panel", qPanel?.selected?.join() === "b27", qPanel?.selected?.join());
+await qPanel?.setState(qPanelState, { history: false });
+await plugin.applyTags([file(app.vault.getFiles().find((f) => f.basename.startsWith("report")).path)], { added: [], removed: ["b27"] });
+// the command: the selected text becomes the block's formula
+await vault.create("Insert.md", "tax");
+await qLeaf.openFile(file("Insert.md"));
+await qLeaf.setViewState({ type: "markdown", state: { file: "Insert.md", mode: "source" } });
+await sleep(200);
+const qEditor = qLeaf.view.editor;
+qEditor.setSelection({ line: 0, ch: 0 }, { line: 0, ch: 3 });
+plugin.insertQuery(qEditor);
+check("query: Insert a tag query block wraps the selection", qEditor.getValue() === `${FENCE}tag-everything\ntax\n${FENCE}\n` && qEditor.getCursor().line === 1, JSON.stringify(qEditor.getValue()));
+check("command: insert a tag query block registered", !!app.commands.commands["tag-everything:insert-query"]);
+qLeaf.detach();
+await sleep(300); // closing the editor saves the note: delete it after
+await vault.delete(file("Insert.md"));
+await vault.delete(file("Queries.md"));
+
+// ---- tag curator: rename / merge one tag everywhere, then the review (look-alikes, Claude Code's synonyms, used once)
+await vault.createFolder("Taxo");
+await vault.create("Taxo/one[factures].pdf", "");
+await vault.create("Taxo/two[facture].pdf", "");
+await vault.create("Taxo/three.md", "---\ntags: [facturé, banque]\n---\n");
+await vault.create("Taxo/four.md", "---\ntags: [bancaire]\n---\n");
+await vault.create("Taxo/five[reciept].pdf", "");
+await vault.create("Taxo/six[receipt].pdf", "");
+await waitFor(() => plugin.index.ownTagsOf("Taxo/four.md").length && plugin.index.ownTagsOf("Taxo/three.md").length);
+const rn = plugin.renameTag("bancaire");
+const rnEl = document.querySelector(".tag-everything-rename-modal");
+const rnInput = rnEl?.querySelector("input");
+const rnButton = rnEl?.querySelector("button.mod-cta");
+const rnType = (text) => {
+  rnInput.value = text;
+  rnInput.dispatchEvent(new Event("input"));
+};
+check("rename: dialog titled with the plugin's name, the tag preselected", rnEl?.querySelector(".modal-title")?.textContent === "TagEverything: rename or merge a tag" && rnInput?.value === "bancaire");
+rnType("Bank-Account");
+check("rename: a name breaking the naming rule is refused", rnButton?.disabled && /one word|use "bank account"/.test(rnEl.querySelector(".tag-everything-rename-hint")?.textContent), rnEl?.querySelector(".tag-everything-rename-hint")?.textContent);
+rnType("banque");
+check("rename: an existing tag means merge, said before anything changes", rnButton?.textContent === "Merge" && /merged into "banque"/.test(rnEl.querySelector(".tag-everything-rename-hint")?.textContent), rnEl?.querySelector(".tag-everything-rename-hint")?.textContent);
+await rn.apply();
+await waitFor(() => !plugin.index.counts(undefined, true).has("bancaire") && JSON.stringify(fmTags("Taxo/four.md")) === '["banque"]');
+check("rename: merged everywhere (a note's frontmatter)", JSON.stringify(fmTags("Taxo/four.md")) === '["banque"]' && !plugin.index.counts().has("bancaire"), JSON.stringify(fmTags("Taxo/four.md")));
+check("command: rename or merge a tag registered", !!app.commands.commands["tag-everything:rename-tag"]);
+
+let synAsked = null;
+plugin.runClaude = async (folder, prompt, _signal, task) => {
+  synAsked = { folder: folder.path, prompt, tools: task?.tools };
+  return JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: { groups: [{ tags: ["banque", "finance"], into: "finance", reason: "synonyms" }] }, total_cost_usd: 0.01, duration_ms: 2000 });
+};
+const rv = await plugin.reviewTags();
+const rvEl = document.querySelector(".tag-everything-review-modal");
+const rvRow = (tags) => [...rvEl.querySelectorAll(".tag-everything-fix-row")].find((r) => r.querySelector("input[type=text]")?.dataset.tags === tags);
+const facture = rvRow("facture facturé factures"); // equal use: the shorter first, then by name
+check("review: a look-alike group (plural, accent) merged into one, ticked", facture?.querySelector("input[type=text]").value === "facture" && facture.querySelector("input[type=checkbox]").checked, [...rvEl.querySelectorAll(".tag-everything-fix-row input[type=text]")].map((i) => i.dataset.tags).join(" | "));
+const receipt = rvRow("receipt reciept");
+check("review: a typo is offered, not ticked", !!receipt && !receipt.querySelector("input[type=checkbox]").checked);
+check("review: tags used once listed apart", /Used on one item only/.test(rvEl.querySelector(".tag-everything-review-rare summary")?.textContent ?? ""));
+[...rvEl.querySelectorAll("button")].find((b) => b.textContent === "Find synonyms with Claude Code")?.click();
+await rv.synonyms;
+check("review: Claude Code gets the tag list, no tool, in the vault root", synAsked?.folder === "/" && Array.isArray(synAsked.tools) && synAsked.tools.length === 0 && synAsked.prompt.includes("`banque` 2"), JSON.stringify(synAsked?.tools) + synAsked?.prompt.slice(0, 200));
+const syn = rvRow("finance banque") ?? rvRow("banque finance");
+check("review: Claude Code's synonyms added, not ticked, with the cost", !!syn && !syn.querySelector("input[type=checkbox]").checked && /1 group of synonyms found \(2 s, API cost \$0\.01\)/.test(rvEl.textContent), rvEl.querySelector(".tag-everything-suggest-status")?.textContent);
+for (const row of [receipt, syn]) {
+  const box = row.querySelector("input[type=checkbox]");
+  box.checked = true;
+  box.dispatchEvent(new Event("change"));
+}
+const rvApply = rvEl.querySelector("button.mod-cta");
+check("review: Change counts the tags that change", rvApply?.textContent === "Change 4 tags" && !rvApply.disabled, rvApply?.textContent);
+await rv.apply();
+await waitFor(() => !!file("Taxo/one[facture].pdf") && !!file("Taxo/five[receipt].pdf") && (fmTags("Taxo/three.md") ?? []).includes("finance"));
+check(
+  "review: applied where each tag is (names renamed, frontmatter rewritten)",
+  !!file("Taxo/one[facture].pdf") && !!file("Taxo/five[receipt].pdf") && JSON.stringify(fmTags("Taxo/three.md")) === '["facture","finance"]' && !plugin.index.counts().has("banque"),
+  JSON.stringify(fmTags("Taxo/three.md")),
+);
+plugin.runClaude = realRunClaude;
+check("command: review tags registered", !!app.commands.commands["tag-everything:review-tags"]);
+await vault.delete(file("Taxo"), true);
+
+// ---- inbox: files without tags that arrived lately, auto-tag rules (from a file), applied, dismissed, on arrival
+await vault.createFolder("Inbox");
+await vault.create("Inbox/Facture EDF.pdf", "");
+await vault.create("Inbox/photo.jpg", "");
+const inbox = await plugin.openInbox();
+await sleep(300);
+const ibEl = inbox?.contentEl;
+const ibRow = (path) => ibEl?.querySelector(`.tag-everything-inbox-row[data-path="${path}"]`);
+check("inbox: opens, lists the new untagged files, newest first", !!ibRow("Inbox/Facture EDF.pdf") && !!ibRow("Inbox/photo.jpg") && inbox.files().slice(0, 2).every((f) => f.path.startsWith("Inbox/")), inbox?.files().slice(0, 4).map((f) => f.path).join());
+check("inbox: no rule yet: says what rules do", /Auto-tag rules tag files for you/.test(ibEl?.textContent ?? ""));
+ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="wand-sparkles"]')?.click();
+await sleep(200);
+const ruleEl = document.querySelector(".tag-everything-rule-modal");
+const ruleInputs = [...(ruleEl?.querySelectorAll("input") ?? [])];
+check("rule: from a file, prefilled with its folder and extension", ruleInputs[0]?.value === "Inbox" && ruleInputs[2]?.value === "pdf", ruleInputs.map((i) => i.value).join("|"));
+ruleInputs[1].value = "facture";
+ruleInputs[3].value = "energie facture";
+ruleInputs[3].dispatchEvent(new Event("input"));
+check("rule: live preview of what it matches", /In Inbox · name has facture · pdf → energie facture\. Matches 1 file of the vault, 1 without tags/.test(ruleEl.querySelector(".tag-everything-rule-preview")?.textContent), ruleEl.querySelector(".tag-everything-rule-preview")?.textContent);
+ruleEl.querySelector("button.mod-cta").click();
+await sleep(400);
+check("rule: saved to data.json", (await plugin.loadData())?.rules?.[0]?.tags?.join() === "energie,facture", JSON.stringify((await plugin.loadData())?.rules));
+const ibChip = (tag) => ibRow("Inbox/Facture EDF.pdf")?.querySelector(`.tag-everything-chip[data-tag="${tag}"]`);
+check("inbox: the row shows the rule's tags", ibChip("energie")?.hasClass("is-selected") && !!ibChip("facture"));
+ibChip("facture").click();
+await sleep(300);
+check("inbox: a rule tag clicked is left out", !ibChip("facture")?.hasClass("is-selected"));
+ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="check"]')?.click();
+await waitFor(() => !!file("Inbox/Facture EDF[energie].pdf"));
+await sleep(300);
+check("inbox: ✓ adds the rule tags left on, the file leaves the inbox", !!file("Inbox/Facture EDF[energie].pdf") && !ibRow("Inbox/Facture EDF[energie].pdf"));
+ibRow("Inbox/photo.jpg")?.querySelector('[data-action="x"]')?.click();
+await sleep(400);
+check("inbox: dismissed, saved", !ibRow("Inbox/photo.jpg") && (await plugin.loadData())?.inboxDismissed?.includes("Inbox/photo.jpg"));
+const ruleDefs = settingTab?.getSettingDefinitions().find((d) => d.heading === "Auto-tag rules");
+check("settings: the rules listed, with add and delete", ruleDefs?.type === "list" && ruleDefs.items?.[0]?.name === "In Inbox · name has facture · pdf → energie facture" && !!ruleDefs.addItem && !!ruleDefs.onDelete, ruleDefs?.items?.map((i) => i.name).join());
+plugin.settings.autoApplyRules = true;
+await vault.create("Inbox/Facture GDF.pdf", "");
+await waitFor(() => !!file("Inbox/Facture GDF[energie facture].pdf"), 6000);
+check("inbox: with the setting on, a new file gets its rule tags on arrival", !!file("Inbox/Facture GDF[energie facture].pdf"), vault.getFiles().filter((f) => f.path.startsWith("Inbox/")).map((f) => f.path).join());
+check("command: open the inbox registered", !!app.commands.commands["tag-everything:open-inbox"]);
+plugin.settings.autoApplyRules = false;
+plugin.settings.rules = [];
+plugin.settings.inboxDismissed = [];
+await plugin.saveSettings();
+inbox?.leaf.detach();
+await vault.delete(file("Inbox"), true);
+document.querySelectorAll(".notice").forEach((n) => n.remove());
+
 // ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
 plugin.settings.extensionTags = true;
 await plugin.saveSettings();

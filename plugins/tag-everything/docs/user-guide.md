@@ -87,6 +87,7 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - **Click tags** to list the files and folders carrying all of them (AND).
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
+  The same menu has *Rename or merge tag…* (Section 12).
 - **Filter tags**: type, then **Enter** selects the first match, **Escape** clears.
 - **Results** work like the file explorer: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files open
   in their default app, folders are revealed), **Ctrl/Cmd + hover** for a page preview, **drag** one into a note to
@@ -185,7 +186,7 @@ read your files and suggest tags for them:
   dialog while Claude Code is still reading stops it.
 - It takes a few seconds to a few minutes, and uses your Claude plan (the dialog shows the time and the API price of the
   run, about $0.05 for a few notes). For a large folder, run it on subfolders, or pick a cheaper **Model** in the
-  settings (Section 11).
+  settings (Section 14).
 
 ## 10. The TagEverything explorer
 
@@ -212,6 +213,7 @@ file explorer.
   So with `2024[tax].pdf`, `2025[tax receipt].pdf`, `2026[tax receipt].pdf` and `plan[tax plan].md`, *tax* holds the
   branch *receipt* (2 files), then `2024` and `plan` (alone under *plan*); *receipt* holds `2025` and `2026` directly
   (both carry *tax*). One file can show in several places, like a shortcut; its pill lists all its tags.
+- Right-click a tag → *Rename or merge tag…* (Section 12).
 - Extension tags (`pdf`, `md`) are not branches: every file has one. They stay as the badge before the file name.
 - A file row is its extension badge and its name, then on the right the round **pill** with the number of its tags
   (hover it: the list) and a **folder icon**: hover it to see the folder the file is really in, click it to show the
@@ -240,7 +242,100 @@ Files behave as in the panel's results: click to open (Ctrl/Cmd-click or middle-
 their default app; a tagged folder is shown in the file explorer), Ctrl/Cmd + hover for a preview, drag into a note
 to link it, right-click for the file menu. A tag lists at most 500 files.
 
-## 11. Commands and settings
+## 11. Query blocks: live lists in your notes
+
+A `tag-everything` code block in any note lists, live, the files and folders matching a tag formula (the formula
+syntax of Section 6), PDFs and Office files included. A project note can so gather its documents without a single
+link to maintain.
+
+```markdown
+```tag-everything
+// what this block is for (optional comment)
+(invoice OR facture) AND 2025 AND NOT paid
+sort: modified
+limit: 20
+```
+```
+
+- Every line that is not an option or a `//` comment is part of the formula; two lines side by side mean AND.
+- Options, each on its own line: `sort: name` (default, as the file explorer), `modified` or `created` (newest
+  first); `limit: 1` to `500` (default 50: the block then says how many more there are).
+- The block shows the formula as chips (click one: the panel searches that tag), how many items match, then the items
+  like the panel's results: click to open, Ctrl/Cmd + hover for a preview, drag into a note, right-click for the file
+  menu.
+- Extension tags work too: `pdf AND tax` lists the tax PDFs.
+- It follows the vault as it changes: tags edited, files renamed or deleted.
+- A tag no item carries is shown faded and named under the formula ("No item carries …"): it finds nothing (and
+  `NOT` that tag finds everything), unlike the panel, which leaves an unknown tag out. A formula that doesn't parse
+  shows why, with the syntax.
+- Command *Insert a tag query block*: inserts a block at the cursor, with the selected text as its formula, else the
+  formula in the TagEverything explorer's search box (Section 10), else an empty line to type it on.
+- Only items with a tag are found (with *File extension as a tag* on, that is every file).
+
+## 12. Rename, merge and review tags
+
+### Rename or merge a tag
+
+Right-click a tag in the panel or in the TagEverything explorer → **Rename or merge tag…**, or the command *Rename
+or merge a tag* (pick the tag first). Type what the tag becomes; the dialog says what will happen before anything
+changes:
+
+| You type | It does |
+|---|---|
+| a new name | **Rename**: the tag becomes it on every item |
+| a tag the vault already has | **Merge**: its items get that tag; an item carrying both keeps one |
+| several words | **Split**: the tag becomes all of them |
+| nothing | **Remove**: the tag is taken off every item |
+
+The tag is rewritten where it is on each item (file name, note frontmatter, sidecar), exactly like *Check tag names*
+(Section 4): files whose name holds it are renamed (links follow), tag groups and bookmark tabs follow. With the naming
+rule on, the new name must follow it.
+
+### Review tags
+
+Command *Review tags (look-alikes, synonyms, used once)*, or *Settings → Tag maintenance → Review tags*. It re-reads
+every tag, then lists:
+
+- **Look-alike tags**, found on your computer, free: the same word once case, accents and a plural s / x are ignored
+  (`facture`, `Factures`, `facturé`: ticked, they are the same word), or a one-letter typo or swap (`reciept`,
+  `receipt`: not ticked, `livre` and `libre` are two words). Short words (under 5 letters) and tags with digits are
+  never called typos (`q1` / `q2`, `2024` / `2025`). Each group merges into its most used tag.
+- **Synonyms**, on demand: **Find synonyms with Claude Code** sends your tag list (with the counts, not your files;
+  Claude Code gets no tool at all, so it reads and changes nothing) and lists the groups of tags that mean the same
+  thing: `banque` and `bancaire`, `invoice` and `facture`. They are not ticked: check them. It takes a few seconds
+  (with the *haiku* model, well under a cent for a few hundred tags). See Section 9 for installing Claude Code.
+- **Used on one item only** (folded): often a typo, or a tag never reused; each row says which item carries it.
+  Tick one and leave the box empty to remove the tag, or type the tag to merge it into.
+
+Edit the tag to keep in any row (several: separate with spaces; empty: removed), tick what to change, then
+**Change N tags**: everything is rewritten in one pass, as above. A tag ticked in two rows with different targets is
+refused (the dialog says which); chains are followed (`a` → `b` and `b` → `c`: `a` becomes `c`).
+
+## 13. The inbox and auto-tag rules
+
+The inbox lists the files **without tags that arrived lately** (created in the vault in the last 30 days, setting
+*Days in the inbox*), newest first: open it with the ribbon `inbox` icon or the command *Open the inbox (files
+without tags)*. A file leaves the inbox as soon as it has a tag.
+
+- Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
+  the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
+  icon opens the tag editor, the wand creates a rule from this file (its folder and extension filled in), **×**
+  dismisses it (no tag needed; *Settings → Show dismissed files again* brings them back).
+- At the top: **Apply rules to N files** adds every row's rule tags at once; ✨ asks Claude Code for tags for the
+  newest 50 (Section 9); the wand creates a rule.
+
+**Auto-tag rules**: "a file in this folder, whose name contains one of these words, with one of these extensions,
+gets these tags". Each condition is optional, but a rule needs at least one. Names are compared without case or
+accents, and without the tags already in the name. The rule dialog says how many files of the vault it matches, and
+how many of them have no tag yet. Rules are listed in *Settings → Auto-tag rules*: click one to edit it, **+** adds
+one, the bin deletes one.
+
+Setting **Tag new files with the rules automatically** (off by default): a file created in the vault (a download, a
+scan, a copy) gets its rule tags at once, 2 seconds after the last of a burst of new files, without going through
+the inbox; one notice says what was tagged. Tags go where new tags go (Section 1): a PDF is renamed
+(`Facture EDF[energie].pdf`) with the default settings.
+
+## 14. Commands and settings
 
 | Command | What it does |
 |---|---|
@@ -251,6 +346,10 @@ to link it, right-click for the file menu. A tag lists at most 500 files.
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
 | Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
 | Suggest tags for the current file with Claude Code | Section 9 (folders, selections: right-click → *TagEverything → Suggest tags with Claude Code*) |
+| Insert a tag query block | Section 11 |
+| Rename or merge a tag | Section 12 (also right-click a tag in the panel or the explorer) |
+| Review tags (look-alikes, synonyms, used once) | Section 12 |
+| Open the inbox (files without tags) | Section 13 |
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -264,16 +363,18 @@ to link it, right-click for the file menu. A tag lists at most 500 files.
 | Colour tags automatically | On | Section 8 |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
-| Model | empty | The model that suggests tags (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
-| Tag maintenance | | Buttons: *Check and fix tag names*, *Re-read all tags* |
+| Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
+| Inbox | | *Open the inbox*; *Days in the inbox* (30); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
+| Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
+| Tag maintenance | | Buttons: *Review tags* (Section 12), *Check and fix tag names*, *Re-read all tags* |
 
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
-read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer and
-dialogs are titled *TagEverything*.
+read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer,
+inbox and dialogs are titled *TagEverything*.
 
 The settings also show up in Obsidian's settings search (e.g. type "badges" or "sidecar").
 
-## 12. Limits and troubleshooting
+## 15. Limits and troubleshooting
 
 - **Office files (and other types Obsidian can't open) don't show in the file explorer**: Obsidian loads them but its
   explorer hides them while *Settings → Files and links → Detect all file extensions* is off. The TagEverything
@@ -292,8 +393,13 @@ The settings also show up in Obsidian's settings search (e.g. type "badges" or "
 - Tags in a note's frontmatter aren't visible to other tag-aware file managers. Turn *Note tags in frontmatter* off
   to tag notes the same way as other files.
 - Deleting a file in Obsidian leaves its `.ts` sidecar in place (metadata is never deleted unasked).
-- Tag groups don't follow a tag renamed outside the panel (they keep the old name, shown faded); they do follow a
-  *Check tag names* fix.
+- Tag groups don't follow a tag renamed outside the plugin (they keep the old name, shown faded); they do follow a
+  *Check tag names* fix, a rename / merge and a review.
+- Query blocks don't follow a renamed tag: edit the formula (the block names the tag no item carries any more).
+- The inbox and the auto-tag rules go by the date a file was **created in the vault**: a file moved in from another
+  folder of the vault is not new. A dismissed file that is renamed comes back.
+- Auto-tagging renames a new PDF or Office file when its tags go in the file name: if another app still writes the
+  file, the rename can fail (the notice says so); it is then in the inbox, with its rule tags one click away.
 - **Claude Code was not found**: install it, or set the full path of `claude.exe` in *Claude Code program* (an npm
   `claude.cmd` cannot be started directly: point to the `.exe`). **Not logged in / other errors**: the dialog shows
   Claude Code's message; run `claude` once in a terminal to log in. Its suggestions are only suggestions: check them.

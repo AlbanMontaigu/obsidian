@@ -2,6 +2,8 @@ import { App, PluginSettingTab, SettingDefinitionItem, TFile } from "obsidian";
 import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
+import { deleteRule, describeRule } from "./inbox.ts";
+import { RuleModal } from "./rule-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export { DEFAULT_SETTINGS, normalizeSettings } from "./config.ts";
@@ -12,9 +14,9 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
   return file.extension === "md" && settings.noteTagsInFrontmatter ? "frontmatter" : settings.storage;
 }
 
-/** Settings edited in the TagEverything panel, never by a control of this tab. */
-const PANEL_KEYS: readonly string[] = ["groups", "tabs"];
-type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs">;
+/** Settings edited elsewhere (panel, inbox, rule dialog), never by a control of this tab. */
+const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed"];
+type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed">;
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
@@ -128,8 +130,55 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       },
       {
         type: "group",
+        heading: "Inbox",
+        items: [
+          {
+            name: "Open the inbox",
+            desc: "The files without tags that arrived lately, with the tags your rules would add.",
+            aliases: ["untagged", "new files", "auto-tag"],
+            action: () => void this.plugin.openInbox(),
+          },
+          {
+            name: "Days in the inbox",
+            desc: "The inbox lists the files without tags created in the vault in the last this many days.",
+            control: { type: "number", key: "inboxDays", min: 1, max: 365, placeholder: "30" },
+          },
+          {
+            name: "Tag new files with the rules automatically",
+            desc: "A file created in the vault (download, scan, copy) gets the tags of the rules it matches at once, without going through the inbox. A PDF or Office file is renamed when its tags go in the file name.",
+            aliases: ["auto-tag", "automatic"],
+            control: { type: "toggle", key: "autoApplyRules" },
+          },
+          {
+            name: "Show dismissed files again",
+            desc: "Files you dismissed from the inbox (no tag needed) come back while they have no tag.",
+            visible: () => this.plugin.settings.inboxDismissed.length > 0,
+            action: () => void this.undismiss(),
+          },
+        ],
+      },
+      {
+        type: "list",
+        heading: "Auto-tag rules",
+        emptyState: "No rule yet. Add one with +, or from a file of the inbox.",
+        addItem: { name: "Add a rule", action: () => new RuleModal(this.app, this.plugin, {}, () => this.update()).open() },
+        onDelete: (i: number) => void this.removeRule(i),
+        items: this.plugin.settings.rules.map((rule) => ({
+          name: describeRule(rule),
+          aliases: ["auto-tag", "rule"],
+          action: () => new RuleModal(this.app, this.plugin, rule, () => this.update()).open(),
+        })),
+      },
+      {
+        type: "group",
         heading: "Tag maintenance",
         items: [
+          {
+            name: "Review tags",
+            desc: "Look-alike tags (case, accents, plural, typos), synonyms found by Claude Code, tags used once: merge or remove them in one go.",
+            aliases: ["duplicates", "synonyms", "merge", "rename", "clean up"],
+            action: () => void this.plugin.reviewTags(),
+          },
           {
             name: "Check and fix tag names",
             desc: "Re-reads every tag, then lists those breaking the naming rule with a fix you can edit; nothing changes until you click Fix.",
@@ -158,6 +207,24 @@ export class TagEverythingSettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
     setKey(settings, k, normalizeSettings({ ...settings, [k]: value })[k]);
     this.refreshDomState(); // the badge options are disabled while badges are off
+    await this.save();
+  }
+
+  private async removeRule(i: number): Promise<void> {
+    const rule = this.plugin.settings.rules[i];
+    if (!rule) return;
+    this.plugin.settings.rules = deleteRule(this.plugin.settings.rules, rule.id);
+    await this.save();
+    this.update();
+  }
+
+  private async undismiss(): Promise<void> {
+    this.plugin.settings.inboxDismissed = [];
+    await this.save();
+    this.update();
+  }
+
+  private async save(): Promise<void> {
     try {
       await this.plugin.saveSettings();
     } catch (err) {

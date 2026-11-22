@@ -1,6 +1,5 @@
 import { App, ButtonComponent, Modal, Notice, Setting, TAbstractFile, TFolder } from "obsidian";
-import { NotFoundError } from "./claude.ts";
-import { PLUGIN_NAME, plural } from "./messages.ts";
+import { PLUGIN_NAME, claudeError, claudeTook, plural } from "./messages.ts";
 import { type Suggestion, type SuggestInput, cleanSuggestions, parseClaudeOutput, relativeTo, suggestPrompt } from "./suggest.ts";
 import { clickable, paintTag } from "./ui.ts";
 import type TagEverythingPlugin from "./main.ts";
@@ -87,11 +86,7 @@ export class TagSuggestModal extends Modal {
   private showError(err: Error): void {
     const { contentEl } = this;
     contentEl.empty();
-    const text =
-      err instanceof NotFoundError
-        ? "Claude Code was not found. Install it (claude.com/claude-code), or set the full path of claude.exe in the TagEverything settings."
-        : `Claude Code could not suggest tags: ${err.message}`;
-    contentEl.createDiv({ cls: "tag-everything-error tag-everything-suggest-status", text });
+    contentEl.createDiv({ cls: "tag-everything-error tag-everything-suggest-status", text: claudeError(err, "suggest tags") });
     new Setting(contentEl).addButton((b) => b.setButtonText("Close").onClick(() => this.close()));
   }
 
@@ -99,10 +94,7 @@ export class TagSuggestModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     const total = suggestions.reduce((n, s) => n + s.tags.length, 0);
-    const took = [
-      durationMs !== null ? `${Math.round(durationMs / 1000)} s` : "",
-      costUsd !== null ? `API cost $${costUsd.toFixed(2)}` : "",
-    ].filter(Boolean).join(", ");
+    const took = claudeTook(durationMs, costUsd);
     contentEl.createDiv({
       cls: "tag-everything-suggest-status",
       text: total

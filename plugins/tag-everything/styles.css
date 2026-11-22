@@ -846,3 +846,174 @@
 .tag-everything-explorer-spacer {
   visibility: hidden;
 }
+
+/* ---- Query blocks (src/query-block.ts): a `tag-everything` code block in a note, the items matching its formula */
+.tag-everything-query {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 6px 8px;
+  margin: var(--p-spacing, 1em) 0;
+  font-size: var(--font-ui-small);
+}
+
+.tag-everything-query-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.tag-everything-query-icon {
+  display: flex;
+  color: var(--text-muted);
+}
+
+.tag-everything-query-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tag-everything-query-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-query-warning,
+.tag-everything-query-help,
+.tag-everything-query-empty,
+.tag-everything-query-more {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  padding: 2px 4px;
+}
+
+.tag-everything-query-warning {
+  color: var(--text-warning);
+}
+
+.tag-everything-query-list {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+/* ---- Rename or merge a tag, review tags (src/curator.ts) */
+.tag-everything-rename-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tag-everything-rename-hint {
+  margin: 8px 0;
+  min-height: 1.5em;
+}
+
+.tag-everything-review-modal .tag-everything-fix-list {
+  max-height: 30vh;
+}
+
+.tag-everything-review-modal h4 {
+  margin: 12px 0 6px;
+}
+
+.tag-everything-review-modal .tag-everything-fix-from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.tag-everything-counted {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.tag-everything-review-modal .tag-everything-fix-count {
+  margin-right: 4px;
+}
+
+.tag-everything-review-modal .tag-everything-suggest-status {
+  padding: 0 8px;
+}
+
+.tag-everything-review-modal .tag-everything-fix-problem {
+  flex-basis: 100%;
+}
+
+.tag-everything-review-rare {
+  margin-top: 12px;
+}
+
+.tag-everything-review-rare > summary {
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  margin-bottom: 6px;
+}
+
+/* ---- Auto-tag rule dialog (src/rule-modal.ts) */
+.tag-everything-rule-preview {
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+
+/* ---- Inbox (src/inbox-view.ts): untagged files that arrived lately, with the tags the rules would add */
+.tag-everything-inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-everything-inbox-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-everything-inbox-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.tag-everything-inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-everything-inbox-row {
+  position: relative;
+}
+
+.tag-everything-inbox-buttons {
+  display: flex;
+  align-self: flex-start;
+  gap: 2px;
+  opacity: 0.4;
+}
+
+.tag-everything-inbox-row:hover .tag-everything-inbox-buttons,
+.tag-everything-inbox-buttons:focus-within {
+  opacity: 1;
+}
+
+.tag-everything-inbox-buttons .clickable-icon {
+  padding: 2px;
+}
+
+/* a rule tag: dashed until added; struck through when left out */
+.tag-everything-inbox-row .tag-everything-chip.is-new {
+  border-style: dashed;
+}
+
+.tag-everything-inbox-row .tag-everything-chip.is-new:not(.is-selected) {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.tag-everything-inbox-row .tag-everything-suggest-path {
+  margin-right: 2px;
+}

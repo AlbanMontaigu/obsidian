@@ -1,11 +1,11 @@
-import { HoverParent, HoverPopover, ItemView, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
+import { HoverParent, HoverPopover, ItemView, Menu, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
 import { compareItems, joinFormula, tagNode, treeSearch } from "./explore.ts";
 import { FormulaTagSuggest } from "./dialogs.ts";
 import { type Expr, evaluate, formatFormula, formulaTags, prune, requiredTags, resolveTags, tryParseFormula } from "./formula.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
-import { revealInExplorer, wireItemRow } from "./items.ts";
+import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
 import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
@@ -77,6 +77,11 @@ export class TagExplorerView extends ItemView implements HoverParent {
 
   getDisplayText(): string {
     return `${PLUGIN_NAME} explorer`;
+  }
+
+  /** What its file rows need for the file menu and the page preview (src/items.ts). */
+  private rowHost(): RowHost {
+    return { app: this.app, source: EXPLORER_VIEW_TYPE, hoverParent: this, leaf: this.leaf };
   }
 
   getIcon(): string {
@@ -174,6 +179,11 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const key = keyOf(trail);
     if (!this.expanded.delete(key)) this.expanded.set(key, [...trail]);
     this.stateChanged();
+  }
+
+  /** The formula the tree is filtered by, as text; null when none (the "Insert a tag query block" command starts from it). */
+  currentFormula(): string | null {
+    return this.applied ? formatFormula(this.applied) : null;
   }
 
   /** The box's text becomes chips, when the whole formula parses (a picked suggestion, Enter). */
@@ -287,6 +297,12 @@ export class TagExplorerView extends ItemView implements HoverParent {
       inner.createSpan({ cls: "tag-everything-explorer-name", text: tag });
       row.createDiv({ cls: "tree-item-flair-outer" }).createSpan({ cls: "tree-item-flair", text: String(n) });
       clickable(row, () => this.toggle(branch));
+      row.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
+        const menu = new Menu();
+        menu.addItem((i) => i.setTitle("Rename or merge tag…").setIcon("pencil").onClick(() => this.plugin.renameTag(tag)));
+        menu.showAtMouseEvent(evt);
+      });
       if (open) this.renderNode(box.createDiv({ cls: "tree-item-children" }), branch, node.paths);
     }
     const vault = this.app.vault;
@@ -331,6 +347,6 @@ export class TagExplorerView extends ItemView implements HoverParent {
       evt.stopPropagation();
       revealInExplorer(this.app, item);
     });
-    wireItemRow(this, row, item); // open (a folder: revealed in the file explorer), preview, drag, file menu
+    wireItemRow(this.rowHost(), row, item); // open (a folder: revealed in the file explorer), preview, drag, file menu
   }
 }

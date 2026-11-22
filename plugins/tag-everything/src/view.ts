@@ -1,5 +1,4 @@
-import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
-import * as ts from "./format.ts";
+import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
 import { cloudWeights } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
@@ -9,7 +8,7 @@ import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { FormulaModal, NameModal } from "./dialogs.ts";
 import { clickable, isNode, paintTag, renderExpr } from "./ui.ts";
-import { wireItemRow } from "./items.ts";
+import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 /** Most items listed at once (panel results, a level of the TagEverything explorer). */
@@ -62,6 +61,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   getViewType(): string {
     return VIEW_TYPE;
+  }
+
+  /** What its result rows need for the file menu and the page preview (src/items.ts). */
+  private rowHost(): RowHost {
+    return { app: this.app, source: VIEW_TYPE, hoverParent: this, leaf: this.leaf };
   }
 
   getDisplayText(): string {
@@ -470,6 +474,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (!on) menu.addItem((i) => i.setTitle("Search with this tag").setIcon("search").onClick(() => this.setMode(tag, "on")));
       if (!not) menu.addItem((i) => i.setTitle("Exclude this tag (NOT)").setIcon("ban").onClick(() => this.setMode(tag, "not")));
       if (on || not) menu.addItem((i) => i.setTitle("Remove from the search").setIcon("x").onClick(() => this.setMode(tag, null)));
+      if (this.plugin.index.counts(undefined, true).has(tag)) {
+        menu.addItem((i) => i.setTitle("Rename or merge tag…").setIcon("pencil").onClick(() => this.plugin.renameTag(tag)));
+      }
       this.bookmarkItems(menu, "tags", tag);
       menu.showAtMouseEvent(evt);
     });
@@ -773,24 +780,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
       .sort((a, b) => Number(a instanceof TFile) - Number(b instanceof TFile) || a.path.localeCompare(b.path));
     this.statusEl.setText(plural(items.length, "item") + (items.length > MAX_RESULTS ? `, first ${MAX_RESULTS} shown` : ""));
 
+    const small = (t: string): string => "is-small" + (this.selected.includes(t) ? " is-selected" : "");
     for (const item of items.slice(0, MAX_RESULTS)) {
-      const row = this.resultsEl.createDiv({ cls: "tag-everything-result" });
-      const small = (t: string): string => "is-small" + (this.selected.includes(t) ? " is-selected" : "");
-      // The extension tag stands in for the file icon, as before the name in the explorer; folders keep their icon.
-      const [ext] = index.get(item.path).ext;
-      if (ext) this.chip(row, ext, `${small(ext)} tag-everything-result-ext`);
-      else setIcon(row.createSpan({ cls: "tag-everything-result-icon" }), item instanceof TFolder ? "folder" : "file");
-      const body = row.createDiv({ cls: "tag-everything-result-body" });
-      body.createDiv({ cls: "tag-everything-result-name", text: item.name });
-      const parent = ts.parentOf(item.path);
-      if (parent) body.createDiv({ cls: "tag-everything-result-path", text: parent });
-      const tags = index.tagsOf(item.path).filter((t) => t !== ext);
-      if (tags.length) {
-        const chips = body.createDiv({ cls: "tag-everything-result-tags" });
-        for (const t of tags) this.chip(chips, t, small(t));
-      }
-
-      wireItemRow(this, row, item); // open, preview, drag, file menu (src/items.ts)
+      const { row } = renderItemRow(this.resultsEl, item, index, (parent, t) => this.chip(parent, t, small(t)));
+      wireItemRow(this.rowHost(), row, item); // open, preview, drag, file menu (src/items.ts)
     }
   }
 }

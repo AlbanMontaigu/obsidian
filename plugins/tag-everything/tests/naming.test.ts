@@ -170,3 +170,8 @@ test("replaceTagsInGroups / replaceTagsInTabs: follow the fix, others untouched"
   assert.deepEqual(t.tags, ["b27", "y"]);
   assert.deepEqual(t.groups, ["g1"]);
 });
+
+test("parseReplacement without a rule: any valid tag, nested ones too; invalid ones refused", () => {
+  assert.deepEqual(parseReplacement("Tax-Receipt proj/alpha", null), { tags: ["Tax-Receipt", "proj/alpha"] });
+  assert.ok("error" in parseReplacement("a:b", null));
+});

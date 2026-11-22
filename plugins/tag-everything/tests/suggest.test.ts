@@ -112,3 +112,10 @@ test("relativeTo and commonFolder", () => {
   assert.equal(commonFolder(["x.md", "A/y.md"]), "");
   assert.equal(commonFolder([]), "");
 });
+
+test("claudeArgs: a task without tools gets --tools \"\" and no allowed tools", () => {
+  const a = claudeArgs("", { system: "s", schema: {}, tools: [] });
+  assert.equal(a[a.indexOf("--tools") + 1], "");
+  assert.ok(!a.includes("--allowedTools"));
+  assert.equal(a[a.indexOf("--system-prompt") + 1], "s");
+});

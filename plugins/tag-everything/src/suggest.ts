@@ -51,27 +51,41 @@ export const SUGGEST_SCHEMA = {
   required: ["items"],
 };
 
-const SYSTEM_PROMPT =
-  "You suggest tags for files of a personal note vault. Read the files with your tools, never change anything, " +
-  "then answer with the structured output only.";
+/** One kind of question asked to Claude Code: its system prompt, the answer's JSON schema, the tools it may use. */
+export interface ClaudeTask {
+  system: string;
+  schema: object;
+  /** Read-only built-in tools; none = it answers from the prompt alone. */
+  tools: readonly ("Read" | "Glob" | "Grep")[];
+}
+
+/** Tag suggestions: Claude Code reads the files. */
+export const SUGGEST_TASK: ClaudeTask = {
+  system:
+    "You suggest tags for files of a personal note vault. Read the files with your tools, never change anything, " +
+    "then answer with the structured output only.",
+  schema: SUGGEST_SCHEMA,
+  tools: ["Read", "Glob", "Grep"],
+};
 
 /**
- * Command-line arguments: print mode, JSON answer, read-only tools allowed without asking, and none of the user's
- * customizations (MCP servers, plugins, skills, CLAUDE.md): they would cost tokens and add nothing here. The prompt
- * goes through stdin.
+ * Command-line arguments: print mode, JSON answer, the task's read-only tools allowed without asking (or no tool at
+ * all), and none of the user's customizations (MCP servers, plugins, skills, CLAUDE.md): they would cost tokens and
+ * add nothing here. The prompt goes through stdin.
  */
-export function claudeArgs(model = ""): string[] {
+export function claudeArgs(model = "", task: ClaudeTask = SUGGEST_TASK): string[] {
+  const tools = task.tools.join(",");
   const args = [
     "-p",
     "--output-format", "json",
-    "--tools", "Read,Glob,Grep",
-    "--allowedTools", "Read,Glob,Grep",
+    "--tools", tools, // "" = no tool
+    ...(tools ? ["--allowedTools", tools] : []),
     "--permission-mode", "dontAsk",
     "--no-session-persistence",
     "--safe-mode",
     "--strict-mcp-config",
-    "--system-prompt", SYSTEM_PROMPT,
-    "--json-schema", JSON.stringify(SUGGEST_SCHEMA),
+    "--system-prompt", task.system,
+    "--json-schema", JSON.stringify(task.schema),
   ];
   const m = model.trim();
   if (m) args.push("--model", m);
@@ -89,7 +103,8 @@ export function claudeCommands(setting: string, home: string, windows: boolean):
   return ["claude", [home, ".local", "bin", windows ? "claude.exe" : "claude"].join(sep)];
 }
 
-function ruleText(input: SuggestInput): string {
+/** The naming rule as told to Claude Code. */
+export function ruleText(input: Pick<SuggestInput, "tagRule" | "stopWords" | "lowercase">): string {
   if (input.tagRule) {
     return (
       "- Each tag is ONE lower-case word: letters and digits only, no space, no -, _ or / (write two tags instead " +
@@ -140,12 +155,19 @@ export interface ClaudeAnswer {
   durationMs: number | null;
 }
 
+/** What a run of Claude Code returned: its structured answer (any shape: the caller checks it), and what it took. */
+export interface ClaudeResult {
+  answer: unknown;
+  costUsd: number | null;
+  durationMs: number | null;
+}
+
 /**
  * Reads the JSON that `claude -p --output-format json` prints. The answer is in `structured_output`, else in the
- * `result` text (a JSON object somewhere in it). Throws a readable error when Claude Code reported one or when no
- * answer can be found.
+ * `result` text (a JSON object somewhere in it; null if none). Throws a readable error when Claude Code reported one
+ * or did not answer in JSON.
  */
-export function parseClaudeOutput(stdout: string): ClaudeAnswer {
+export function readClaudeResult(stdout: string): ClaudeResult & { text: string } {
   let out: Record<string, unknown>;
   try {
     out = JSON.parse(stdout.trim()) as Record<string, unknown>;
@@ -156,9 +178,15 @@ export function parseClaudeOutput(stdout: string): ClaudeAnswer {
   if (out.is_error === true || (typeof out.subtype === "string" && out.subtype !== "success")) {
     throw new Error(`Claude Code: ${firstLine(result) || String(out.subtype ?? "error")}`);
   }
-  const answer = out.structured_output ?? jsonIn(result);
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return { answer: out.structured_output ?? jsonIn(result), text: result, costUsd: num(out.total_cost_usd), durationMs: num(out.duration_ms) };
+}
+
+/** Reads a tag-suggestion run (`readClaudeResult`); throws when the answer holds no item list. */
+export function parseClaudeOutput(stdout: string): ClaudeAnswer {
+  const { answer, text, costUsd, durationMs } = readClaudeResult(stdout);
   const raw = answer && typeof answer === "object" ? (answer as { items?: unknown }).items : undefined;
-  if (!Array.isArray(raw)) throw new Error(`Claude Code gave no tag list: ${firstLine(result) || "(empty answer)"}`);
+  if (!Array.isArray(raw)) throw new Error(`Claude Code gave no tag list: ${firstLine(text) || "(empty answer)"}`);
   const items: ClaudeAnswer["items"] = [];
   for (const e of raw) {
     if (!e || typeof e !== "object") continue;
@@ -166,11 +194,11 @@ export function parseClaudeOutput(stdout: string): ClaudeAnswer {
     if (typeof path !== "string" || !Array.isArray(tags)) continue;
     items.push({ path, tags: tags.filter((t): t is string => typeof t === "string") });
   }
-  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-  return { items, costUsd: num(out.total_cost_usd), durationMs: num(out.duration_ms) };
+  return { items, costUsd, durationMs };
 }
 
-function firstLine(text: string): string {
+/** The first line of a text, at most 300 characters: for error messages. */
+export function firstLine(text: string): string {
   return text.trim().split("\n")[0].slice(0, 300);
 }
 

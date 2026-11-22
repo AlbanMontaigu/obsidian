@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config.ts";
-import { failureMessage, plural, progressMessage } from "../src/messages.ts";
+import { claudeTook, failureMessage, plural, progressMessage } from "../src/messages.ts";
 
 test("normalizeSettings: missing or broken data gives the defaults", () => {
   for (const raw of [null, undefined, 42, "x", [], {}]) assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
@@ -60,4 +60,21 @@ test("messages", () => {
   const many = failureMessage(Array.from({ length: 8 }, (_, i) => `f${i}`), 10);
   assert.match(many, /f4\n…and 3 more/);
   assert.doesNotMatch(many, /f5/);
+});
+
+test("normalizeSettings: inbox and auto-tag rules repaired, off by default", () => {
+  const d = normalizeSettings({});
+  assert.equal(d.autoApplyRules, false);
+  assert.equal(d.inboxDays, 30);
+  assert.deepEqual(d.rules, []);
+  const s = normalizeSettings({ inboxDays: 0, inboxDismissed: ["a.pdf", 3, "a.pdf"], rules: [{ id: "r1", extensions: "pdf", tags: ["scan"] }, { tags: ["x"] }] });
+  assert.equal(s.inboxDays, 30);
+  assert.deepEqual(s.inboxDismissed, ["a.pdf"]);
+  assert.deepEqual(s.rules.map((r) => r.id), ["r1"]);
+  assert.equal(normalizeSettings({ inboxDays: 7 }).inboxDays, 7);
+});
+
+test("claudeTook: time and cost when known", () => {
+  assert.equal(claudeTook(4200, 0.031), "4 s, API cost $0.03");
+  assert.equal(claudeTook(null, null), "");
 });

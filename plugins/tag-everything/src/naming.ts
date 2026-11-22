@@ -165,11 +165,14 @@ export function replacePlan(current: TagState, mapping: TagMapping): TagPlan {
   };
 }
 
-/** Text typed as a replacement in the fix dialog -> tags, or the first error. Empty text = drop the tag. */
-export function parseReplacement(text: string, rule: NamingRule): { tags: string[] } | { error: string } {
+/**
+ * Text typed as a replacement (fix, rename, merge dialogs) -> tags, or the first error. Empty text = drop the tag.
+ * Without a rule, any valid tag (nested ones too: a file name refuses them when it is written).
+ */
+export function parseReplacement(text: string, rule: NamingRule | null): { tags: string[] } | { error: string } {
   const tags = dedupe(splitTagInput(text));
   for (const t of tags) {
-    const msg = ruleMessage(t, rule);
+    const msg = rule ? ruleMessage(t, rule) : normalizeTag(t, false, true).error;
     if (msg) return { error: msg };
   }
   return { tags };
