@@ -136,7 +136,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   - *Apply auto-tag rules*: the button says how many files of the vault the rules would tag (**Apply to N files**);
     rules only add tags. **New rule…** creates one;
   - *Check and fix tag names* (Section 4), *Review tags*, *Check tag consistency* and *Rename or merge a tag*
-    (Section 12).
+    (Section 12);
+  - *Suggest better places*: the filed files whose tags fit another folder better (Section 13, *Put files away*).
 
   For chosen files or folders, the same actions are in the right-click menu (*TagEverything →*): see Section 13.
 
@@ -443,6 +444,13 @@ one, the bin deletes one.
 *TagEverything → Apply auto-tag rules (N files)*; the item shows only when a rule would add a tag there. For the whole
 vault: the panel's **Tools** tab → *Apply auto-tag rules*. Rules only add tags, never remove or rename one.
 
+**To put away**: below the untagged files, the inbox lists the files **with** tags still waiting in the inbox folder
+(*Settings → Inbox → Inbox folder*, e.g. `0. Inbox`) or in a folder that receives outside files (below), each with
+the folder it fits (*→ Bills/Power*, see *Put files away*). **Put away N files…** opens the put-away dialog on them;
+nothing moves before you click *Move* there, so a file stays in the inbox folder until you file it. The files there
+that fit no folder yet are counted below the list: move one by hand, and once a folder holds 2 files with the same
+tags, the others are offered. With no inbox folder and no outside folder set, this part does not show.
+
 Setting **Tag new files with the rules automatically** (off by default): a file created in the vault (a download, a
 scan, a copy) gets its rule tags at once, 2 seconds after the last of a burst of new files, without going through
 the inbox; one notice says what was tagged. Tags go where new tags go (Section 1): a PDF is renamed
@@ -461,7 +469,11 @@ when some file there has a better folder to go to.
   biggest) and why (*Its 3 files usually carry bill, power*); the list offers up to 3 folders. Untick a file to
   leave it. **Move N files** moves the ticked ones; links to them follow, and so do their `.ts` sidecars.
 - A file already in a folder that fits it as well as any other is left out. The inbox folder and the folders that
-  receive outside files (below) are never offered: files only pass through them.
+  receive outside files (below), with their subfolders, are never offered: files only pass through them.
+- The files waiting in the inbox folder are listed in the inbox (*To put away*, above).
+- **Suggest better places** (panel's **Tools** tab): the same for the whole vault, outside the inbox folder and the
+  folders receiving outside files: the files already filed somewhere whose tags fit another folder better. The
+  dialog opens with **nothing ticked**, since those files were put there on purpose: tick the moves you agree with.
 - A file is never moved over another: a name already taken in the folder is refused, listed in one notice, and both
   files stay as they are.
 

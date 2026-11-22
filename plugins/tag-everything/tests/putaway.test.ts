@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { destinationsFor, folderHabits, habitIndex } from "../src/putaway.ts";
+import { destinationsFor, folderHabits, habitIndex, inTransit } from "../src/putaway.ts";
 
 const files = (o: Record<string, string>) => Object.entries(o).map(([path, tags]) => ({ path, tags: tags.split(" ").filter(Boolean) }));
 const VAULT = files({
@@ -57,4 +57,19 @@ test("transit folders (inbox, landing folder) are never a destination, nor a pla
   const index = (transit: string[]) => habitIndex(folderHabits(vault), transit);
   assert.deepEqual(destinationsFor("Inbox/e.pdf", ["bill", "power"], index([])), []); // the inbox looks like a home
   assert.deepEqual(destinationsFor("Inbox/e.pdf", ["bill", "power"], index(["inbox"])).map((h) => h.folder), ["Bills/Power", "Bills"]);
+});
+
+test("in transit: inside an inbox or landing folder, at any depth, case and accents ignored; no folder, no transit", () => {
+  const transit = ["0. Inbox", "Téléchargements"];
+  assert.equal(inTransit("0. Inbox/a.pdf", transit), true);
+  assert.equal(inTransit("0. inbox/Scans/a.pdf", transit), true);
+  assert.equal(inTransit("telechargements/a.pdf", transit), true);
+  assert.equal(inTransit("0. Inbox old/a.pdf", transit), false); // whole path segments
+  assert.equal(inTransit("Bills/a.pdf", transit), false);
+  assert.equal(inTransit("a.pdf", ["", "  "]), false);
+});
+
+test("a transit folder's subfolders are no destination either", () => {
+  const vault = [...VAULT, ...files({ "Inbox/Scans/a.pdf": "tax", "Inbox/Scans/b.pdf": "tax", "Inbox/Scans/c.pdf": "tax" })];
+  assert.deepEqual(destinationsFor("x/new.pdf", ["tax"], habitIndex(folderHabits(vault), ["Inbox"])).map((h) => h.folder), ["Tax"]);
 });

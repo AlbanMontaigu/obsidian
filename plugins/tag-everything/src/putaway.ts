@@ -6,6 +6,7 @@
 // `bill power 2026`. The more habits matched, the more specific the folder, the better; then the bigger folder.
 
 import { parentOf } from "./format.ts";
+import { cleanFolder, inFolder } from "./inbox.ts";
 import { HABIT_SHARE } from "./consistency.ts";
 import type { FileTags } from "./consistency.ts";
 
@@ -47,12 +48,20 @@ export function folderHabits(files: readonly FileTags[]): FolderHabit[] {
 /** Habits by each of their tags: a file is only compared with the folders sharing one of its tags. */
 export type HabitIndex = ReadonlyMap<string, readonly FolderHabit[]>;
 
-/** Indexes `habits`, leaving out the `transit` folders (inbox, landing folder of brought-in files): never a home. */
+/**
+ * Is the file at `path` in one of the `transit` folders (inbox, landing folders of brought-in files), at any depth?
+ * Case and accents ignored, as for the inbox folder. Files there are waiting to be put away.
+ */
+export function inTransit(path: string, transit: readonly string[]): boolean {
+  // an empty folder means "anywhere" to inFolder: here it means no transit folder
+  return transit.some((f) => cleanFolder(f) && inFolder(path, f));
+}
+
+/** Indexes `habits`, leaving out the `transit` folders and their subfolders: never a home. */
 export function habitIndex(habits: readonly FolderHabit[], transit: readonly string[] = []): HabitIndex {
-  const skip = new Set(transit.filter(Boolean).map((f) => f.toLowerCase()));
   const out = new Map<string, FolderHabit[]>();
   for (const h of habits) {
-    if (skip.has(h.folder.toLowerCase())) continue;
+    if (inTransit(`${h.folder}/`, transit)) continue;
     for (const t of h.tags) {
       const list = out.get(t);
       if (list) list.push(h);

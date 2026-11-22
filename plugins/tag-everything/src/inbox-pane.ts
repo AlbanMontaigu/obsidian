@@ -8,6 +8,7 @@ import { GUIDE_FILE } from "./guide.ts";
 import { plural } from "./messages.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { clickable, paintTag } from "./ui.ts";
+import { PutAwayModal, putAwayPlan, transitFolders, waitingFiles } from "./putaway-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 /** Rows drawn at most: an inbox is meant to be emptied, not scrolled. */
@@ -33,8 +34,9 @@ export function inboxFiles(plugin: TagEverythingPlugin, dates: DateFilters = {})
  * (setting `inboxDays`), in one folder if `inboxFolder` is set, newest first. Each row shows the tags the auto-tag rules would add (click one to leave it out) and one ⋮ icon whose
  * menu holds its actions: add them, edit tags, suggest tags, new rule from this file, dismiss. At the top:
  * apply the rules to every file, ask Claude Code, add a rule, pick date criteria (created / modified, recent or old;
- * not remembered across restarts). A file leaves the inbox as soon as it has a tag. Its view redraws it on every
- * index or vault change.
+ * not remembered across restarts). A file leaves the inbox as soon as it has a tag. Below, "To put away": the tagged
+ * files still in the inbox folder or a landing folder, with the folder each one fits (moved only from the dialog).
+ * Its view redraws it on every index or vault change.
  */
 export class InboxPane {
   /** Rule tags the user left out, per path: not added. */
@@ -147,6 +149,46 @@ export class InboxPane {
     const now = Date.now();
     for (const file of files.slice(0, MAX_INBOX_ROWS)) this.row(list, file, now);
     if (files.length > MAX_INBOX_ROWS) el.createDiv({ cls: "tag-everything-query-more", text: `…and ${plural(files.length - MAX_INBOX_ROWS, "more file")}` });
+    if (plugin.index.ready) this.renderPutAway(el);
+  }
+
+  /** "To put away": the tagged files waiting in a transit folder, each with its best folder; nothing moves from here. */
+  private renderPutAway(el: HTMLElement): void {
+    const { plugin } = this;
+    const waiting = waitingFiles(plugin);
+    if (!waiting.length) return;
+    const plan = putAwayPlan(plugin, waiting);
+    const section = el.createDiv({ cls: "tag-everything-inbox-putaway" });
+    const bar = section.createDiv({ cls: "tag-everything-inbox-bar" });
+    bar.createDiv({
+      cls: "tag-everything-inbox-status",
+      text: `To put away: ${plural(waiting.length, "tagged file")} in ${transitFolders(plugin).join(", ")}.`,
+    });
+    if (plan.size) {
+      new ButtonComponent(bar.createDiv({ cls: "tag-everything-inbox-actions" }))
+        .setButtonText(`Put away ${plural(plan.size, "file")}…`)
+        .setCta()
+        .onClick(() => new PutAwayModal(plugin.app, plugin, plan).open());
+    }
+    const list = section.createDiv({ cls: "tag-everything-inbox-list" });
+    for (const [file, to] of [...plan].slice(0, MAX_INBOX_ROWS)) {
+      const { row, body } = renderItemRow(list, file, plugin.index, (parent, tag) => {
+        const chip = parent.createSpan({ cls: "tag-everything-chip is-small", text: tag });
+        paintTag(chip, plugin.index.colorFor(tag));
+        return chip;
+      });
+      row.addClass("tag-everything-inbox-row");
+      body.createDiv({ cls: "tag-everything-result-path tag-everything-inbox-to", text: `→ ${to[0].folder}` });
+      wireItemRow(this.host, row, file);
+    }
+    if (plan.size > MAX_INBOX_ROWS) section.createDiv({ cls: "tag-everything-query-more", text: `…and ${plural(plan.size - MAX_INBOX_ROWS, "more file")}` });
+    const stuck = waiting.length - plan.size;
+    if (stuck) {
+      section.createDiv({
+        cls: "tag-everything-where",
+        text: `${plural(stuck, "tagged file")} there ${stuck === 1 ? "fits" : "fit"} no folder yet: no folder's files usually carry ${stuck === 1 ? "its" : "their"} tags. Move ${stuck === 1 ? "it" : "them"} by hand; once a folder holds 2 such files, the others are offered.`,
+      });
+    }
   }
 
   private row(list: HTMLElement, file: TFile, now: number): void {

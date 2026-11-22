@@ -17,8 +17,8 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
   (`CLAUDE.md`, never over one).
 - **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range, extension
   tags only when toggled, and sections holding groups and tags), *Selection* (search by tags AND / NOT and date criteria, narrowing tags, results), *Tools* (vault-wide: re-read, apply
-  rules, check tag names, review tags, check tag consistency, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
-  explorer's *Inbox* tab.
+  rules, check tag names, review tags, check tag consistency, suggest better places, rename / merge). The inbox (new untagged files,
+  auto-tag rules, tagged files waiting in the inbox folder to be put away) is only the explorer's *Inbox* tab.
 - **Settings**: options only. Also: `tag-everything` query blocks in notes (live lists from a formula), a tag naming
   rule (one lower-case plain word) with its audit and fix.
 
@@ -30,7 +30,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
 | Panel search, groups, formulas, sections | `formula.ts` / `groups.ts` / `sections.ts` (pure), then `view.ts` (search, tag cloud, tab strip, Selection, section menu items), `panel-groups.ts` (the Groups area: groups, sections, their menus and dialogs), `dialogs.ts` | user guide §5-7 |
-| Put away (where a tagged file belongs), bring in (outside folders) | `putaway.ts` / `bring-in.ts` (pure), `putaway-modal.ts`, `bring-in-watcher.ts`, `bring-in-modal.ts`, `main.ts` `moveFiles` / `renameOwn`; menu entry in `menu.ts`, the list in `settings.ts` | user guide §13 |
+| Put away (where a tagged file belongs), bring in (outside folders) | `putaway.ts` / `bring-in.ts` (pure), `putaway-modal.ts`, `bring-in-watcher.ts`, `bring-in-modal.ts`, `main.ts` `moveFiles` / `renameOwn`; menu entry in `menu.ts`, *To put away* in `inbox-pane.ts` `renderPutAway`, *Suggest better places* in `tools-pane.ts`, the list in `settings.ts` | user guide §13 |
 | Date criteria (created / modified: panel search, inbox, date terms `created:30d` in formulas, groups, explorer box, query blocks) | `dates.ts` (pure), `formula.ts` (`DateExpr`: parse, format, evaluate), `index.ts` `matches` / `dated`, `dialogs.ts` `dateMenu`, `view.ts` `setDates` / `searchExpr`, `explorer.ts` `setDates`, `inbox.ts` `inboxPaths`, `inbox-pane.ts` | user guide §5, §6, §10, §11, §13 |
 | Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |

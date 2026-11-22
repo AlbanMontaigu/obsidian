@@ -1189,6 +1189,46 @@ await vault.createFolder("Drop");
 for (const n of ["a[bill power]", "b[bill power]", "dup[bill power]"]) await vault.create(`Bills/Power/${n}.pdf`, "kept");
 for (const n of ["new[bill power 2026]", "dup[bill power]", "other[holiday]"]) await vault.create(`Drop/${n}.pdf`, "");
 await waitFor(() => plugin.index.ownTagsOf("Drop/other[holiday].pdf").length);
+// The inbox's "To put away" (the tagged files still in the inbox folder, here Drop) and the Tools tab's Suggest better
+// places (filed files elsewhere, unticked).
+await vault.createFolder("Misc");
+await vault.create("Misc/old[bill power].pdf", "");
+await waitFor(() => plugin.index.ownTagsOf("Misc/old[bill power].pdf").length);
+await plugin.focusInbox("Drop");
+const paView = await plugin.openInbox();
+await sleep(400);
+const paSec = () => paView?.contentEl.querySelector(".tag-everything-explorer-page .tag-everything-inbox-putaway");
+const paSecRows = [...(paSec()?.querySelectorAll(".tag-everything-inbox-row") ?? [])];
+check(
+  "put away: the inbox lists the tagged files of the inbox folder with their folder, says how many fit none, the button counts them",
+  paSecRows.map((r) => r.dataset.path).sort().join() === "Drop/dup[bill power].pdf,Drop/new[bill power 2026].pdf" &&
+    paSecRows.every((r) => /→ Bills\/Power/.test(r.textContent)) && /To put away: 3 tagged files in Drop\./.test(paSec()?.textContent ?? "") &&
+    /1 tagged file there fits no folder yet/.test(paSec()?.textContent ?? "") && paSec()?.querySelector("button.mod-cta")?.textContent === "Put away 2 files…",
+  paSec()?.textContent,
+);
+paSec()?.querySelector("button.mod-cta")?.click();
+await waitFor(() => !!document.querySelector(".tag-everything-putaway-modal"));
+const paIb = document.querySelector(".tag-everything-putaway-modal");
+check("put away: the inbox's button opens the dialog on them, ticked", paIb?.querySelectorAll(".tag-everything-fix-row input:checked").length === 2, paIb?.textContent);
+paIb?.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+const paTools = (await plugin.openTools())?.contentEl;
+await sleep(200);
+paTools?.querySelector('.tag-everything-tools button[data-action="better-places"]')?.click();
+await waitFor(() => !!document.querySelector(".tag-everything-putaway-modal"));
+const bpEl = document.querySelector(".tag-everything-putaway-modal");
+const bpRows = [...(bpEl?.querySelectorAll(".tag-everything-fix-row") ?? [])];
+check(
+  "put away: Tools → Suggest better places lists filed files outside the inbox folder, unticked, Move off",
+  bpEl?.querySelector(".modal-title")?.textContent === "TagEverything: better places" && bpRows.some((r) => r.dataset.path === "Misc/old[bill power].pdf") &&
+    !bpRows.some((r) => r.dataset.path.startsWith("Drop/")) && bpRows.every((r) => !r.querySelector("input").checked) && bpEl.querySelector("button.mod-cta")?.disabled,
+  bpRows.map((r) => r.dataset.path).join() + " " + bpEl?.querySelector("button.mod-cta")?.textContent,
+);
+await snap("better-places"); // the dialog, to look at
+bpEl?.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+await plugin.focusInbox("");
+paView?.showTab("tags");
 const paMenu = fakeMenu();
 app.workspace.trigger("file-menu", paMenu, file("Drop"), "file-explorer");
 check("put away: the folder menu offers it for its files with a better folder", !!paMenu.sub("TagEverything")?.titles().includes("Put away in the usual folder (2 files)"), paMenu.sub("TagEverything")?.titles().join(" | "));
@@ -1219,6 +1259,7 @@ check(
 check("put away: its tags still read at the new place", plugin.index.ownTagsOf("Bills/Power/new[bill power 2026].pdf").length === 3);
 await vault.delete(file("Bills"), true);
 await vault.delete(file("Drop"), true);
+await vault.delete(file("Misc"), true);
 
 // ---- bring in: files arriving in a folder outside the vault are moved into a vault folder (then the inbox)
 const nfs = window.require("fs");

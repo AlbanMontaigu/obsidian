@@ -2,6 +2,7 @@ import { Setting } from "obsidian";
 import { plural } from "./messages.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { TagPickerModal } from "./curator.ts";
+import { openBetterPlaces } from "./putaway-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 /**
@@ -57,6 +58,13 @@ export function renderTools(el: HTMLElement, plugin: TagEverythingPlugin): void 
     "Check…",
     () => void plugin.checkConsistency(),
     "consistency",
+  );
+  row(
+    "Suggest better places",
+    "Tagged files whose tags fit another folder better than their own, from where the files with the same tags are. Nothing moves until you tick a file. The inbox lists the files waiting in the inbox folder.",
+    "Suggest…",
+    () => void openBetterPlaces(plugin),
+    "better-places",
   );
   row("Rename or merge a tag", "Everywhere in the vault, with the tag groups, sections and searches following.", "Rename…", () => new TagPickerModal(app, plugin).open(), "rename");
 }

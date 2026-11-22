@@ -22,7 +22,9 @@ entry of the area you change; add one when you leave a limit behind (users' side
   extension tags as branches (an option).
 - Put away: a folder's usual tags come from its tagged files only, so a folder of untagged files is never offered;
   a folder whose files all carry a year (`2025`) is not offered to a `2026` file (no new folder is ever created).
-  The menu entry computes the habits of the whole vault on each right-click (not measured on the owner's vault).
+  The menu entry computes the habits of the whole vault on each right-click, and the inbox's *To put away* on each
+  redraw while tagged files wait in a transit folder (not measured on the owner's vault). Files at the vault root are
+  never listed as waiting: only the inbox folder and the landing folders of outside files are.
 - Bring in: only checked with Windows paths (`C:\...`); `fs.watch` events can be missed on network drives (the next
   start catches up). A file copied in but not removable outside (locked) stays in both places, told once. Files
   that arrived before the folder was added are never brought in: move them by hand.
