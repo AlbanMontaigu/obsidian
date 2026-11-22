@@ -137,7 +137,7 @@ Groups keep related tags together and double as saved searches.
 - Hover a tag of a group: **×** takes it out of the group, **⊘** excludes it from the group's search (`NOT tag`,
   struck through; click ↶ to include it again). Both are also in the tag's right-click menu.
 - **A group is a search**: click its **Search** button (it shows how many items the group finds), its name, or
-  *⋯ → Search with this group*. The button reads **Stop** while the search runs. The group's tags show at the top:
+  *⋯ → Search with this group*. The button reads **Stop** while the search runs, and the group's header turns to the accent colour. The group's tags show at the top:
   click one to leave it out (dashed), click again to put it back; click other tags to narrow further. Click the group
   again, or **Clear**, to stop.
 - **Formulas** (the group dialog's *Searches for*): any combination of tags, e.g. `(b27 OR inc) AND (q3 OR 2026)`.

@@ -31,6 +31,9 @@ await snap("panel-selection");
 view.selectGroup(g2);
 await sleep(300);
 await snap("panel-group-search");
+view.showTab(null); // the group searching, as All shows it
+await sleep(300);
+await snap("panel-group-active");
 document.querySelector(".tag-everything-view-formula")?.click();
 await sleep(300);
 await snap("dialog-group-edit");

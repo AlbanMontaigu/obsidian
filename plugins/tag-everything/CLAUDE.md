@@ -158,10 +158,10 @@ and `docs/user-guide.md` when users see it.
   bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
-- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs including Tools and Inbox, group / name / tag / check /
+- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs including Tools and Inbox, a group searching (accent header band), group / name / tag / check /
   rename / review / suggest / rule dialogs, explorer, each settings section in the settings window) to
   `dist/tag-everything-*.png`: `npm run smoke -- tag-everything --script gallery`, then look at them after any UI
-  change. Every dialog carries `.tag-everything-dialog` (styles.css *Dialogs*: muted intro, section headings, padded
+  change. Every dialog carries `.tag-everything-dialog` (styles.css *Dialogs*: the title in a header band of `--background-secondary`, 24px margins, muted intro, section headings, padded
   list boxes, a footer above a line with its note left and buttons right); settings actions are rows with a labelled
   button (`settings.ts` `buttonRow`), not link-styled `action` rows.
 - `tools/check-vault.ts "<vault>"`: **read-only**, folder listings only (no file content, so OneDrive
