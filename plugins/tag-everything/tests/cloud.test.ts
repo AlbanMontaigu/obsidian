@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudWeight, cloudWeights } from "../src/cloud.ts";
+import { cloudWeight, cloudWeights, narrowingTags } from "../src/cloud.ts";
 
 test("cloudWeight: bounds", () => {
   assert.equal(cloudWeight(1, 1, 100), 0);
@@ -42,4 +42,10 @@ test("cloudWeights: relative to the tags shown", () => {
   assert.ok(w.get("c")! > 0 && w.get("c")! < 1);
   assert.equal(cloudWeights(new Map()).size, 0);
   assert.equal(cloudWeights(new Map([["solo", 3]])).get("solo"), 0);
+});
+
+test("narrowingTags: on some items but not all, not in the search, most used first", () => {
+  const counts = new Map([["pdf", 4], ["client", 1], ["tax", 2], ["q3", 2], ["done", 0], ["work", 3]]);
+  assert.deepEqual(narrowingTags(counts, 4, ["work"]), [["q3", 2], ["tax", 2], ["client", 1]]);
+  assert.deepEqual(narrowingTags(counts, 1, []), [], "one item: nothing narrows it");
 });

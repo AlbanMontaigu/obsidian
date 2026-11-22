@@ -432,16 +432,16 @@ check("formula: group menu offers it", !!formulaItem, [...document.querySelector
 check("groups: the group menu starts with Search with this group", /^Search with this group/.test(document.querySelector(".menu .menu-item")?.textContent ?? ""));
 formulaItem?.click();
 await sleep(300);
-const fModal = document.querySelector(".tag-everything-formula-modal");
-const fInput = fModal?.querySelector("input");
-check("formula: dialog starts from the group's tags", fInput?.value === "shared", fInput?.value);
+const fModal = document.querySelector(".tag-everything-group-modal");
+const fInput = fModal?.querySelector(".tag-everything-formula-input");
+check("formula: one dialog, name and formula, starting from the group's", fModal?.querySelector(".tag-everything-group-input")?.value === "Formula" && fInput?.value === "shared", fInput?.value);
 fInput.value = "(shared ou b27";
 fInput.dispatchEvent(new Event("input"));
 await sleep(100);
 check("formula: syntax error shown live", /not closed/.test(fModal.querySelector(".tag-everything-error").textContent), fModal.querySelector(".tag-everything-error").textContent);
 fModal.querySelector(".mod-cta").click();
 await sleep(200);
-check("formula: invalid formula not saved, dialog stays", !!document.querySelector(".tag-everything-formula-modal") && !plugin.settings.groups.find((g) => g.id === formulaId).formula);
+check("formula: invalid formula not saved, dialog stays", !!document.querySelector(".tag-everything-group-modal") && !plugin.settings.groups.find((g) => g.id === formulaId).formula);
 fInput.value = "(shared ou b27) et (final OU INC)";
 fInput.dispatchEvent(new Event("input"));
 await sleep(100);
@@ -450,7 +450,7 @@ check("formula: preview in canonical form, with the vault's spelling and the cou
 fModal.querySelector(".mod-cta").click();
 await sleep(300);
 const fGroup = () => plugin.settings.groups.find((g) => g.id === formulaId);
-check("formula: saved, tags = the formula's", !document.querySelector(".tag-everything-formula-modal") && fGroup().formula === "(shared OR B27) AND (final OR INC)" && fGroup().tags.join() === "shared,B27,final,INC", JSON.stringify(fGroup()));
+check("formula: saved, tags = the formula's", !document.querySelector(".tag-everything-group-modal") && fGroup().formula === "(shared OR B27) AND (final OR INC)" && fGroup().tags.join() === "shared,B27,final,INC", JSON.stringify(fGroup()));
 const ops = [...groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-op")].map((o) => o.textContent).join(" ");
 check("formula: drawn in the group with its operators", ops === "( OR ) AND ( OR )", ops);
 check("formula: group count follows the formula", groupEl("Formula").querySelector(".tag-everything-group-header .tag-everything-chip-count").textContent === "2");
@@ -498,7 +498,7 @@ await sleep(200);
 await sleep(200);
 const withoutShared = plugin.index.paths().filter((p) => !plugin.index.hasTag(p, "shared")).length;
 const notOps = [...panel().querySelectorAll(".tag-everything-view-selected .tag-everything-op")].map((o) => o.textContent).join();
-check("NOT: excluding a cloud tag lists the items without it", withoutShared > 0 && results() === withoutShared && notOps === "NOT" && !!panel().querySelector(".tag-everything-view-selected .tag-everything-chip.is-negated") && !cloudChip("shared"), `${results()} vs ${withoutShared}`);
+check("NOT: excluding a cloud tag lists the items without it", withoutShared > 0 && results() === withoutShared && notOps === "NOT" && !!panel().querySelector(".tag-everything-view-selected .tag-everything-chip.is-negated") && cloudChip("shared")?.matches(".is-selected.is-negated"), `${results()} vs ${withoutShared}`);
 check("NOT: excluded tags are in the panel's saved state", view.getState().excluded?.join() === "shared");
 panel().querySelector(".tag-everything-group-add").click();
 await sleep(300);
@@ -530,7 +530,7 @@ const keyChip = cloudChip("client");
 keyChip.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 await sleep(200);
 check("panel: tags work from the keyboard", keyChip.tabIndex === 0 && view.getState().selected?.join() === "client");
-// Selection tab: a search moves to it (search + results only); All shows only groups and tags, counted in the selection.
+// Selection tab: a search moves to it (search, narrowing tags, results); All keeps every tag, the search's marked.
 const shown = (cls) => getComputedStyle(panel().querySelector(cls)).display !== "none";
 const selTab = () => panel().querySelector(".tag-everything-tab-selection");
 const allTab = () => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === "All");
@@ -543,15 +543,80 @@ check(
 );
 allTab().click();
 await sleep(100);
+const allChips = () => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")];
 check(
-  "selection tab: All shows only the groups and tags, counted in the selection",
+  "selection tab: All shows only the groups and every tag, vault counts, the selected one marked",
   allTab().classList.contains("is-active") && !selTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && shown(".tag-everything-view-groups") &&
-    !shown(".tag-everything-view-results") && !shown(".tag-everything-view-selected") && /selection \(1 item\)/.test(panel().querySelector(".tag-everything-view-scope")?.textContent) &&
+    !shown(".tag-everything-view-results") && !shown(".tag-everything-view-selected") && !shown(".tag-everything-view-refine") &&
+    allChips().length === plugin.index.counts().size && cloudChip("client")?.classList.contains("is-selected") &&
+    allChips().every((c) => c.querySelector(".tag-everything-chip-count").textContent === String(plugin.index.counts().get(c.dataset.tag))) &&
     view.getState().selection === false,
+  `${allChips().length} vs ${plugin.index.counts().size}`,
 );
 selTab().click();
 await sleep(100);
 check("selection tab: clicking it shows the search again", selTab().classList.contains("is-active") && shown(".tag-everything-view-results"));
+check("selection tab: one item, no tag to narrow it", !panel().querySelector(".tag-everything-view-refine .tag-everything-chip"));
+view.selectOnly("shared");
+await sleep(200);
+const refineChips = () => [...panel().querySelectorAll(".tag-everything-view-refine > .tag-everything-chip")];
+const sharedN = results();
+const refineOk = refineChips().length > 0 && refineChips().every((c) => {
+  const n = Number(c.querySelector(".tag-everything-chip-count").textContent);
+  return c.dataset.tag !== "shared" && n > 0 && n < sharedN;
+});
+check("selection tab: the tags that narrow it, counted in it", shown(".tag-everything-view-refine") && refineOk, refineChips().map((c) => c.textContent).join() + ` / ${sharedN}`);
+const narrowTag = refineChips()[0]?.dataset.tag;
+refineChips()[0]?.click();
+await sleep(200);
+check(
+  "selection tab: a narrowing tag clicked joins the search, stays in Selection",
+  view.getState().selected.join() === `shared,${narrowTag}` && results() < sharedN && selTab().classList.contains("is-active") && !refineChips().some((c) => c.dataset.tag === narrowTag),
+  JSON.stringify(view.getState().selected),
+);
+allTab().click();
+await sleep(100);
+cloudChip(narrowTag).click();
+await sleep(100);
+check("selection tab: a marked tag clicked in All leaves the search", view.getState().selected.join() === "shared" && !cloudChip(narrowTag).classList.contains("is-selected"), JSON.stringify(view.getState().selected));
+selTab().click();
+await sleep(100);
+// The Selection tab's Formula… button: the search in the group dialog, operators by button, saved and run at once.
+const formulaBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-formula");
+check("formula button: in the Selection tab, labelled", formulaBtn()?.textContent === "Formula…", formulaBtn()?.outerHTML);
+formulaBtn().click();
+await sleep(300);
+const gModal = document.querySelector(".tag-everything-group-modal");
+const gInput = gModal?.querySelector(".tag-everything-formula-input");
+const opButtons = [...(gModal?.querySelectorAll(".tag-everything-formula-op") ?? [])];
+check(
+  "formula button: the dialog starts from the search, with operator buttons",
+  gModal?.querySelector(".modal-title")?.textContent === "New group from this search" && gInput?.value === "shared" && opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( )",
+  `${gInput?.value} / ${opButtons.map((b) => b.textContent)}`,
+);
+gInput.setSelectionRange(gInput.value.length, gInput.value.length);
+opButtons.find((b) => b.textContent === "OR").click();
+gInput.value += "b27";
+gInput.dispatchEvent(new Event("input"));
+await sleep(100);
+const eitherN = plugin.index.paths().filter((p) => plugin.index.hasTag(p, "shared") || plugin.index.hasTag(p, "B27")).length;
+check("formula button: OR inserted with its spaces, live count", gInput.value === "shared OR b27" && gModal.querySelector(".tag-everything-formula-preview").textContent.includes(`shared OR B27  →  ${eitherN} items`), gModal.querySelector(".tag-everything-formula-preview").textContent);
+gModal.querySelector(".tag-everything-group-input").value = "Either";
+gModal.querySelector(".mod-cta").click();
+await sleep(300);
+const either = plugin.settings.groups.find((g) => g.name === "Either");
+check(
+  "formula button: saved as a group, its search runs at once",
+  !document.querySelector(".tag-everything-group-modal") && either?.formula === "shared OR B27" && view.getState().activeGroup === either.id && selTab().classList.contains("is-active") && results() === eitherN,
+  JSON.stringify(either) + ` ${results()} vs ${eitherN}`,
+);
+check("formula button: on a group search it edits the group", formulaBtn()?.textContent === "Edit group");
+groupEl("Either").querySelector(".tag-everything-group-header").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await sleep(200);
+[...document.querySelectorAll(".menu .menu-item")].find((m) => /^Delete group/.test(m.textContent))?.click();
+await sleep(200);
+view.selectOnly("shared");
+await sleep(100);
 panel().querySelector(".tag-everything-view-clear").click();
 await sleep(100);
 check("selection tab: gone once the search is cleared, back on All", !selTab() && allTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && !panel().querySelector(".tag-everything-view-scope"));

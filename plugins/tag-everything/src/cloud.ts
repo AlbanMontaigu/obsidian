@@ -24,3 +24,13 @@ export function cloudWeights(counts: ReadonlyMap<string, number> | Iterable<[str
   const max = Math.max(...values);
   return new Map(rows.map(([t, n]) => [t, cloudWeight(n, min, max)]));
 }
+
+/**
+ * The tags that can still narrow a search finding `total` items, from their `counts` within it: on some of them but
+ * not on all (a tag on every item would change nothing), and not already in the search (`taken`). Most used first.
+ */
+export function narrowingTags(counts: ReadonlyMap<string, number>, total: number, taken: readonly string[]): [string, number][] {
+  return [...counts]
+    .filter(([t, n]) => n > 0 && n < total && !taken.includes(t))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}

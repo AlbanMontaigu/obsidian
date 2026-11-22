@@ -81,9 +81,9 @@ and `docs/user-guide.md` when users see it.
 - `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals, `parseTagInput`, `extensionTag`.
 - `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`, Claude Code program and model), message texts.
 - `tests/naming.test.ts`: the rule (accents, digits), problems, fixes (compounds, `/` like `-`, elisions, acronyms), every fix follows the rule, liaison word list, editor input, audit, `replacePlan` (in place, no duplicate), `parseReplacement`, formula / group / tab follow-up.
-- `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic.
+- `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic; `narrowingTags` (on some items not all, not in the search).
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
-- `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas.
+- `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas (`setFormula`: a plain AND stored as tags, empty = empty group).
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
 - `tests/formula.test.ts`: syntax (French / English / symbols, precedence, quotes), round-trip, errors, evaluate, prune, case resolution, `requiredTags`.
 - `tests/ui.test.ts`: autocomplete ranking (`matchTags`).
@@ -126,9 +126,12 @@ and `docs/user-guide.md` when users see it.
   once fixed); then panel, badges (a round pill with the number of tags on a visible row, hover lists them one per line, the list stays while hovered and closes after, a no-op refresh keeps the DOM), settings (declarative rows indexed for search, tab icon; in the
   real settings dialog, the badges toggle disables / enables the badge option and is saved to `data.json`), tag groups (create through the
   dialog, drag with a synthetic `DataTransfer`, fold, `data.json`, group search, switch a tag off / on; formula through the real menu and dialog: error, preview,
-  rendering, search, switch-off pruning, NOT, drop = AND, × prunes; the ⊘ NOT button on group chips, with and without a formula; excluding a cloud tag through its right-click menu, saved state, **+** turning it into a `NOT` formula), panel usability (filter + Enter, keyboard,
+  rendering (one dialog, name and formula), search, switch-off pruning, NOT, drop = AND, × prunes; the ⊘ NOT button on group chips, with and without a formula; excluding a cloud tag through its right-click menu, saved state, **+** turning it into a `NOT` formula), panel usability (filter + Enter, keyboard,
   saved state, the Selection tab: a selected tag switches to it with search and results only, All shows only groups
-  and tags counted in the selection, gone once cleared, labelled group search button "Search" / "Stop", group menu starting with it, draggable results, hover source), bookmark tabs (+ creates and shows one,
+  and every tag with its vault count, the selected one marked (a click there takes it out); with one item no narrowing
+  tag, with `shared` the narrowing tags (on some items, not all, not `shared`) and a click on one narrows and stays
+  in Selection; its *Σ Formula…* button opens the group dialog with the search and the operator buttons, OR inserted
+  with its spaces, live count, saved as a group whose search runs at once, *Edit group* on a group search; gone once cleared, labelled group search button "Search" / "Stop", group menu starting with it, draggable results, hover source), bookmark tabs (+ creates and shows one,
   bookmark by dropping a tag and a group on the tab and through the tag menu, All unchanged, a tab shows only its bookmarks, `data.json` and panel state, a group
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a
   compound's fix in the box (Enter accepts, Save waits), leaves a liaison word out, `applyTags` refuses, settings

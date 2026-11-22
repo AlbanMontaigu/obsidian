@@ -220,6 +220,7 @@
 }
 
 .tag-everything-view-selected,
+.tag-everything-view-refine,
 .tag-everything-view-tags {
   display: flex;
   flex-wrap: wrap;
@@ -228,10 +229,12 @@
 
 /* Tag cloud: --tag-everything-weight (0..1, from src/cloud.ts) scales a chip between the normal chip size (floor,
    the least used tags stay readable) and 1.4x that size (ceiling, no giant tags). */
+.tag-everything-view-refine,
 .tag-everything-view-tags {
   align-items: center;
 }
 
+.tag-everything-view-refine > .tag-everything-chip,
 .tag-everything-view-tags > .tag-everything-chip {
   font-size: calc(var(--font-ui-small) * (1 + 0.4 * var(--tag-everything-weight, 0)));
   padding: 0.15em 0.6em;
@@ -246,16 +249,44 @@
   padding-bottom: 8px;
 }
 
+/* Selection tab: the narrowing tags above the results, which keep most of the height. */
+.tag-everything-view-refine {
+  flex-shrink: 0;
+  max-height: 35%;
+  overflow-y: auto;
+  align-content: flex-start;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-view-refine:empty {
+  display: none;
+}
+
 .tag-everything-view-scope {
   flex-basis: 100%;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
 }
 
+.tag-everything-view-formula,
 .tag-everything-view-clear {
   font-size: var(--font-ui-smaller);
   padding: 0 8px;
   height: auto;
+}
+
+/* The Selection tab's way to a formula: labelled, so OR and parentheses are one click away from any search. */
+.tag-everything-view-formula {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.tag-everything-view-formula svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .tag-everything-view-status,
@@ -520,6 +551,26 @@
 .tag-everything-formula-input {
   width: 100%;
   font-family: var(--font-monospace);
+}
+
+/* Group dialog: the name, then what the group searches for, with buttons inserting the operators. */
+.tag-everything-group-modal-label {
+  margin-top: 12px;
+  font-weight: var(--font-semibold);
+}
+
+.tag-everything-formula-ops {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tag-everything-formula-op {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  padding: 0 10px;
+  height: auto;
+  min-height: 24px;
 }
 
 .tag-everything-formula-preview {

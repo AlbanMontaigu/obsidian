@@ -84,12 +84,17 @@ Run it again to see what is left.
 Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 
 - Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size). The tab **All**
-  (and each bookmark tab, Section 7) shows only the groups and the tags, using the panel's full height.
+  (and each bookmark tab, Section 7) shows only the groups and the tags, using the panel's full height, and always
+  every tag with its count in the whole vault, whatever the search: the tags in the search stay in place, highlighted
+  (click one to take it out).
 - **Click tags** to list the files and folders carrying all of them (AND). The panel then switches to the
   **Selection** tab (at the right end of the tab strip, with the number of items found): the search at the top
-  (click a tag there to take it out, **Clear** to stop), the results below. Go back to **All** to narrow the search
-  with another tag: while a search runs, the counts there are within it (the line above the tags says so). Typing in
-  the filter also goes back to the tags. Selection disappears once the search is empty.
+  (click a tag there to take it out, **Clear** to stop), then the tags that can still narrow it, counted in what it
+  finds (only those on some of the items found, not on all of them: a tag on every one would change nothing; click
+  one to add it to the search), the results below. **Σ Formula…** next to **Clear** opens the search in the group
+  dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
+  runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
+  once the search is empty.
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
@@ -114,9 +119,12 @@ flowchart LR
 
 Groups keep related tags together and double as saved searches.
 
-- **+** creates a group from the current search (excluded tags become `NOT tag` in its formula), or drop a tag on
-  **+**. **Drag** any tag onto a group to add it; a tag can be in several groups.
-- Groups **fold** (chevron) and reorder by dragging one onto another. **⋯** or right-click: search, rename, edit the
+- **One dialog** creates and edits a group: its **name**, and what it **searches for**, written as a formula (below),
+  with buttons inserting `AND`, `OR`, `NOT`, `(`, `)`. Open it with **+** next to *Groups* (it starts from the
+  current search, if any; or drop a tag on **+**), with **Σ Formula…** in the Selection tab (the new group's search
+  then runs), or to edit a group with *⋯ → Edit name and formula*, **Edit group** during its search, or its Σ icon.
+  **Drag** any tag onto a group to add it; a tag can be in several groups.
+- Groups **fold** (chevron) and reorder by dragging one onto another. **⋯** or right-click: search, edit the name and
   formula, add the selected tags, bookmark, delete (the tags stay on the files).
 - Hover a tag of a group: **×** takes it out of the group, **⊘** excludes it from the group's search (`NOT tag`,
   struck through; click ↶ to include it again). Both are also in the tag's right-click menu.
@@ -124,16 +132,16 @@ Groups keep related tags together and double as saved searches.
   *⋯ → Search with this group*. The button reads **Stop** while the search runs. The group's tags show at the top:
   click one to leave it out (dashed), click again to put it back; click other tags to narrow further. Click the group
   again, or **Clear**, to stop.
-- **Formulas** (*⋯ → Combine with a formula*): any combination of the group's tags, e.g.
-  `(b27 OR inc) AND (q3 OR 2026)`.
+- **Formulas** (the group dialog's *Searches for*): any combination of tags, e.g. `(b27 OR inc) AND (q3 OR 2026)`.
   - Operators `AND` / `OR` / `NOT`, also `ET` / `OU` / `NON` and `&` / `|` / `!`, and parentheses. Two tags side by
     side mean AND. `NOT` binds first, then `AND`, then `OR`.
   - Tag names complete as you type; the dialog shows the formula as it understood it and how many items it finds, or
     what is wrong.
   - A tag switched off during a group search drops out of its `OR` / `AND` as if it were not written, `NOT x`
     included. Dropping a tag on a group with a formula adds `AND tag`; its × removes it from the formula.
-  - Empty the formula to go back to "all the tags". Tags match whatever the case; a tag in quotes may contain a
-    parenthesis or be spelled like an operator (`"ou"`).
+  - What the dialog shows is what the group searches for: tags joined by `AND` alone make a plain group (no Σ), an
+    empty field an empty group. Tags match whatever the case; a tag in quotes may contain a parenthesis or be
+    spelled like an operator (`"ou"`).
 - Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
 
 ## 7. Bookmark tabs

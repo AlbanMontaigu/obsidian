@@ -98,7 +98,7 @@ src/inbox-view.ts  the inbox view
 src/rule-modal.ts  the auto-tag and exclusion rule dialog
 src/exclude.ts     excluded paths and exclusion rules (pure, tested)
 src/menu.ts        the TagEverything context submenu
-src/dialogs.ts     name and formula dialogs, tag and folder completion
+src/dialogs.ts     name and group (name + formula) dialogs, tag and folder completion
 src/settings.ts    settings tab
 src/badges.ts      explorer badges
 docs/              user guide, architecture, storage format

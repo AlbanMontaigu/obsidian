@@ -87,7 +87,7 @@ test("normalizeGroups: missing or malformed data never throws", () => {
   ]);
 });
 
-test("formula: setFormula sets the tags; drop appends AND; × prunes; null keeps the tags", () => {
+test("formula: setFormula sets the tags; drop appends AND; × prunes; null empties", () => {
   let groups = setFormula([g("g1", ["old"])], "g1", parseFormula("(a OR b) AND (c OR d)"));
   assert.deepEqual(groups[0].tags, ["a", "b", "c", "d"]);
   assert.equal(groups[0].formula, "(a OR b) AND (c OR d)");
@@ -99,8 +99,12 @@ test("formula: setFormula sets the tags; drop appends AND; × prunes; null keeps
   for (const t of ["a", "b", "d", "e"]) groups = removeTagFromGroup(groups, "g1", t);
   assert.deepEqual(groups[0], g("g1"), "last tag removed: empty group, no formula");
   groups = setFormula(setFormula([g("g1")], "g1", parseFormula("x OR y")), "g1", null);
-  assert.deepEqual(groups[0], g("g1", ["x", "y"]), "formula removed: tags stay, AND again");
+  assert.deepEqual(groups[0], g("g1"), "no formula: an empty group");
+  groups = setFormula(setFormula([g("g1")], "g1", parseFormula("x OR y")), "g1", parseFormula("x y"));
+  assert.deepEqual(groups[0], g("g1", ["x", "y"]), "a plain AND: the tags, no formula");
   assert.equal(formatFormula(groupExpr(groups[0])!), "x AND y");
+  assert.equal(setFormula([g("g1")], "g1", parseFormula("x AND x AND y"))[0].formula, "x AND x AND y", "a repeated tag keeps its formula");
+  assert.deepEqual(setFormula([g("g1")], "g1", parseFormula("z"))[0], g("g1", ["z"]), "one tag: no formula");
   assert.equal(groupExpr(g("g2")), null);
   const broken: TagGroup = { ...g("g3", ["p", "q"]), formula: "(p OR" };
   assert.match(formulaError(broken)!, /missing after OR/);

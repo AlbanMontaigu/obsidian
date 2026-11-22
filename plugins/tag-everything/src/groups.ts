@@ -112,12 +112,23 @@ function withFormula(g: TagGroup, expr: Expr | null): TagGroup {
   return expr ? { ...rest, formula: formatFormula(expr), tags: formulaTags(expr) } : { ...rest, tags: [] };
 }
 
-/** Sets the group's formula (its tags become the formula's), or removes it with null (the tags stay, AND). */
+/** The tags of a plain AND of distinct tags (or a single tag), which needs no formula; null otherwise. */
+function plainTags(expr: Expr): string[] | null {
+  const items = expr.k === "and" ? expr.items : [expr];
+  const tags = items.map((e) => (e.k === "tag" ? e.tag : null));
+  return tags.every((t): t is string => t !== null) && new Set(tags).size === tags.length ? tags : null;
+}
+
+/**
+ * Sets what the group searches for, as written in the group dialog: a formula (its tags become the formula's); a
+ * plain `a AND b` is kept as the tags `a`, `b` without formula; null empties the group.
+ */
 export function setFormula(groups: readonly TagGroup[], id: string, expr: Expr | null): TagGroup[] {
   return update(groups, id, (g) => {
-    if (expr) return withFormula(g, expr);
+    const plain = expr && plainTags(expr);
+    if (expr && !plain) return withFormula(g, expr);
     const { formula: _old, ...rest } = g;
-    return rest;
+    return { ...rest, tags: plain ?? [] };
   });
 }
 

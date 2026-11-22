@@ -1,12 +1,12 @@
 import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
-import { cloudWeights } from "./cloud.ts";
+import { cloudWeights, narrowingTags } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
 import * as tb from "./tabs.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
-import { FormulaModal, NameModal } from "./dialogs.ts";
+import { type FormulaContext, GroupModal, NameModal } from "./dialogs.ts";
 import { clickable, isNode, paintTag, renderExpr } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 
@@ -35,8 +35,8 @@ interface PanelState {
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
  * carrying them, or exclude tags (NOT). Selecting a group selects its tags; each can then be switched off and on again.
  * Bookmark tabs (src/tabs.ts) narrow the groups and tags shown to those bookmarked in the tab; the search is shared.
- * The search and its results have their own tab, Selection, shown while there is a search: the tag tabs hold only
- * groups and tags, at full height.
+ * The search and its results have their own tab, Selection, shown while there is a search, with the tags that can still
+ * narrow it: the tag tabs hold only groups and every tag (the search's ones marked), at full height, whatever the search.
  */
 export class TagEverythingView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -53,6 +53,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
   private tagsEl!: HTMLElement;
+  /** In the Selection tab: the tags that can still narrow the search. */
+  private refineEl!: HTMLElement;
   private selectedEl!: HTMLElement;
   private resultsEl!: HTMLElement;
   private statusEl!: HTMLElement;
@@ -105,8 +107,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     search.addEventListener("keydown", (evt) => {
       if (evt.isComposing) return;
       if (evt.key === "Enter") {
-        // the first tag shown, i.e. the most used one matching the filter
-        const tag = this.tagsEl.querySelector<HTMLElement>(":scope > .tag-everything-chip")?.dataset.tag;
+        // the first tag shown not in the search yet, i.e. the most used one matching the filter
+        const tag = this.tagsEl.querySelector<HTMLElement>(":scope > .tag-everything-chip:not(.is-selected)")?.dataset.tag;
         if (!tag) return;
         evt.preventDefault();
         search.value = this.filter = "";
@@ -127,6 +129,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
     this.tabsEl = root.createDiv({ cls: "tag-everything-tabs", attr: { role: "tablist" } });
     this.selectedEl = root.createDiv({ cls: "tag-everything-view-selected" });
+    this.refineEl = root.createDiv({ cls: "tag-everything-view-refine" });
     this.groupsEl = root.createDiv({ cls: "tag-everything-view-groups" });
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
     this.statusEl = root.createDiv({ cls: "tag-everything-view-status" });
@@ -226,13 +229,17 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   /**
    * Creates a group and returns its id (public for the smoke test). Tags in `excluded` make it a formula:
-   * `tags AND NOT excluded`. Created from a bookmark tab, it is bookmarked there. Throws on an empty name.
+   * `tags AND NOT excluded`. Throws on an empty name.
    */
   async createGroup(name: string, tags: readonly string[] = [], excluded: readonly string[] = []): Promise<string> {
-    const { groups, id } = gr.addGroup(this.groups, name, tags);
-    const formula = excluded.length ? fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]) : null;
+    return this.createGroupFrom(name, fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]));
+  }
+
+  /** Creates a group searching for `expr` (null: an empty group); created from a bookmark tab, it is bookmarked there. */
+  private async createGroupFrom(name: string, expr: fx.Expr | null): Promise<string> {
+    const { groups, id } = gr.addGroup(this.groups, name);
     const tabs = this.tab ? tb.setBookmark(this.tabs, this.tab, "groups", id, true) : this.tabs;
-    await this.save({ groups: formula ? gr.setFormula(groups, id, formula) : groups, tabs });
+    await this.save({ groups: gr.setFormula(groups, id, expr), tabs });
     return id;
   }
 
@@ -332,18 +339,26 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   /**
-   * Sets the group's search formula from text (public for the smoke test): tags are matched to the vault's spelling,
-   * an empty text removes the formula (back to all its tags, AND). Throws on a syntax error.
+   * Sets what the group searches for from a formula's text (public for the smoke test): tags are matched to the
+   * vault's spelling, an empty text empties the group. Throws on a syntax error.
    */
   async setGroupFormula(id: string, text: string): Promise<void> {
-    const expr = text.trim() ? fx.resolveTags(fx.parseFormula(text), [...this.plugin.index.counts().keys()]) : null;
-    const before = this.groups.find((g) => g.id === id);
+    await this.saveGroups(this.withFormula(this.groups, id, this.parseFormula(text)));
+  }
+
+  /** A formula typed by the user, tags matched to the vault's spelling; null when empty. Throws on a syntax error. */
+  private parseFormula(text: string): fx.Expr | null {
+    return text.trim() ? fx.resolveTags(fx.parseFormula(text), [...this.plugin.index.counts().keys()]) : null;
+  }
+
+  /** `groups` with group `id` searching for `expr`; on the active group, its new tags join the search switched on. */
+  private withFormula(groups: gr.TagGroup[], id: string, expr: fx.Expr | null): gr.TagGroup[] {
+    const before = groups.find((g) => g.id === id);
     if (this.activeGroup === id && expr) {
-      // keep the search in step: new tags of the formula start switched on
       const counts = this.plugin.index.counts();
       for (const t of fx.formulaTags(expr)) if (!before?.tags.includes(t) && counts.has(t) && !this.selected.includes(t)) this.selected.push(t);
     }
-    await this.saveGroups(gr.setFormula(this.groups, id, expr));
+    return gr.setFormula(groups, id, expr);
   }
 
   /** The current search: the active group's formula without its switched-off tags, AND the other selected tags, AND NOT the excluded ones. */
@@ -373,14 +388,32 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return index.paths().filter((p) => fx.evaluate(used, (t) => index.hasTag(p, t)));
   }
 
-  private askGroupName(title: string, initial: string, done: (name: string) => Promise<void>): void {
-    new NameModal(this.app, title, initial, "Group name", done).open();
+  /** The group dialog's view of the vault: tags, counts, and how many items a formula finds. */
+  private formulaContext(): FormulaContext {
+    const counts = this.plugin.index.counts();
+    return { tags: this.plugin.index.ranked(), counts, countMatches: (expr) => this.matchPaths(fx.resolveTags(expr, [...counts.keys()])).length };
   }
 
-  private newGroup(tags: readonly string[], excluded: readonly string[] = []): void {
-    this.askGroupName("New tag group", "", async (name) => {
-      await this.createGroup(name, tags, excluded);
-    });
+  /**
+   * New group: a name and what it searches for, starting from `expr` (the current search, a dropped tag). With `run`
+   * (from the Selection tab), the search becomes the new group's, so its formula's results show at once.
+   */
+  private newGroup(expr: fx.Expr | null, run = false): void {
+    const heading = run ? "New group from this search" : "New group";
+    new GroupModal(this.app, heading, "", expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (name, text) => {
+      const id = await this.createGroupFrom(name, this.parseFormula(text));
+      if (run) this.selectGroup(id);
+    }).open();
+  }
+
+  /** Edits a group's name and formula in one dialog (public for the smoke test). */
+  editGroup(group: gr.TagGroup): void {
+    const expr = gr.groupExpr(group);
+    const current = group.formula ?? (expr ? fx.formatFormula(expr) : "");
+    new GroupModal(this.app, `Edit group "${group.name}"`, group.name, current, this.formulaContext(), async (name, text) => {
+      const parsed = this.parseFormula(text); // first: a syntax error keeps the dialog open, nothing saved
+      await this.saveGroups(this.withFormula(gr.renameGroup(this.groups, group.id, name), group.id, parsed));
+    }).open();
   }
 
   private groupMenu(group: gr.TagGroup, evt: MouseEvent): void {
@@ -395,15 +428,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
     );
     menu.addItem((i) =>
       i
-        .setTitle("Rename group")
-        .setIcon("pencil")
-        .onClick(() => this.askGroupName("Rename tag group", group.name, (name) => this.saveGroups(gr.renameGroup(this.groups, group.id, name)))),
-    );
-    menu.addItem((i) =>
-      i
-        .setTitle(group.formula ? "Edit formula" : "Combine with a formula (AND, OR, NOT)")
+        .setTitle("Edit name and formula (AND, OR, NOT)…")
         .setIcon("sigma")
-        .onClick(() => this.editFormula(group)),
+        .onClick(() => this.editGroup(group)),
     );
     const extra = this.selected.filter((t) => !group.tags.includes(t));
     if (extra.length) {
@@ -429,21 +456,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private groupMenuAt(group: gr.TagGroup, el: HTMLElement): void {
     const r = el.getBoundingClientRect();
     this.groupMenu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }));
-  }
-
-  editFormula(group: gr.TagGroup): void {
-    const counts = this.plugin.index.counts();
-    const expr = gr.groupExpr(group);
-    const current = group.formula ?? (expr ? fx.formatFormula(expr) : "");
-    new FormulaModal(
-      this.app,
-      group.name,
-      current,
-      this.plugin.index.ranked(),
-      counts,
-      (expr) => this.matchPaths(fx.resolveTags(expr, [...counts.keys()])).length,
-      (text) => this.setGroupFormula(group.id, text),
-    ).open();
   }
 
   /** Accepts tags (and, with `onGroup`, groups) dragged within the panel. */
@@ -522,12 +534,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (!this.hasSearch()) this.selection = false;
     // Either a tag tab (groups, tags) or the Selection tab (search, results): never both.
     for (const el of [this.groupsEl, this.tagsEl]) el.toggle(!this.selection);
-    for (const el of [this.selectedEl, this.statusEl, this.resultsEl]) el.toggle(this.selection);
-    const matches = this.searchMatches(); // used by the tabs, tags and results: computed once
+    for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(this.selection);
+    const matches = this.searchMatches(); // used by the tabs, narrowing tags and results: computed once
     this.renderTabs(matches);
     this.renderSelected();
+    this.renderRefine(matches);
     this.renderGroups();
-    this.renderTags(matches);
+    this.renderTags();
     this.renderResults(matches);
   }
 
@@ -632,6 +645,18 @@ export class TagEverythingView extends ItemView implements HoverParent {
     };
     for (const tag of this.selected) if (!group?.tags.includes(tag)) searchChip(tag, false);
     for (const tag of this.excluded) searchChip(tag, true);
+    // The way to OR and parentheses: the search as a formula, in the group dialog (a group search edits its group).
+    const formula = this.selectedEl.createEl("button", {
+      cls: "tag-everything-view-formula",
+      attr: {
+        "aria-label": group
+          ? `Edit the group "${group.name}": its name and formula`
+          : "Write this search as a formula (AND, OR, NOT, parentheses) and keep it as a group",
+      },
+    });
+    setIcon(formula.createSpan(), "sigma");
+    formula.createSpan({ text: group ? "Edit group" : "Formula…" });
+    formula.addEventListener("click", () => (group ? this.editGroup(group) : this.newGroup(this.searchExpr(), true)));
     const clear = this.selectedEl.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
     clear.addEventListener("click", () => {
       this.resetSearch();
@@ -649,11 +674,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
     head.createSpan({ cls: "tag-everything-groups-title", text: "Groups" });
     const add = head.createDiv({
       cls: "clickable-icon tag-everything-group-add",
-      attr: { "aria-label": "New group, from the current search (or drop a tag here)" },
+      attr: { "aria-label": "New group: a name and the tags it searches for, with AND, OR, NOT (or drop a tag here)" },
     });
     setIcon(add, "plus");
-    clickable(add, () => this.newGroup(this.selected, this.excluded));
-    this.dropZone(add, (tag) => this.newGroup([tag]));
+    clickable(add, () => this.newGroup(this.searchExpr()));
+    this.dropZone(add, (tag) => this.newGroup(fx.tagExpr(tag)));
 
     // In a bookmark tab, its groups only, in the panel's group order (so dragging one onto another still reorders).
     const tab = this.currentTab;
@@ -663,7 +688,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         cls: "tag-everything-view-empty",
         text: tab
           ? `No group in this tab. + creates one here; or in All, drag a group onto "${tab.name}" (or ⋯ → Bookmark in the tab).`
-          : "No groups yet. + creates one; drag tags onto a group to add them. A group is also a search: its Search button lists what it finds.",
+          : "No groups yet. + creates one: a name and the tags it searches for, joined with AND, OR, NOT. Drag tags onto a group to add them; its Search button lists what it finds.",
       });
       return;
     }
@@ -692,8 +717,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const n = this.matchPaths(gr.groupExpr(group)).length;
       header.createSpan({ cls: "tag-everything-group-name", text: group.name });
       if (group.formula) {
-        const sigma = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula}` } });
+        const sigma = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
         setIcon(sigma, "sigma");
+        clickable(sigma, (evt) => {
+          evt.stopPropagation();
+          this.editGroup(group);
+        });
       }
       // Labelled search button: the whole header searches too, but an icon alone was easy to miss.
       const find = header.createDiv({
@@ -763,7 +792,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       };
       const error = gr.formulaError(group);
       if (error) {
-        const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit formula.` });
+        const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit name and formula.` });
         err.setAttr("aria-label", group.formula ?? "");
       }
       const expr = gr.groupFormula(group);
@@ -772,45 +801,58 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
   }
 
-  /** The tag cloud, counted over what the search finds (`matches`; null = no search: the whole vault). */
-  private renderTags(matches = this.searchMatches()): void {
+  /**
+   * The tag cloud of a tag tab: every tag (of the bookmark tab, if one is shown) with its count in the whole vault,
+   * whatever the search; the tags in the search stay in place, marked (a click takes one out).
+   */
+  private renderTags(): void {
     this.tagsEl.empty();
     const index = this.plugin.index;
-    const search = matches !== null;
-    const counts = index.counts(matches ?? undefined);
-    // In a bookmark tab, its tags only; with no search, one no item carries any more stays (faded) so it can be removed.
+    const counts = index.counts();
+    // In a bookmark tab, its tags only; one no item carries any more stays (faded) so it can be removed.
     const tab = this.currentTab;
-    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]).filter(([, n]) => n > 0 || !search) : [...counts];
+    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]) : [...counts];
     const rows = entries
-      .filter(([t]) => !this.selected.includes(t) && !this.excluded.includes(t) && (!this.filter || t.toLowerCase().includes(this.filter)))
+      .filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
         text: this.filter
           ? `No tag matches "${this.filter}".`
-          : tab && !tab.tags.length
+          : tab
             ? `No tag in this tab yet. In All, drag a tag onto "${tab.name}" (or right-click it → Bookmark in the tab).`
-            : !index.size
-              ? "No tags yet. Right-click a file or folder → Edit tags."
-              : "No other tag.",
+            : "No tags yet. Right-click a file or folder → Edit tags.",
       });
       return;
     }
-    // With a search the counts are within what it finds: say so, the search itself being in the Selection tab.
-    if (matches) {
-      this.tagsEl.createDiv({
-        cls: "tag-everything-view-scope",
-        text: `Counted in the selection (${plural(matches.length, "item")}): click a tag to narrow it.`,
-      });
-    }
-    // Size by use, relative to the tags shown (so it adapts to the filter and the selection).
+    this.cloud(this.tagsEl, rows);
+  }
+
+  /** In the Selection tab, above the results: the tags that can still narrow the search, counted in what it finds. */
+  private renderRefine(matches: string[] | null): void {
+    this.refineEl.empty();
+    if (!matches) return;
+    const group = this.groups.find((g) => g.id === this.activeGroup);
+    // the active group's tags are already in the search bar, switched on or off
+    const taken = [...this.selected, ...this.excluded, ...(group?.tags ?? [])];
+    const rows = narrowingTags(this.plugin.index.counts(matches), matches.length, taken);
+    if (!rows.length) return;
+    this.refineEl.createDiv({ cls: "tag-everything-view-scope", text: "Narrow the selection, counted in it:" });
+    this.cloud(this.refineEl, rows);
+  }
+
+  /** Tag chips sized by use among `rows`, each with its count: a click puts it in the search (or takes it out). */
+  private cloud(parent: HTMLElement, rows: [string, number][]): void {
     const weights = cloudWeights(rows);
     for (const [tag, n] of rows) {
-      const el = this.chip(this.tagsEl, tag, n ? "" : "is-missing");
+      const on = this.selected.includes(tag);
+      const not = this.excluded.includes(tag);
+      const el = this.chip(parent, tag, [n ? "" : "is-missing", on || not ? "is-selected" : "", not ? "is-negated" : ""].join(" "));
       el.setCssProps({ "--tag-everything-weight": String(weights.get(tag) ?? 0) });
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
-      if (n) clickable(el, () => this.toggle(tag));
+      if (on || not) el.setAttr("aria-label", "In the search: click to take it out (right-click: more)");
+      if (n || on || not) clickable(el, () => this.toggle(tag));
       else el.setAttr("aria-label", "No file or folder carries this tag (right-click: remove it from the tab)");
       this.tagMenu(el, tag);
     }
