@@ -95,6 +95,14 @@ await sleep(600);
 await snap("dialog-review");
 rv?.close?.();
 await closeModals();
+await app.vault.createFolder("Bills");
+for (const n of ["a[invoice edf]", "b[invoice]", "c[invoice]", "d[invoice orange]", "e[invoice]", "f[invoice]", "g[edf]", "h[invoices]"]) await app.vault.create(`Bills/${n}.pdf`, "");
+const cs = await plugin.checkConsistency();
+await sleep(400);
+await snap("dialog-consistency");
+cs?.close?.();
+await closeModals();
+await app.vault.delete(file("Bills"), true);
 
 // Claude Code suggestions on a folder.
 const sg = plugin.suggestTags([file("Projects")]);

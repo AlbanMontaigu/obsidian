@@ -51,5 +51,12 @@ export function renderTools(el: HTMLElement, plugin: TagEverythingPlugin): void 
     () => void plugin.reviewTags(),
     "review",
   );
+  row(
+    "Check tag consistency",
+    "Files missing a tag that nearly all the files of their folder carry, or carrying a misspelled one. On one folder: right-click → TagEverything.",
+    "Check…",
+    () => void plugin.checkConsistency(),
+    "consistency",
+  );
   row("Rename or merge a tag", "Everywhere in the vault, with the tag groups, tabs and searches following.", "Rename…", () => new TagPickerModal(app, plugin).open(), "rename");
 }

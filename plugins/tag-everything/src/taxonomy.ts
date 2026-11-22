@@ -59,6 +59,11 @@ function typo(a: string, b: string): boolean {
   return editDistance(fa, fb) <= 1;
 }
 
+/** Two different tags for the same word (case, accents, plural) or one typo apart: the look-alike rule of the review. */
+export function lookAlike(a: string, b: string): boolean {
+  return a !== b && (stem(a) === stem(b) || typo(a, b));
+}
+
 /** Most used first, then the shorter, then by name: the first one is the tag the others merge into. */
 function byUse(counts: ReadonlyMap<string, number>): (a: string, b: string) => number {
   return (a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || a.length - b.length || a.localeCompare(b);
@@ -76,7 +81,7 @@ export function similarTags(counts: ReadonlyMap<string, number>): TagCluster[] {
   const stems = tags.map(stem);
   for (let i = 0; i < tags.length; i++) {
     for (let j = i + 1; j < tags.length; j++) {
-      if (stems[i] === stems[j] || typo(tags[i], tags[j])) parent[find(i)] = find(j);
+      if (stems[i] === stems[j] || typo(tags[i], tags[j])) parent[find(i)] = find(j); // lookAlike, with the stems computed once
     }
   }
   const groups = new Map<number, string[]>();

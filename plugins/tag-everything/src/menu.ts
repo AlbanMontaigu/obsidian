@@ -61,6 +61,7 @@ export function fileMenuEntries(plugin: TagEverythingPlugin, file: TAbstractFile
   if (rules) entries.push(rules);
   if (file instanceof TFolder) {
     entries.push({ title: "Inbox of this folder", icon: "inbox", run: () => void plugin.focusInbox(file.isRoot() ? "" : file.path) });
+    entries.push({ title: "Check tag consistency", icon: "list-checks", run: () => void plugin.checkConsistency(file) });
     entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void plugin.writeGuide(file) });
   }
   if (taggable) entries.push({ title: "Exclude from the tag engine", icon: "eye-off", run: () => void plugin.setExcluded([file.path], true) });

@@ -1237,6 +1237,36 @@
   margin-top: 12px;
 }
 
+/* ---- Tag consistency (src/consistency-modal.ts): rows like the review's, under one header per folder */
+.tag-everything-consistency-modal .tag-everything-fix-from,
+.tag-everything-consistency-modal .tag-everything-fix-to {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.tag-everything-consistency-modal .tag-everything-fix-problem,
+.tag-everything-consistency-modal .tag-everything-fix-to > .tag-everything-error {
+  flex-basis: 100%;
+}
+
+.tag-everything-consistency-name {
+  margin-right: 4px;
+  overflow-wrap: anywhere;
+}
+
+.tag-everything-consistency-folder {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 12px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
 .tag-everything-review-rare > summary {
   cursor: pointer;
 }

@@ -130,7 +130,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   - *Re-read all tags*;
   - *Apply auto-tag rules*: the button says how many files of the vault the rules would tag (**Apply to N files**);
     rules only add tags. **New rule…** creates one;
-  - *Check and fix tag names* (Section 4), *Review tags* and *Rename or merge a tag* (Section 12).
+  - *Check and fix tag names* (Section 4), *Review tags*, *Check tag consistency* and *Rename or merge a tag*
+    (Section 12).
 
   For chosen files or folders, the same actions are in the right-click menu (*TagEverything →*): see Section 13.
 
@@ -375,6 +376,28 @@ Edit the tag to keep in any row (several: separate with spaces; empty: removed),
 **Change N tags**: everything is rewritten in one pass, as above. A tag ticked in two rows with different targets is
 refused (the dialog says which); chains are followed (`a` → `b` and `b` → `c`: `a` becomes `c`).
 
+### Check tag consistency
+
+The files of one folder often share a tag: every PDF of *Bills* carries `invoice`. The few that don't are worth a
+look: forgotten, misspelled, or a real exception. Right-click a folder → **TagEverything → Check tag consistency**
+(that folder and its subfolders), the panel's **Tools** tab → *Check tag consistency* (the whole vault), or the
+command of the same name. It re-reads every tag, then lists, folder by folder:
+
+- **A file missing its folder's usual tag**. A tag is usual in a folder when at least 3 of the files directly in it
+  and at least ¾ of them carry it. The files of one type are also a group of their own (the PDFs of a folder can
+  share a tag its notes don't). An untagged file of the folder is listed too. Each row says how many files carry
+  the tag: *6 of the 8 files here carry invoice*.
+- **A misspelled tag**: a file carrying a look-alike of the usual tag (`invoices` for `invoice`, `reciept` for
+  `receipt`, same rule as *Review tags*) gets it replaced.
+
+Files that are different on purpose stay out: when two or more files of the folder share another tag and none of
+them has the usual one (`2025` files in a folder of `2024` ones), they are a group of their own, not mistakes. A
+lone file with `2025` is still listed: leave it unticked.
+
+Nothing is ticked: tick the rows to fix (or **Tick all**), then **Fix N files**. Tags are only added, except the
+misspelled one a row replaces. A usual tag breaking the naming rule cannot be added: fix it first with *Check tag
+names*. At most 500 rows are listed; for a folder with more, an auto-tag rule (Section 13) fixes them at once.
+
 ## 13. The inbox and auto-tag rules
 
 The inbox lists the files **without tags that arrived lately** (created in the vault in the last 30 days, setting
@@ -445,6 +468,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Insert a tag query block | Section 11 |
 | Rename or merge a tag | Section 12 (also right-click a tag in the panel or the explorer) |
 | Review tags (look-alikes, synonyms, used once) | Section 12 |
+| Check tag consistency (files missing their folder's usual tags) | Section 12 |
 | Open the inbox (files without tags) | Section 13: the explorer's Inbox tab |
 
 | Setting | Default | Effect |

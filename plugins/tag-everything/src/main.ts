@@ -20,6 +20,7 @@ import { QUERY_LANGUAGE } from "./query.ts";
 import { QUERY_HOVER_SOURCE, TagQueryBlock } from "./query-block.ts";
 import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
 import { rulesTags } from "./inbox.ts";
+import { ConsistencyModal, openConsistency } from "./consistency-modal.ts";
 import { type Exclusion, exclusionOf, renameExcluded, setExcluded } from "./exclude.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
@@ -77,6 +78,7 @@ export default class TagEverythingPlugin extends Plugin {
     this.addCommand({ id: "open-tools", name: "Open the tag tools (re-read, rules, check, review)", callback: () => void this.openTools() });
     this.addCommand({ id: "rename-tag", name: "Rename or merge a tag", callback: () => new TagPickerModal(this.app, this).open() });
     this.addCommand({ id: "review-tags", name: "Review tags (look-alikes, synonyms, used once)", callback: () => void this.reviewTags() });
+    this.addCommand({ id: "check-consistency", name: "Check tag consistency (files missing their folder's usual tags)", callback: () => void this.checkConsistency() });
     this.addCommand({ id: "insert-query", name: "Insert a tag query block", editorCallback: (editor) => this.insertQuery(editor) });
     this.addCommand({
       id: "edit-active-file-tags",
@@ -516,9 +518,33 @@ export default class TagEverythingPlugin extends Plugin {
    * rule is left out (the suggestions are already fixed). Resolves to the number of items that failed.
    */
   addTagsEach(added: ReadonlyMap<TAbstractFile, readonly string[]>): Promise<number> {
+    return this.editEach(new Map([...added].map(([item, tags]) => [item, { added: [...tags], removed: [] }])));
+  }
+
+  /**
+   * Applies its own edit to each item (the tag consistency check: a tag added, a misspelled one removed). An added
+   * tag breaking the naming rule is left out, and then so is the item's whole edit, so nothing is removed without its
+   * replacement. Resolves to the number of items that failed.
+   */
+  editEach(edits: ReadonlyMap<TAbstractFile, TagEdit>): Promise<number> {
     const rule = this.rule;
-    const tagsOf = (item: TAbstractFile): string[] => (added.get(item) ?? []).filter((t) => !rule || !ruleMessage(t, rule));
-    return this.enqueue([...added.keys()], (state, target, item) => editPlanner(tagsOf(item), [])(state, target, item));
+    const editOf = (item: TAbstractFile): TagEdit => {
+      const edit = edits.get(item) ?? { added: [], removed: [] };
+      const added = edit.added.filter((t) => !rule || !ruleMessage(t, rule));
+      return { added, removed: added.length === edit.added.length ? edit.removed : [] };
+    };
+    return this.enqueue([...edits.keys()], (state, target, item) => {
+      const { added, removed } = editOf(item);
+      return editPlanner(added, removed)(state, target, item);
+    });
+  }
+
+  /**
+   * Re-reads every tag, then opens the tag consistency check (src/consistency.ts) on the files below `folder` (default:
+   * the vault): the files missing a tag their folder's files nearly all carry.
+   */
+  checkConsistency(folder: TFolder = this.app.vault.getRoot()): Promise<ConsistencyModal> {
+    return openConsistency(this, folder);
   }
 
   /** Opens the Claude Code suggestions for a selection (src/suggest-modal.ts `openSuggestions`). */

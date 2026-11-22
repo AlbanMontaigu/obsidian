@@ -46,11 +46,15 @@ entry of the area you change; add one when you leave a limit behind (users' side
   digits): `livre` / `libre` are offered unticked. Synonyms send at most 1 000 tags (most used first). The synonym
   prompt was checked for real on 2026-11-21 (haiku: 3 s, $0.001 for 8 tags, translations and synonyms grouped,
   related-only tags kept apart); after changing it or `SYNONYM_TASK`, run it again by hand.
+- Tag consistency: a group is the files directly in one folder (and its files of one extension), never a folder's
+  subtree; folder tags (`tsm.json`) are not used. The thresholds (3 files, 3/4 of the group) are constants, not
+  settings. The variant rule (2+ files sharing another tag, none with the habit) is a heuristic: two files that both
+  forgot the tag and share another one are not listed. At most 500 rows.
 - Inbox: "arrived" = `stat.ctime` (created in the vault: a download, a sync, a copy; a move inside the vault is not
   new). Dismissed paths are kept in `data.json` and don't follow a rename. The inbox lists notes too (any untagged
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
-- `main.ts` is ~650 lines (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
+- `main.ts` is ~675 lines (0.36.0) (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
   moved out; `view.ts` ~790 (0.34.0, date criteria) after the Groups section moved to `panel-groups.ts` (0.30.0): the bookmark tabs (`renderTabs`, tab menu, bookmark items) are the next to move out. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
 - Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an

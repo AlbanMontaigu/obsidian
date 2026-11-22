@@ -877,7 +877,7 @@ check("command: Check tag names registered", !!app.commands.commands["tag-everyt
 const folderMenu = fakeMenu();
 app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
 const guideMenu = folderMenu.sub("TagEverything");
-check("guide: folder submenu has Edit tags, suggestions, its inbox, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Inbox of this folder,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
+check("guide: folder submenu has Edit tags, suggestions, its inbox, the consistency check, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Inbox of this folder,Check tag consistency,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
 guideMenu.click("Write AI assistant guide");
 await waitFor(() => !!file("Projects/CLAUDE.md"));
 const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
@@ -1098,6 +1098,40 @@ plugin.runClaude = realRunClaude;
 check("command: review tags registered", !!app.commands.commands["tag-everything:review-tags"]);
 await vault.delete(file("Taxo"), true);
 
+// ---- tag consistency: in a folder whose files nearly all carry a tag, the few without it (or with a look-alike)
+await vault.createFolder("Cons");
+for (const n of ["a[invoice edf]", "b[invoice]", "c[invoice]", "d[invoice orange]", "e[invoice]", "f[invoice]", "g[edf]", "h[invoices]"]) await vault.create(`Cons/${n}.pdf`, "");
+await waitFor(() => plugin.index.ownTagsOf("Cons/h[invoices].pdf").length);
+const csMenu = fakeMenu();
+app.workspace.trigger("file-menu", csMenu, file("Cons"), "file-explorer");
+csMenu.sub("TagEverything")?.click("Check tag consistency");
+await waitFor(() => !!document.querySelector(".tag-everything-consistency-modal"));
+document.querySelector(".tag-everything-consistency-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+const cs = await plugin.checkConsistency(file("Cons"));
+const csEl = document.querySelector(".tag-everything-consistency-modal");
+const csRows = [...(csEl?.querySelectorAll(".tag-everything-fix-row") ?? [])];
+check(
+  "consistency: the folder menu opens it; the files without the folder's usual tag listed, nothing ticked",
+  csEl?.querySelector(".modal-title")?.textContent === "TagEverything: tag consistency of Cons" &&
+    csRows.map((r) => `${r.dataset.path}>${r.dataset.tag}`).join() === "Cons/g[edf].pdf>invoice,Cons/h[invoices].pdf>invoice" &&
+    csRows.every((r) => !r.querySelector("input[type=checkbox]").checked),
+  csRows.map((r) => `${r.dataset.path}>${r.dataset.tag}`).join(),
+);
+check("consistency: a look-alike is offered as replaced, with the counts", /invoices looks like a misspelling: 6 of the 8 files here carry invoice/.test(csRows[1]?.textContent ?? "") && /instead of invoices/.test(csRows[1]?.textContent ?? ""), csRows[1]?.textContent);
+await snap("consistency"); // the dialog, to look at
+[...csEl.querySelectorAll("button")].find((b) => b.textContent === "Tick all")?.click();
+check("consistency: Tick all, then Fix counts the files", csEl.querySelector("button.mod-cta")?.textContent === "Fix 2 files", csEl.querySelector("button.mod-cta")?.textContent);
+await cs.apply();
+const csTags = (prefix) => plugin.index.ownTagsOf(file("Cons").children.find((c) => c.name.startsWith(prefix))?.path ?? "").slice().sort().join();
+await waitFor(() => csTags("g[") === "edf,invoice" && csTags("h[") === "invoice");
+check("consistency: applied: the tag added, the look-alike replaced", csTags("g[") === "edf,invoice" && csTags("h[") === "invoice", `${csTags("g[")} / ${csTags("h[")}`);
+const cs2 = await plugin.checkConsistency(file("Cons"));
+check("consistency: nothing left to say once fixed", /nothing stands out/.test(document.querySelector(".tag-everything-consistency-modal")?.textContent ?? ""));
+cs2.close();
+check("command: check tag consistency registered", !!app.commands.commands["tag-everything:check-consistency"]);
+await vault.delete(file("Cons"), true);
+
 // ---- inbox: files without tags that arrived lately, auto-tag rules (from a file), applied, dismissed, on arrival
 await vault.createFolder("Inbox");
 await vault.create("Inbox/Facture EDF.pdf", "");
@@ -1250,8 +1284,8 @@ await sleep(300);
 const toolsEl = toolsView?.contentEl;
 const toolBtn = (action) => toolsEl?.querySelector(`.tag-everything-tools button[data-action="${action}"]`);
 check(
-  "tools: a tab of the panel with re-read, apply rules, check, review, rename",
-  toolsView?.getState().page === "tools" && ["reindex", "apply-rules", "check-names", "review", "rename"].every((a) => !!toolBtn(a)) && !toolsEl.querySelector(".tag-everything-tab-tools")?.textContent,
+  "tools: a tab of the panel with re-read, apply rules, check, review, consistency, rename",
+  toolsView?.getState().page === "tools" && ["reindex", "apply-rules", "check-names", "review", "consistency", "rename"].every((a) => !!toolBtn(a)) && !toolsEl.querySelector(".tag-everything-tab-tools")?.textContent,
   [...(toolsEl?.querySelectorAll(".tag-everything-tools button") ?? [])].map((b) => b.dataset.action).join(),
 );
 check("tools: Apply names the files the rules would tag", toolBtn("apply-rules")?.textContent === "Apply to 2 files" && !toolBtn("apply-rules").disabled, toolBtn("apply-rules")?.textContent);

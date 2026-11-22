@@ -13,10 +13,11 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 - **File explorer**: badges; the **TagEverything explorer** (left sidebar): a tree of tags (inside a tag, the tags
   telling its files apart, then its files), a formula box, a count range, an *Inbox* tab.
 - **Context menu** (*TagEverything* submenu): edit tags, suggest tags with Claude Code (read-only `claude -p`),
-  apply auto-tag rules, exclude from the tag engine, write an AI assistant guide (`CLAUDE.md`, never over one).
+  apply auto-tag rules, check a folder's tag consistency, exclude from the tag engine, write an AI assistant guide
+  (`CLAUDE.md`, never over one).
 - **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range, extension
   tags only when toggled), bookmark tabs, *Selection* (search by tags AND / NOT and date criteria, narrowing tags, results), *Tools* (vault-wide: re-read, apply
-  rules, check tag names, review tags, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
+  rules, check tag names, review tags, check tag consistency, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
   explorer's *Inbox* tab.
 - **Settings**: options only. Also: `tag-everything` query blocks in notes (live lists from a formula), a tag naming
   rule (one lower-case plain word) with its audit and fix.
@@ -38,6 +39,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see `docs/known-limits.md`) |
+| Tag consistency (a folder's usual tags, the files without them, misspelled ones) | `consistency.ts` (pure), `consistency-modal.ts`, `main.ts` `checkConsistency` / `editEach` | user guide §12 |
 | Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab count; `InboxPane`, drawn in the explorer's Inbox tab), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
 | Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
@@ -78,12 +80,12 @@ Budget first (root `CLAUDE.md`, *Definition of done*): every Obsidian launch cos
 
 Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pure module, named after it:
 `format`, `config`, `naming`, `cloud`, `colors`, `groups`, `tabs`, `formula`, `ui`, `query`, `taxonomy`,
-`exclude`, `inbox`, `explore`, `dates` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
+`exclude`, `inbox`, `explore`, `dates`, `consistency` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
 
-`tests/smoke.js` + `tests/fixtures/vault/`: ~310 in-app checks in one script (a run executes them all). Each check
+`tests/smoke.js` + `tests/fixtures/vault/`: ~330 in-app checks in one script (a run executes them all). Each check
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
 `groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `tabs:`, `fix:`, `command:`,
-`guide:`, `suggest:`, `query:`, `rename:`, `review:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
+`guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
 `ext:`, `dates:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is turned off at the start (the fixture's
