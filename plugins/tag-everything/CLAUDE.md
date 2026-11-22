@@ -15,8 +15,9 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 - **Context menu** (*TagEverything* submenu): edit tags, suggest tags with Claude Code (read-only `claude -p`),
   apply auto-tag rules, exclude from the tag engine, write an AI assistant guide (`CLAUDE.md`, never over one).
 - **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range), bookmark
-  tabs, *Selection* (search by tags AND / NOT, narrowing tags, results), *Inbox* (new untagged files, auto-tag
-  rules), *Tools* (vault-wide: re-read, apply rules, check tag names, review tags, rename / merge).
+  tabs, *Selection* (search by tags AND / NOT, narrowing tags, results), *Tools* (vault-wide: re-read, apply
+  rules, check tag names, review tags, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
+  explorer's *Inbox* tab.
 - **Settings**: options only. Also: `tag-everything` query blocks in notes (live lists from a formula), a tag naming
   rule (one lower-case plain word) with its audit and fix.
 
@@ -36,7 +37,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see `docs/known-limits.md`) |
-| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab counts; `InboxPane`, drawn in the Inbox tab of the panel and of the explorer), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab count; `InboxPane`, drawn in the explorer's Inbox tab), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
 | Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |

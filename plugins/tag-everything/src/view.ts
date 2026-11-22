@@ -10,7 +10,6 @@ import { NameModal } from "./dialogs.ts";
 import { PanelGroups } from "./panel-groups.ts";
 import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
-import { InboxPane, inboxFiles } from "./inbox-pane.ts";
 import { renderTools } from "./tools-pane.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
@@ -18,11 +17,11 @@ export const VIEW_TYPE = "tag-everything-view";
 export const MAX_RESULTS = 500;
 
 /**
- * A tab of the panel that is not a tag tab: Selection (the search and its results), Inbox (files without tags,
- * src/inbox-pane.ts), Tools (vault-wide actions, src/tools-pane.ts).
+ * A tab of the panel that is not a tag tab: Selection (the search and its results), Tools (vault-wide actions,
+ * src/tools-pane.ts). The inbox is a tab of the TagEverything explorer (src/explorer.ts), not of the panel.
  */
-export type PanelPage = "selection" | "inbox" | "tools";
-const PAGES: readonly string[] = ["selection", "inbox", "tools"];
+export type PanelPage = "selection" | "tools";
+const PAGES: readonly string[] = ["selection", "tools"];
 
 /** What the panel remembers across restarts (workspace.json). */
 interface PanelState {
@@ -58,11 +57,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private tab: string | null = null;
   /** The page shown instead of the tag tab (Selection only while there is a search, see `hasSearch`). */
   private page: PanelPage | null = null;
-  /** The Inbox tab's content (public for the smoke test). */
-  readonly inbox: InboxPane;
   /** The Groups section of the tag tabs, its menu and dialog (src/panel-groups.ts). */
   private groupsPane: PanelGroups;
-  /** Inbox and Tools: their content, and the inbox count on its tab, follow the vault. */
+  /** Tools: its content (files the rules would tag) follows the vault. */
   private requestRender = debounce(() => this.render(), 300, true);
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
@@ -84,7 +81,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
     private plugin: TagEverythingPlugin,
   ) {
     super(leaf);
-    this.inbox = new InboxPane(plugin, this.rowHost());
     this.groupsPane = new PanelGroups({
       app: this.app,
       plugin,
@@ -182,7 +178,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.pageEl = root.createDiv({ cls: "tag-everything-view-page" });
 
     this.registerEvent(this.plugin.index.on("changed", () => this.render()));
-    // A file created, deleted or renamed may join or leave the inbox without changing the index (no tag).
+    // A file created, deleted or renamed may change what the rules would tag (Tools) without changing the index (no tag).
     const later = (): void => void this.requestRender();
     this.registerEvent(this.app.vault.on("create", later));
     this.registerEvent(this.app.vault.on("delete", later));
@@ -307,7 +303,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** Shows the Inbox or Tools tab, or Selection while there is a search (public for main.ts and the smoke test). */
+  /** Shows the Tools tab, or Selection while there is a search (public for main.ts and the smoke test). */
   showPage(page: PanelPage): void {
     this.page = page;
     this.stateChanged();
@@ -462,11 +458,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
     if (this.tab && !this.currentTab) this.tab = null;
     if (this.page === "selection" && !this.hasSearch()) this.page = null;
-    // One tab at a time: a tag tab (groups, tags), Selection (search, results), or a page (Inbox, Tools).
+    // One tab at a time: a tag tab (groups, tags), Selection (search, results), or Tools.
     const selection = this.page === "selection";
     for (const el of [this.groupsEl, this.tagsHeadEl, this.tagsEl]) el.toggle(!this.page);
     for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(selection);
-    this.pageEl.toggle(this.page === "inbox" || this.page === "tools");
+    this.pageEl.toggle(this.page === "tools");
     this.requestRender.cancel();
     const matches = this.searchMatches(); // used by the tabs, narrowing tags and results: computed once
     this.renderTabs(matches);
@@ -475,8 +471,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.groupsPane.render(this.groupsEl);
     this.renderTags();
     this.renderResults(matches);
-    if (this.page === "inbox") this.inbox.render(this.pageEl);
-    else if (this.page === "tools") renderTools(this.pageEl, this.plugin);
+    if (this.page === "tools") renderTools(this.pageEl, this.plugin);
     else this.pageEl.empty();
   }
 
@@ -533,7 +528,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       (tag) => this.newTab([tag]),
       (group) => this.newTab([], [group]),
     );
-    // At the end of the strip: Selection (only while there is a search), Inbox, Tools.
+    // At the end of the strip: Selection (only while there is a search), Tools.
     const end = el.createDiv({ cls: "tag-everything-tabs-end" });
     const pageTab = (page: PanelPage, label: string, text: string, icon?: string): HTMLElement => {
       const active = this.page === page;
@@ -548,9 +543,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const n = matches?.length ?? 0;
       pageTab("selection", `The search and the ${plural(n, "item")} it finds`, "Selection").createSpan({ cls: "tag-everything-chip-count", text: String(n) });
     }
-    const waiting = inboxFiles(this.plugin).length;
-    const inbox = pageTab("inbox", `Inbox: ${plural(waiting, "file")} without tags that arrived lately`, "", "inbox");
-    if (waiting) inbox.createSpan({ cls: "tag-everything-chip-count", text: String(waiting) });
     pageTab("tools", "Tools: re-read tags, apply auto-tag rules, check names, review, rename", "", "wrench");
   }
 

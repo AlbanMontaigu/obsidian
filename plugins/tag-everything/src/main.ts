@@ -145,7 +145,7 @@ export default class TagEverythingPlugin extends Plugin {
     });
   }
 
-  /** Closes the inbox's own sidebar view of 0.27 and before, saved in the workspace: the inbox is a panel tab now. */
+  /** Closes the inbox's own sidebar view of 0.27 and before, saved in the workspace: the inbox is a tab of the explorer now. */
   closeOldInbox(): void {
     const old: WorkspaceLeaf[] = [];
     this.app.workspace.iterateAllLeaves((leaf) => {
@@ -426,10 +426,10 @@ export default class TagEverythingPlugin extends Plugin {
     editor.setCursor({ line: from.line + (before ? 2 : 1), ch: formula.length });
   }
 
-  /** Shows the tags panel on its Inbox tab (files without tags), opening the panel if needed. */
-  async openInbox(): Promise<TagEverythingView | null> {
-    const view = await this.openView();
-    view?.showPage("inbox");
+  /** Shows the TagEverything explorer on its Inbox tab (files without tags), opening the explorer if needed. */
+  async openInbox(): Promise<TagExplorerView | null> {
+    const view = await this.openExplorer();
+    view?.showTab("inbox");
     return view;
   }
 

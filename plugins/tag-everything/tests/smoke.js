@@ -1102,17 +1102,18 @@ await vault.delete(file("Taxo"), true);
 await vault.createFolder("Inbox");
 await vault.create("Inbox/Facture EDF.pdf", "");
 await vault.create("Inbox/photo.jpg", "");
-// The inbox is a tab of the tags panel: no view, ribbon icon or sidebar tab of its own.
+// The inbox is a tab of the TagEverything explorer only: not of the panel, no view, ribbon icon or sidebar tab of its own.
 const ibBefore = app.workspace.getLeavesOfType("tag-everything-view")[0]?.view.getState();
 const ibView = await plugin.openInbox();
 await sleep(400);
 const inbox = ibView?.inbox;
 const ibEl = ibView?.contentEl;
-const ibRow = (path) => ibEl?.querySelector(`.tag-everything-view-page .tag-everything-inbox-row[data-path="${path}"]`);
-const ibTab = () => ibEl?.querySelector(".tag-everything-tabs-end .tag-everything-tab-inbox");
+const ibRow = (path) => ibEl?.querySelector(`.tag-everything-explorer-page .tag-everything-inbox-row[data-path="${path}"]`);
+const ibTab = () => ibEl?.querySelector(".tag-everything-explorer-tabs > .tag-everything-explorer-tab-inbox");
 check(
-  "inbox: a tab of the panel, active, its count on it, no view of its own",
-  ibView?.getState().page === "inbox" && ibTab()?.classList.contains("is-active") && ibTab()?.querySelector(".tag-everything-chip-count")?.textContent === String(inbox.files().length) && !document.querySelector('.side-dock-ribbon-action[aria-label*="inbox"]') && !app.workspace.getLeavesOfType("tag-everything-inbox").length,
+  "inbox: the command opens the explorer's Inbox tab, its count on it; no Inbox tab in the panel, no view of its own",
+  ibView?.getViewType() === "tag-everything-explorer" && ibView.getState().tab === "inbox" && ibTab()?.classList.contains("is-active") && ibTab()?.querySelector(".tag-everything-chip-count")?.textContent === String(inbox.files().length) &&
+    !document.querySelector(".tag-everything-tab-inbox") && !document.querySelector('.side-dock-ribbon-action[aria-label*="inbox"]') && !app.workspace.getLeavesOfType("tag-everything-inbox").length,
   JSON.stringify(ibView?.getState()) + " " + ibTab()?.textContent,
 );
 check("inbox: opens, lists the new untagged files, newest first", !!ibRow("Inbox/Facture EDF.pdf") && !!ibRow("Inbox/photo.jpg") && inbox.files().slice(0, 2).every((f) => f.path.startsWith("Inbox/")), inbox?.files().slice(0, 4).map((f) => f.path).join());
@@ -1162,7 +1163,7 @@ check("inbox: Add the rule tags (first in the menu, names them) adds those left 
 ibAct("Inbox/photo.jpg", "Dismiss");
 await sleep(400);
 check("inbox: dismissed, saved", !ibRow("Inbox/photo.jpg") && (await plugin.loadData())?.inboxDismissed?.includes("Inbox/photo.jpg"));
-// focused on one folder (setting inboxFolder), also the Inbox tab of the TagEverything explorer
+// focused on one folder (setting inboxFolder)
 const ibFolderDef = settingTab?.getSettingDefinitions().find((d) => d.heading === "Inbox")?.items?.find((i) => i.control?.key === "inboxFolder");
 check("settings: the inbox folder row", ibFolderDef?.name === "Inbox folder" && ibFolderDef.control.type === "text", JSON.stringify(ibFolderDef));
 await vault.create("Inbox/scan.png", "");
@@ -1173,32 +1174,30 @@ check(
   plugin.settings.inboxFolder === "inbox" && inbox.files().map((f) => f.path).join() === "Inbox/scan.png" && !!ibRow("Inbox/scan.png") && /1 file without tags in inbox from the last 30 days/.test(ibEl.textContent),
   inbox.files().map((f) => f.path).join() + " / " + ibEl.querySelector(".tag-everything-inbox-status")?.textContent,
 );
-const exIb = await plugin.openExplorer();
-await sleep(300);
-const exIbTab = () => exIb?.contentEl.querySelector(".tag-everything-explorer-tabs > .tag-everything-explorer-tab-inbox");
-const exIbRow = (path) => exIb?.contentEl.querySelector(`.tag-everything-explorer-page .tag-everything-inbox-row[data-path="${path}"]`);
+ibView.showTab("tags");
+await sleep(200);
 check(
   "explorer: two tabs, Tags (shown) then Inbox with the inbox's count",
-  [...(exIb?.contentEl.querySelectorAll(".tag-everything-explorer-tabs > .tag-everything-tab") ?? [])].map((t) => t.textContent).join() === "Tags,Inbox1" &&
-    exIb.contentEl.querySelector(".tag-everything-explorer-tab-tags.is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-tree .is-inbox"),
-  exIb?.contentEl.querySelector(".tag-everything-explorer-tabs")?.textContent,
+  [...(ibEl?.querySelectorAll(".tag-everything-explorer-tabs > .tag-everything-tab") ?? [])].map((t) => t.textContent).join() === "Tags,Inbox1" &&
+    ibEl.querySelector(".tag-everything-explorer-tab-tags.is-active") && !ibEl.querySelector(".tag-everything-explorer-tree .is-inbox"),
+  ibEl?.querySelector(".tag-everything-explorer-tabs")?.textContent,
 );
-exIbTab()?.click();
+ibTab()?.click();
 await sleep(200);
 check(
   "explorer: the Inbox tab holds the inbox (rule actions on its rows), the search box and tree hidden, saved",
-  !!exIbRow("Inbox/scan.png")?.querySelector('[data-action="menu"]') && exIbTab()?.hasClass("is-active") && !exIb.contentEl.querySelector(".tag-everything-explorer-bar").isShown() && exIb.getState().tab === "inbox",
-  exIb?.contentEl.textContent.slice(0, 200),
+  !!ibRow("Inbox/scan.png")?.querySelector('[data-action="menu"]') && ibTab()?.hasClass("is-active") && !ibEl.querySelector(".tag-everything-explorer-bar").isShown() && ibView.getState().tab === "inbox",
+  ibEl?.textContent.slice(0, 200),
 );
 await settingTab.setControlValue("inboxFolder", "Nowhere");
 await sleep(300);
 check(
-  "inbox: a focus folder not in the vault is said, in the panel and in the explorer's Inbox tab (no count)",
-  /No folder Nowhere in the vault/.test(ibEl.textContent) && /No folder Nowhere in the vault/.test(exIb.contentEl.textContent) && exIbTab()?.textContent === "Inbox",
+  "inbox: a focus folder not in the vault is said in the explorer's Inbox tab (no count)",
+  /No folder Nowhere in the vault/.test(ibEl.textContent) && ibTab()?.textContent === "Inbox",
   ibEl.textContent.slice(0, 200),
 );
 await settingTab.setControlValue("inboxFolder", "");
-exIb?.showTab("tags");
+ibView.showTab("tags");
 // Targeted actions in the folder menu: its inbox, the rules on the files below it.
 await vault.create("Inbox/Facture Orange.pdf", "");
 await sleep(300);
@@ -1209,18 +1208,20 @@ const ibSub = ibMenu.sub("TagEverything");
 check("menu: Apply auto-tag rules on a folder, with the files it would tag", ibSub?.titles().includes("Apply auto-tag rules (2 files)"), ibSub?.titles().join(" | "));
 ibSub?.click("Inbox of this folder");
 await sleep(500);
-check("menu: Inbox of this folder focuses the inbox there and shows it", plugin.settings.inboxFolder === "Inbox" && ibView.getState().page === "inbox" && /without tags in Inbox/.test(ibEl.textContent), plugin.settings.inboxFolder + " / " + ibView.getState().page);
+check("menu: Inbox of this folder focuses the inbox there and shows it", plugin.settings.inboxFolder === "Inbox" && ibView.getState().tab === "inbox" && /without tags in Inbox/.test(ibEl.textContent), plugin.settings.inboxFolder + " / " + ibView.getState().tab);
 ibEl.querySelector(".tag-everything-inbox-actions button:last-child")?.click(); // "Whole vault"
 await sleep(400);
 check("inbox: Whole vault stops the focus", plugin.settings.inboxFolder === "", plugin.settings.inboxFolder);
+ibView.showTab("tags"); // the explorer as the later sections expect it
 // The Tools tab: the vault-wide actions, the rules applied to every file they match.
-await plugin.openTools();
+const toolsView = await plugin.openTools();
 await sleep(300);
-const toolBtn = (action) => ibEl.querySelector(`.tag-everything-tools button[data-action="${action}"]`);
+const toolsEl = toolsView?.contentEl;
+const toolBtn = (action) => toolsEl?.querySelector(`.tag-everything-tools button[data-action="${action}"]`);
 check(
   "tools: a tab of the panel with re-read, apply rules, check, review, rename",
-  ibView.getState().page === "tools" && ["reindex", "apply-rules", "check-names", "review", "rename"].every((a) => !!toolBtn(a)) && !ibEl.querySelector(".tag-everything-tab-tools")?.textContent,
-  [...ibEl.querySelectorAll(".tag-everything-tools button")].map((b) => b.dataset.action).join(),
+  toolsView?.getState().page === "tools" && ["reindex", "apply-rules", "check-names", "review", "rename"].every((a) => !!toolBtn(a)) && !toolsEl.querySelector(".tag-everything-tab-tools")?.textContent,
+  [...(toolsEl?.querySelectorAll(".tag-everything-tools button") ?? [])].map((b) => b.dataset.action).join(),
 );
 check("tools: Apply names the files the rules would tag", toolBtn("apply-rules")?.textContent === "Apply to 2 files" && !toolBtn("apply-rules").disabled, toolBtn("apply-rules")?.textContent);
 toolBtn("apply-rules")?.click();
@@ -1257,7 +1258,7 @@ plugin.settings.autoApplyRules = false;
 plugin.settings.rules = [];
 plugin.settings.inboxDismissed = [];
 await plugin.saveSettings();
-if (ibBefore) await ibView.setState(ibBefore, {}); // the panel as it was before the inbox
+if (ibBefore) await toolsView?.setState(ibBefore, {}); // the panel as it was before the Tools tab
 await vault.delete(file("Inbox"), true);
 document.querySelectorAll(".notice").forEach((n) => n.remove());
 

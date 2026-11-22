@@ -114,8 +114,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - Everything works from the keyboard (Tab, then Enter or Space). The panel remembers its search, filter and tab
   (Selection included) across restarts.
 - The ↻ button re-reads all tags (after editing them outside Obsidian).
-- At the right end of the tab strip, two icon tabs: the **inbox** (files without tags, with their number: Section 13)
-  and the **Tools** (wrench): the actions on the whole vault, one row each with what it does:
+- At the right end of the tab strip, an icon tab: the **Tools** (wrench): the actions on the whole vault, one row each
+  with what it does (the inbox is in the TagEverything explorer: Section 13):
   - *Re-read all tags*;
   - *Apply auto-tag rules*: the button says how many files of the vault the rules would tag (**Apply to N files**);
     rules only add tags. **New rule…** creates one;
@@ -228,8 +228,7 @@ view): open it with the ribbon `list-tree` icon or the command *Open the tag exp
 file explorer.
 
 It has two tabs at the top: **Tags**, the tree described below, and **Inbox**, with the number of files waiting:
-the inbox of Section 13, the same as the panel's Inbox tab (rule tags, the ⋮ menu of actions), so you can empty it right next to
-your folders. The tab shown is remembered across restarts.
+the inbox of Section 13 (rule tags, the ⋮ menu of actions), so you can empty it right next to your folders. The tab shown is remembered across restarts.
 
 - At the top, a **search box** that takes a formula, as the panel's group formulas do (§6): tags with AND, OR, NOT
   (or ET, OU, NON) and parentheses, e.g. `tax AND NOT receipt`; two tags side by side = AND. While you type a tag,
@@ -358,16 +357,14 @@ refused (the dialog says which); chains are followed (`a` → `b` and `b` → `c
 ## 13. The inbox and auto-tag rules
 
 The inbox lists the files **without tags that arrived lately** (created in the vault in the last 30 days, setting
-*Days in the inbox*), newest first. It is a tab of the TagEverything panel: the `inbox` icon at the right end of its
-tab strip, with the number of files waiting; or the command *Open the inbox (files without tags)*. A file leaves the
-inbox as soon as it has a tag.
+*Days in the inbox*), newest first. It is the **Inbox** tab of the TagEverything explorer (Section 10), next to
+*Tags*, with the number of files waiting; or the command *Open the inbox (files without tags)*, which opens the explorer
+on it. A file leaves the inbox as soon as it has a tag.
 
 - **Focus on one folder**: right-click the folder → *TagEverything → Inbox of this folder*, or *Settings → Inbox →
   Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and accents ignored; empty = the whole vault). The
   inbox then lists only the files there and says so at the top; its **Whole vault** button stops the focus. Rules and
   *Tag new files with the rules automatically* still work everywhere.
-- **In the TagEverything explorer** (Section 10): the same inbox is its **Inbox** tab, next to *Tags*, with the
-  number of files waiting; everything below works there too.
 
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
   the tags your **rules** would add (dashed; click one to leave it out). On the right, one **⋮** icon opens its
@@ -424,7 +421,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Insert a tag query block | Section 11 |
 | Rename or merge a tag | Section 12 (also right-click a tag in the panel or the explorer) |
 | Review tags (look-alikes, synonyms, used once) | Section 12 |
-| Open the inbox (files without tags) | Section 13: the panel's Inbox tab |
+| Open the inbox (files without tags) | Section 13: the explorer's Inbox tab |
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -449,7 +446,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
 read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer
 and dialogs are titled *TagEverything*. It lives in four places only: the explorers (Obsidian's, with its badges, and
-the TagEverything explorer), the right-click menu (actions on chosen items), the panel (tags, search, inbox, tools)
+the TagEverything explorer, with the inbox), the right-click menu (actions on chosen items), the panel (tags, search, tools)
 and the settings (options).
 
 The settings also show up in Obsidian's settings search (e.g. type "badges" or "sidecar").

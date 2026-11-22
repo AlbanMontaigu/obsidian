@@ -103,26 +103,24 @@ await sleep(400);
 await snap("dialog-suggest");
 await closeModals();
 
-// The panel's Tools tab, then its Inbox tab and a rule from a row's wand.
+// The panel's Tools tab.
 await plugin.openTools();
 await sleep(500);
 await snap("view-tools");
-await plugin.openInbox();
-await sleep(500);
-await snap("view-inbox");
-document.querySelector(".tag-everything-inbox-row [data-action=wand-sparkles]")?.click();
-await sleep(400);
-if (document.querySelector(".tag-everything-rule-modal")) await snap("dialog-rule");
-await closeModals();
 
-// Explorer: its Tags tab, then its Inbox tab.
+// Explorer: its Tags tab, then its Inbox tab and a rule from a row's ⋮ menu.
 const explorer = await plugin.openExplorer();
 explorer?.showTab("tags");
 await sleep(500);
 await snap("view-explorer");
-explorer?.showTab("inbox");
+await plugin.openInbox();
 await sleep(500);
 await snap("view-explorer-inbox");
+document.querySelector(".tag-everything-inbox-row [data-action=menu]")?.click();
+[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent.startsWith("New rule from this file"))?.click();
+await sleep(400);
+if (document.querySelector(".tag-everything-rule-modal")) await snap("dialog-rule");
+await closeModals();
 explorer?.showTab("tags");
 
 // Settings: top, then each section.
