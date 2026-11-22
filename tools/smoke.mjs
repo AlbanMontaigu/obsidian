@@ -1,4 +1,4 @@
-// npm run smoke -- <id> [--keep] [--no-build] [--port 9334] [--timeout 60] [--script <name>]
+// npm run smoke -- <id> [--keep] [--no-build] [--port 9334] [--timeout 60] [--script <name>] [--only <pattern>]
 //
 // Loads a plugin in a REAL Obsidian, isolated from your own: a throwaway profile (--user-data-dir) and a
 // throwaway vault in %TEMP%, both deleted afterwards. Your vaults, settings and running Obsidian are never
@@ -10,7 +10,9 @@
 //      tests/gallery.js instead. In the script, `await snap("name")` saves dist/<id>-name.png at that point;
 //   5. screenshot to dist/<id>-smoke.png (the app as smoke.js left it: open a modal / view last to see it)
 //      and print every console error / warning / exception. Unexpected errors fail the run.
-// Exit code 0 = PASS. --keep leaves the temp folder (path printed) for inspection.
+// Exit code 0 = PASS. --keep leaves the temp folder (path printed) for inspection. --only <pattern> (a regular
+// expression, case ignored) still runs every check but prints only those whose name matches, and every failure:
+// less to read when only some checks concern the change (docs/testing.md, Test budget).
 import { execSync, spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,6 +28,15 @@ const args = parseArgs();
 const [plugin] = selectPlugins(args);
 const port = Number(args.flags.port ?? 9334);
 const timeoutS = Number(args.flags.timeout ?? 60);
+let only = null;
+if (args.flags.only !== undefined) {
+  if (typeof args.flags.only !== "string") fail("--only needs a pattern, e.g. --only \"explorer|inbox\".");
+  try {
+    only = new RegExp(args.flags.only, "i");
+  } catch (err) {
+    fail(`--only: not a valid regular expression: ${err.message}`);
+  }
+}
 if (!existsSync(OBSIDIAN_EXE)) fail(`Obsidian not found at ${OBSIDIAN_EXE} (set OBSIDIAN_EXE).`);
 if (!args.flags["no-build"] && !(await buildOnce(plugin))) fail("Build failed.");
 
@@ -234,7 +245,13 @@ try {
     } else {
       const { results } = r.value;
       expected = r.value.expected.map(([source, flags]) => new RegExp(source, flags));
-      for (const c of results) console.log(`  ${c.ok ? "ok  " : "FAIL"} ${c.name}${c.detail ? `  (${c.detail})` : ""}`);
+      const printed = results.filter((c) => !only || !c.ok || only.test(c.name));
+      for (const c of printed) console.log(`  ${c.ok ? "ok  " : "FAIL"} ${c.name}${c.detail ? `  (${c.detail})` : ""}`);
+      if (only) {
+        const matched = results.filter((c) => only.test(c.name)).length;
+        const ok = results.filter((c) => c.ok).length;
+        console.log(`  --only ${only.source}: ${matched} check(s) matched${matched ? "" : " (check the pattern)"}; ${ok}/${results.length} ok in all, ${results.length - printed.length} ok line(s) hidden`);
+      }
       smokeOk = results.length > 0 && results.every((c) => c.ok);
       if (!results.length) console.log("  smoke.js made no check() call");
     }

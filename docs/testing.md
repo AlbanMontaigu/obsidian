@@ -12,18 +12,29 @@ Two levels, both runnable without the owner and without touching a real vault.
 
 ## Test budget: test what matters, not everything every time
 
-Every run costs tokens (its output is read). The owner's rule: **do not over-test**.
+Every run costs tokens (its output is read). The owner's rule: **do not over-test**. Tests are run, but **only
+those targeting what was modified and what it can affect**, never every test each time.
 
-- **While working**: run only the tests of what you touch, e.g. `node --test plugins/<id>/tests/<topic>.test.ts`.
-  No baseline smoke run before starting, no smoke run after each step.
-- **Smoke (end to end)**: once, when the change is finished (and again only to confirm a fix of a smoke failure).
-  Skip it when no wiring, UI or vault I/O changed (pure logic, docs).
-- **Full run** (`npm run typecheck`, `npm test` for all plugins, `npm run smoke -- <id>`, the plugin's read-only vault
-  checks): for a **minor or major** version, when the owner asks, or when the last full run is several changes old.
+- **Targeted, always**: the test files of the modules you changed **and of what they can affect** (their callers,
+  a shared module they rely on, the view that shows them), e.g.
+  `node --test plugins/<id>/tests/format.test.ts plugins/<id>/tests/naming.test.ts`. Not `npm test -- <id>` (every
+  test file) by default. `npm run typecheck` is cheap and covers every caller: run it after any code change.
+- **No baseline run** before starting, except the targeted files you are about to change (to know they were green).
+- **Smoke (end to end)**: `tests/smoke.js` is one script, so a run is the whole of it: **once**, when the change is
+  finished, and only if wiring, UI or vault I/O changed (pure logic or docs: skip it). Print only the checks of your
+  change and of what it affects: `npm run smoke -- <id> --only "explorer|inbox"` (a regular expression on check
+  names, case ignored) still runs every check but prints only the matching ones, every failure, console errors and
+  one count line (`3 check(s) matched; 290/290 ok in all`), not the 200+ `ok` lines. Run it
+  again only to confirm a fix of a smoke failure. CSS-only change: one gallery shot of the screen touched instead.
+- **Full non-regression run** (`npm run typecheck`, `npm test` for all plugins, `npm run smoke -- <id>`, the plugin's
+  read-only vault checks): only when it is really needed: a **minor or major** version, a change to a module many
+  others use (the write path, the index, the format), when the owner asks, or when the last full run is several
+  changes old.
 - **Write few tests that bite**: edge cases that touch user data and the behaviour you changed; no test for trivial
   code, no second test of what another test already covers.
 - **Mutation check every new test**: break the code it covers (flip a condition, drop a line, return early), run the
-  test, see it **fail**, restore the code. A test that stays green tests nothing: fix it or delete it.
+  test, see it **fail**, restore the code. A test that stays green tests nothing: fix it or delete it. For a new
+  smoke `check()`, one mutated smoke run with `--only "<that check>"`.
 
 ## Unit tests
 

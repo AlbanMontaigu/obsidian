@@ -30,7 +30,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
   }
   return { flags, positionals };
 }
-const VALUE_FLAGS = new Set(["vault", "name", "description", "port", "timeout", "script"]);
+const VALUE_FLAGS = new Set(["vault", "name", "description", "port", "timeout", "script", "only"]);
 
 export function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));

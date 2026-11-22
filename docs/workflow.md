@@ -50,8 +50,8 @@ flowchart LR
 ## B. Improve an existing plugin
 
 1. Read `plugins/<id>/CLAUDE.md` (spec, invariants), then the files it points to.
-2. **Baseline**: `npm test -- <id>` before changing anything (no smoke: it runs once at the end, see
-   `docs/testing.md` → *Test budget*). If the baseline fails, say so and fix or report that first; never build on a
+2. **Baseline**: the targeted test files of what you are about to change (not every test, no smoke: it runs once
+   at the end, see `docs/testing.md` → *Test budget*). If the baseline fails, say so and fix or report that first; never build on a
    red baseline silently.
 3. **Bug**: reproduce it first, as a failing unit test (pure logic) or smoke `check()` (wiring/UI). Then fix.
    **Feature**: add the tests with the code.
@@ -77,11 +77,12 @@ flowchart LR
 For a "review the code" request, or once in a while over a whole plugin. Fix directly; ask only for a product
 decision.
 
-1. **Baseline**: `npm run typecheck`, `npm test -- <id>` green before touching anything.
+1. **Baseline**: `npm run typecheck`, `npm test -- <id>` green before touching anything (a whole-plugin review is a
+   full non-regression case, `docs/testing.md` → *Test budget*).
 2. **Read every file** of the plugin (and `tools/` if in scope) against the checklist in `docs/code-style.md`. Note
    findings first, then decide: a refactor that removes nearly nothing is skipped.
 3. Dead code: grep each export / public method for callers; unused CSS classes against `src/` and `tests/`.
-4. Fix in small steps, `npm run typecheck` + `npm test -- <id>` after each. A behaviour-neutral refactor needs no new
+4. Fix in small steps, `npm run typecheck` + the test files of what each step touched after each. A behaviour-neutral refactor needs no new
    test; a merged helper whose callers differed gets one (and check it fails when the helper is broken).
 5. `npm run smoke -- <id>` once at the end (UI touched), look at the screenshot.
 6. Docs: walk `docs/README.md` → *When to update what*; module renames and moves land in `docs/architecture.md`.

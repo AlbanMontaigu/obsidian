@@ -13,13 +13,13 @@ Follow `docs/workflow.md` section **B. Improve an existing plugin**:
 1. Read `CLAUDE.md` (root), then `plugins/<id>/CLAUDE.md` (where to change what, **invariants**) and
    `plugins/<id>/docs/architecture.md` (flows, module reference), then the source
    files it points to. Skim `docs/obsidian-api.md` → *Traps*.
-2. Baseline: `npm test -- <id>` (no smoke yet). If red before your change, report it and fix it first. Follow the
+2. Baseline: only the test files of what you will change (no smoke yet, not every test). If red before your change, report it and fix it first. Follow the
    **test budget** (`docs/testing.md`): targeted tests while working, mutation-check each new test, smoke once at
    the end.
 3. Bug: reproduce it as a failing unit test (pure logic) or smoke `check()` (wiring / UI) **before** fixing.
    Feature: write the tests with the code. Keep every invariant; a stored-format change must stay readable by the
    previous version.
-4. Definition of done (root `CLAUDE.md`): typecheck clean, unit + smoke green, screenshot **looked at**
+4. Definition of done (root `CLAUDE.md`): typecheck clean, targeted unit tests + smoke green, screenshot **looked at**
    (`dist/<id>-smoke.png`), new behaviour covered by a `check()`, docs updated (`docs/README.md` → *When to update what*: user guide,
    architecture, `CLAUDE.md`), code following `docs/code-style.md`, `manifest.json`
    version bumped (patch = fix, minor = feature).

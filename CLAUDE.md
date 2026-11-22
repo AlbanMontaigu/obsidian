@@ -39,6 +39,7 @@ npm run new -- <id> --name "Name" --description "One sentence."
 npm run typecheck                            # tsc over every plugin
 npm test -- <id>                             # unit tests (node --test, plugins/<id>/tests/*.test.ts)
 npm run smoke -- <id>                        # build + load in a throwaway Obsidian + tests/smoke.js + screenshot
+npm run smoke -- <id> --only "<regex>"       # same run, prints only the matching checks and the failures
 npm run build -- <id>                        # typecheck + bundle into dist/<id>/
 npm run deploy -- <id> [--vault <path|name>] # into a REAL vault: ask first
 npm run dev -- <id>                          # watch + deploy on save (owner's interactive use)
@@ -49,11 +50,14 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
 
 ## Definition of done (every change)
 
-Do not over-test: follow the **test budget** in `docs/testing.md` (targeted tests while working, smoke once at the
-end, full run only for a minor/major version, on request or when long overdue; every new test mutation-checked).
+Do not over-test: follow the **test budget** in `docs/testing.md`: run only the tests targeting what you modified
+and what it can affect, never all of them each time; smoke once at the end; a full non-regression run only when
+needed (minor/major version, a widely used module changed, on request, or long overdue); every new test
+mutation-checked.
 
 1. `npm run typecheck` clean.
-2. `npm test -- <id>` passes; pure logic you added has a test, and you saw it fail on broken code.
+2. The targeted unit tests pass (`node --test` on the test files of what changed and what it affects); pure logic
+   you added has a test, and you saw it fail on broken code.
 3. `npm run smoke -- <id>` (once, at the end; skip if no wiring/UI/vault I/O changed) prints `PASS` with no
    unexpected console error; you looked at the screenshot.
 4. A smoke `check()` covers the new behaviour (a new command, menu item, view, setting...).
