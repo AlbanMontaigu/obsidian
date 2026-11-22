@@ -3,10 +3,11 @@
 
 import type { StorageMode } from "./format.ts";
 import { type TagGroup, cleanTagList, normalizeGroups } from "./groups.ts";
-import { type BookmarkTab, normalizeTabs } from "./tabs.ts";
+import { type Section, normalizeSections } from "./sections.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { type AutoTagRule, cleanFolder, normalizeRules } from "./inbox.ts";
 import { type ExcludeRule, normalizeExcludeRules, normalizeExcludedPaths } from "./exclude.ts";
+import { type BringInFolder, normalizeBringIn } from "./bring-in.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -41,6 +42,8 @@ export interface TagEverythingSettings {
   inboxFolder: string;
   /** Paths the user dismissed from the inbox (no tag needed). */
   inboxDismissed: string[];
+  /** Folders outside the vault whose new files are moved into a vault folder (src/bring-in.ts). */
+  bringIn: BringInFolder[];
   /** Files and folders excluded from TagEverything by hand (src/exclude.ts); a folder takes what is under it. */
   excluded: string[];
   /** Exclusion rules (src/exclude.ts): the items they cover are excluded from TagEverything. */
@@ -55,8 +58,8 @@ export interface TagEverythingSettings {
   panelExtensionTags: boolean;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
-  /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
-  tabs: BookmarkTab[];
+  /** Sections of the panel's All tab (src/sections.ts; bookmark tabs before 0.37, same key). Edited in the panel. */
+  tabs: Section[];
 }
 
 export const DEFAULT_SETTINGS: TagEverythingSettings = {
@@ -77,6 +80,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   inboxDays: 30,
   inboxFolder: "",
   inboxDismissed: [],
+  bringIn: [],
   excluded: [],
   excludeRules: [],
   tagRangeOn: true,
@@ -120,6 +124,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     inboxDays: int("inboxDays", 1, 365),
     inboxFolder: typeof r.inboxFolder === "string" ? cleanFolder(r.inboxFolder) : d.inboxFolder,
     inboxDismissed: cleanTagList(r.inboxDismissed),
+    bringIn: normalizeBringIn(r.bringIn),
     excluded: normalizeExcludedPaths(r.excluded),
     excludeRules: normalizeExcludeRules(r.excludeRules),
     tagRangeOn: bool("tagRangeOn"),
@@ -127,6 +132,6 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     tagRangeMax: int("tagRangeMax", 0, 1_000_000),
     panelExtensionTags: bool("panelExtensionTags"),
     groups,
-    tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
+    tabs: normalizeSections(r.tabs, groups.map((g) => g.id)),
   };
 }

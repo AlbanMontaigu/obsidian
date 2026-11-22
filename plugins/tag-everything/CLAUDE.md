@@ -16,7 +16,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
   apply auto-tag rules, check a folder's tag consistency, exclude from the tag engine, write an AI assistant guide
   (`CLAUDE.md`, never over one).
 - **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range, extension
-  tags only when toggled), bookmark tabs, *Selection* (search by tags AND / NOT and date criteria, narrowing tags, results), *Tools* (vault-wide: re-read, apply
+  tags only when toggled, and sections holding groups and tags), *Selection* (search by tags AND / NOT and date criteria, narrowing tags, results), *Tools* (vault-wide: re-read, apply
   rules, check tag names, review tags, check tag consistency, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
   explorer's *Inbox* tab.
 - **Settings**: options only. Also: `tag-everything` query blocks in notes (live lists from a formula), a tag naming
@@ -29,7 +29,8 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | How tags are parsed / written in names, sidecars, frontmatter | `format.ts` (pure) | `docs/format.md`; the AI assistant guide text (`guide.ts`), which restates the format for vaults; run `tools/check-vault.ts` |
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
-| Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts` (search, tag cloud, tabs, Selection), `panel-groups.ts` (the Groups section, its menu and dialog), `dialogs.ts` | user guide §5-7 |
+| Panel search, groups, formulas, sections | `formula.ts` / `groups.ts` / `sections.ts` (pure), then `view.ts` (search, tag cloud, tab strip, Selection, section menu items), `panel-groups.ts` (the Groups area: groups, sections, their menus and dialogs), `dialogs.ts` | user guide §5-7 |
+| Put away (where a tagged file belongs), bring in (outside folders) | `putaway.ts` / `bring-in.ts` (pure), `putaway-modal.ts`, `bring-in-watcher.ts`, `bring-in-modal.ts`, `main.ts` `moveFiles` / `renameOwn`; menu entry in `menu.ts`, the list in `settings.ts` | user guide §13 |
 | Date criteria (created / modified: panel search, inbox, date terms `created:30d` in formulas, groups, explorer box, query blocks) | `dates.ts` (pure), `formula.ts` (`DateExpr`: parse, format, evaluate), `index.ts` `matches` / `dated`, `dialogs.ts` `dateMenu`, `view.ts` `setDates` / `searchExpr`, `explorer.ts` `setDates`, `inbox.ts` `inboxPaths`, `inbox-pane.ts` | user guide §5, §6, §10, §11, §13 |
 | Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
@@ -79,20 +80,20 @@ and `docs/user-guide.md` when users see it.
 Budget first (root `CLAUDE.md`, *Definition of done*): every Obsidian launch costs; targeted unit tests, one smoke run.
 
 Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pure module, named after it:
-`format`, `config`, `naming`, `cloud`, `colors`, `groups`, `tabs`, `formula`, `ui`, `query`, `taxonomy`,
-`exclude`, `inbox`, `explore`, `dates`, `consistency` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
+`format`, `config`, `naming`, `cloud`, `colors`, `groups`, `formula`, `ui`, `query`, `taxonomy`,
+`exclude`, `inbox`, `explore`, `dates`, `consistency`, `sections`, `putaway`, `bring-in` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
 
 `tests/smoke.js` + `tests/fixtures/vault/`: ~330 in-app checks in one script (a run executes them all). Each check
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
-`groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `tabs:`, `fix:`, `command:`,
-`guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
+`groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `fix:`, `command:`,
+`guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `put away:`, `bring in:`, `sections:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
 `ext:`, `dates:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is turned off at the start (the fixture's
 tags are used once or twice); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle
 and the panel's date criteria, `dates:`);
 Claude Code is faked (`plugin.runClaude`). It ends with the explorer under `shared AND NOT final` and the panel's
-bookmark tab "Work" with a formula group search, for the screenshot.
+section "Work" holding the group of its formula group search, for the screenshot.
 
 `tests/gallery.js` (`npm run smoke -- tag-everything --script gallery`): not a test, a screenshot of every view and
 dialog to `dist/tag-everything-*.png`. One run after a visible change, instead of a smoke run when only the look

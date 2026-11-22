@@ -10,7 +10,7 @@ import { matchTags, onEnter, renderTagSuggestion } from "./ui.ts";
  * Cancel / Save under a dialog's inputs. Save (or Enter in any of them) runs `done`; if it throws, its message goes in
  * `error` and the dialog stays open so the text can be fixed.
  */
-function addSubmitButtons(modal: Modal, inputs: HTMLInputElement[], error: HTMLElement, done: () => Promise<void>): void {
+function addSubmitButtons(modal: Modal, inputs: HTMLInputElement[], error: HTMLElement, done: () => Promise<void>, label = "Save"): void {
   const buttons = modal.contentEl.createDiv({ cls: "modal-button-container" });
   buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => modal.close());
   const submit = async (): Promise<void> => {
@@ -21,7 +21,7 @@ function addSubmitButtons(modal: Modal, inputs: HTMLInputElement[], error: HTMLE
       error.setText((err as Error).message);
     }
   };
-  buttons.createEl("button", { cls: "mod-cta", text: "Save" }).addEventListener("click", () => void submit());
+  buttons.createEl("button", { cls: "mod-cta", text: label }).addEventListener("click", () => void submit());
   for (const input of inputs) onEnter(input, () => void submit());
 }
 
@@ -143,13 +143,14 @@ const OPERATORS: { text: string; label: string }[] = [
 /**
  * Creates or edits a tag group in one place: its name and what it searches for, written as a formula (tags with AND,
  * OR, NOT, parentheses), with operator buttons, tag completion and a live check (syntax error, or how many items it
- * finds). `done(name, formula)` saves; if it throws, the message shows and the dialog stays open.
+ * finds). `done(name, formula)` saves; if it throws, the message shows and the dialog stays open. Without a `name`
+ * (null), the dialog edits the panel's search: no name box, and its button reads Search.
  */
 export class GroupModal extends Modal {
   constructor(
     app: App,
     private heading: string,
-    private name: string,
+    private name: string | null,
     private formula: string,
     private ctx: FormulaContext,
     private done: (name: string, formula: string) => Promise<void>,
@@ -161,9 +162,11 @@ export class GroupModal extends Modal {
     this.modalEl.addClass("tag-everything-dialog", "tag-everything-group-modal");
     this.setTitle(this.heading);
     const { tags, counts, countMatches } = this.ctx;
+    const named = this.name !== null;
     const nameInput = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: "Group name", "aria-label": "Group name" } });
-    nameInput.value = this.name;
-    this.contentEl.createEl("h4", { cls: "tag-everything-section", text: "Searches for" });
+    nameInput.value = this.name ?? "";
+    if (!named) nameInput.remove();
+    this.contentEl.createEl("h4", { cls: "tag-everything-section", text: named ? "Searches for" : "Search for" });
     this.contentEl.createDiv({
       cls: "tag-everything-where",
       text: "Type tags (they complete) and join them: AND = all of them, OR = any, NOT = without. Parentheses group terms, e.g. (b27 OR inc) AND NOT draft. Dates: created:30d (in the last 30 days), modified:>1y (more than a year ago), or the Date button.",
@@ -194,7 +197,7 @@ export class GroupModal extends Modal {
       preview.empty();
       error.setText("");
       if (!input.value.trim()) {
-        preview.setText("No tag: an empty group, to fill by dragging tags onto it.");
+        preview.setText(named ? "No tag: an empty group, to fill by dragging tags onto it." : "Empty: no search.");
         return;
       }
       const r = fx.tryParseFormula(input.value);
@@ -209,8 +212,8 @@ export class GroupModal extends Modal {
     };
     input.addEventListener("input", update);
     update();
-    addSubmitButtons(this, [nameInput, input], error, () => this.done(nameInput.value, input.value));
-    window.setTimeout(() => (nameInput.value ? input : nameInput).focus(), 0);
+    addSubmitButtons(this, named ? [nameInput, input] : [input], error, () => this.done(nameInput.value, input.value), named ? "Save" : "Search");
+    window.setTimeout(() => (named && !nameInput.value ? nameInput : input).focus(), 0);
   }
 
   onClose(): void {

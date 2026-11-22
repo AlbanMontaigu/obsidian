@@ -4,6 +4,8 @@ import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
 import { deleteRule, describeConditions, describeRule } from "./inbox.ts";
 import { RuleModal } from "./rule-modal.ts";
+import { describeBringIn } from "./bring-in.ts";
+import { BringInModal } from "./bring-in-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 export { DEFAULT_SETTINGS, normalizeSettings } from "./config.ts";
@@ -15,8 +17,8 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
 }
 
 /** Settings edited elsewhere (panel, inbox, rule dialog), never by a control of this tab. */
-const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed", "excluded", "excludeRules"];
-type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed" | "excluded" | "excludeRules">;
+const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed", "excluded", "excludeRules", "bringIn"];
+type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed" | "excluded" | "excludeRules" | "bringIn">;
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
@@ -211,6 +213,18 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       },
       {
         type: "list",
+        heading: "Bring in files from outside the vault",
+        emptyState: "No outside folder. Add your Downloads folder with +: the files arriving there are moved into the vault and wait in the inbox.",
+        addItem: { name: "Add an outside folder", action: () => new BringInModal(this.app, this.plugin, {}, () => this.update()).open() },
+        onDelete: (i: number) => void this.removeBringIn(i),
+        items: this.plugin.settings.bringIn.map((folder) => ({
+          name: describeBringIn(folder),
+          aliases: ["downloads", "import", "watch", "outside", "scan"],
+          action: () => new BringInModal(this.app, this.plugin, folder, () => this.update()).open(),
+        })),
+      },
+      {
+        type: "list",
         heading: "Excluded from the tag engine",
         emptyState: "Nothing excluded. Right-click a file or folder → TagEverything → Exclude from the tag engine: it is ignored everywhere, its tags stay in place.",
         onDelete: (i: number) => void this.includeAgain(i),
@@ -266,6 +280,15 @@ export class TagEverythingSettingTab extends PluginSettingTab {
     if (!rule) return;
     this.plugin.settings.rules = deleteRule(this.plugin.settings.rules, rule.id);
     await this.save();
+    this.update();
+  }
+
+  private async removeBringIn(i: number): Promise<void> {
+    const folder = this.plugin.settings.bringIn[i];
+    if (!folder) return;
+    this.plugin.settings.bringIn = deleteRule(this.plugin.settings.bringIn, folder.id);
+    await this.save();
+    this.plugin.bringIn.restart();
     this.update();
   }
 

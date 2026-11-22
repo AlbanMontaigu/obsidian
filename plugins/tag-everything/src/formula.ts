@@ -103,6 +103,34 @@ export function withTopDates(e: Expr | null, f: DateFilters): Expr | null {
   return andOf([...rest.filter((x) => x.k !== "date"), ...dateExprs(f)]);
 }
 
+/** A formula as the panel's search holds it: tags, NOT tags and dates ANDed at the top, and the rest (ORs...). */
+export interface SplitSearch {
+  tags: string[];
+  not: string[];
+  dates: DateFilters;
+  /** What is not a plain tag, NOT tag or date at the top (one date per field), ANDed; null when nothing is left. */
+  rest: Expr | null;
+}
+
+/**
+ * Splits a formula into the panel's plain search (shown as chips) and the rest (shown as one formula chip):
+ * `a AND NOT b AND (c OR d) AND created:30d` → tags a, not b, created 30 days, rest `c OR d`.
+ */
+export function splitSearch(e: Expr | null): SplitSearch {
+  const out: SplitSearch = { tags: [], not: [], dates: {}, rest: null };
+  const rest: Expr[] = [];
+  for (const x of !e ? [] : e.k === "and" ? e.items : [e]) {
+    if (x.k === "tag") {
+      if (!out.tags.includes(x.tag)) out.tags.push(x.tag);
+    } else if (x.k === "not" && x.item.k === "tag" && !out.tags.includes(x.item.tag)) {
+      if (!out.not.includes(x.item.tag)) out.not.push(x.item.tag);
+    } else if (x.k === "date" && !out.dates[x.field]) out.dates[x.field] = x.range;
+    else rest.push(x);
+  }
+  out.rest = andOf(rest);
+  return out;
+}
+
 /** AND of the parts, flattened; null when there is none, the part itself when there is one. */
 export function andOf(parts: readonly (Expr | null)[]): Expr | null {
   return combine("and", parts);

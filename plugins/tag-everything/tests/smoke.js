@@ -364,7 +364,7 @@ if (settingTab) {
   await sleep(400);
   const toolsFromSettings = app.workspace.getLeavesOfType("tag-everything-view")[0]?.view;
   check("settings: Tag tools opens the panel on its Tools tab", toolsFromSettings?.getState().page === "tools" && !!toolsFromSettings.contentEl.querySelector('.tag-everything-tools [data-action="reindex"]'), JSON.stringify(toolsFromSettings?.getState()));
-  toolsFromSettings?.showTab(null);
+  toolsFromSettings?.showAll();
   app.setting.close();
 } else check("settings: tab found", false);
 
@@ -605,7 +605,7 @@ await sleep(100);
 check("selection tab: a marked tag clicked in All leaves the search", view.getState().selected.join() === "shared" && !cloudChip(narrowTag).classList.contains("is-selected"), JSON.stringify(view.getState().selected));
 selTab().click();
 await sleep(100);
-// The Selection tab's Formula… button: the search in the group dialog, operators by button, saved and run at once.
+// The Selection tab's Formula… button: the search as a formula (no name), run at once; Save as group is its own icon.
 const formulaBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-formula");
 const searchChipBottom = panel().querySelector(".tag-everything-view-selected > .tag-everything-chip")?.getBoundingClientRect().bottom ?? Infinity;
 check(
@@ -635,8 +635,9 @@ const gModal = document.querySelector(".tag-everything-group-modal");
 const gInput = gModal?.querySelector(".tag-everything-formula-input");
 const opButtons = [...(gModal?.querySelectorAll(".tag-everything-formula-op") ?? [])];
 check(
-  "formula button: the dialog starts from the search, with operator buttons",
-  gModal?.querySelector(".modal-title")?.textContent === "New group from this search" && gInput?.value === "shared" && opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( ) Date",
+  "formula button: edits the search as a formula, no name to give, with operator buttons",
+  gModal?.querySelector(".modal-title")?.textContent === "Search formula" && !gModal.querySelector(".tag-everything-group-input") && gInput?.value === "shared" &&
+    opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( ) Date" && gModal.querySelector(".mod-cta")?.textContent === "Search",
   `${gInput?.value} / ${opButtons.map((b) => b.textContent)}`,
 );
 gInput.setSelectionRange(gInput.value.length, gInput.value.length);
@@ -646,13 +647,30 @@ gInput.dispatchEvent(new Event("input"));
 await sleep(100);
 const eitherN = plugin.index.paths().filter((p) => plugin.index.hasTag(p, "shared") || plugin.index.hasTag(p, "B27")).length;
 check("formula button: OR inserted with its spaces, live count", gInput.value === "shared OR b27" && gModal.querySelector(".tag-everything-formula-preview").textContent.includes(`shared OR B27  →  ${eitherN} items`), gModal.querySelector(".tag-everything-formula-preview").textContent);
-gModal.querySelector(".tag-everything-group-input").value = "Either";
+const groupsBefore = plugin.settings.groups.length;
 gModal.querySelector(".mod-cta").click();
+await sleep(300);
+const formulaChip = () => panel().querySelector(".tag-everything-view-selected .tag-everything-formula-chip");
+check(
+  "formula button: Search runs it as the search, one formula chip, no group saved",
+  !document.querySelector(".tag-everything-group-modal") && view.getState().formula === "shared OR B27" && !view.getState().selected.length && formulaChip()?.textContent === "shared OR B27" &&
+    plugin.settings.groups.length === groupsBefore && selTab().classList.contains("is-active") && results() === eitherN,
+  JSON.stringify(view.getState()) + ` ${results()} vs ${eitherN}`,
+);
+const saveGroupBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-save-group");
+check("formula button: Save as group is its own icon next to it", iconOf(saveGroupBtn())?.classList.contains("lucide-folder-plus") && saveGroupBtn()?.getAttribute("aria-label") === "Save this search as a group", saveGroupBtn()?.outerHTML);
+await snap("search-formula");
+saveGroupBtn().click();
+await sleep(300);
+const sgModal = document.querySelector(".tag-everything-group-modal");
+check("formula button: Save as group asks a name, the formula filled", sgModal?.querySelector(".modal-title")?.textContent === "New group from this search" && sgModal.querySelector(".tag-everything-formula-input")?.value === "shared OR B27", sgModal?.querySelector(".tag-everything-formula-input")?.value);
+sgModal.querySelector(".tag-everything-group-input").value = "Either";
+sgModal.querySelector(".mod-cta").click();
 await sleep(300);
 const either = plugin.settings.groups.find((g) => g.name === "Either");
 check(
   "formula button: saved as a group, its search runs at once",
-  !document.querySelector(".tag-everything-group-modal") && either?.formula === "shared OR B27" && view.getState().activeGroup === either.id && selTab().classList.contains("is-active") && results() === eitherN,
+  !document.querySelector(".tag-everything-group-modal") && either?.formula === "shared OR B27" && view.getState().activeGroup === either.id && !view.getState().formula && selTab().classList.contains("is-active") && results() === eitherN,
   JSON.stringify(either) + ` ${results()} vs ${eitherN}`,
 );
 check(
@@ -771,40 +789,64 @@ check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-
   check("range: See all shows every tag, keeps the numbers, saved", !plugin.settings.tagRangeOn && cloudTags().split(",").length === counts.size && headCount() === String(counts.size) && box("min").value === String(top) && seeAll().classList.contains("is-active") && (await plugin.loadData())?.tagRangeOn === false);
 }
 
-// ---- bookmark tabs: create one, bookmark tags and a group (drop, menu), the tab shows only them, saved
+// ---- sections: groups and tags sorted under foldable headings in All, each in one section at most, saved
 const tabEl = (name) => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === name);
-const shownGroups = () => [...panel().querySelectorAll(".tag-everything-view-groups .tag-everything-group-name")].map((e) => e.textContent).join();
-const shownTags = () => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((e) => e.firstChild.textContent).sort().join();
-const workTab = () => plugin.settings.tabs.find((t) => t.name === "Work");
-check("tabs: All comes first and is active", panel().querySelector(".tag-everything-tab") === tabEl("All") && tabEl("All").classList.contains("is-active"));
-panel().querySelector(".tag-everything-tab-add").click();
+const topGroups = () => [...panel().querySelectorAll(".tag-everything-view-groups > .tag-everything-group .tag-everything-group-name")].map((e) => e.textContent).join();
+const sectionEl = (name) => [...panel().querySelectorAll(".tag-everything-panel-section")].find((x) => x.querySelector(".tag-everything-panel-section-name")?.textContent === name);
+const sectionOf = (name) => plugin.settings.tabs.find((t) => t.name === name);
+const openMenu = async (el) => {
+  el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+  await sleep(200);
+};
+const menuClick = async (title) => {
+  const item = [...document.querySelectorAll(".menu .menu-item")].find((m) => (typeof title === "string" ? m.textContent === title : title.test(m.textContent)));
+  item?.click();
+  await sleep(200);
+  return !!item;
+};
+check("sections: no bookmark tab any more, All first and active", panel().querySelector(".tag-everything-tab") === tabEl("All") && tabEl("All").classList.contains("is-active") && !panel().querySelector(".tag-everything-tab-add"));
+panel().querySelector(".tag-everything-view-groups .tag-everything-section-add").click();
 await sleep(300);
 document.querySelector(".tag-everything-group-modal input").value = " Work ";
 document.querySelector(".tag-everything-group-modal .mod-cta").click();
 await sleep(300);
-check("tabs: + creates a named tab and shows it, empty", tabEl("Work")?.classList.contains("is-active") && shownGroups() === "" && shownTags() === "", `${shownGroups()} / ${shownTags()}`);
-tabEl("All").click();
-await sleep(100);
-const dropped = dragTag(cloudChip("client"), tabEl("Work")) && dragTag(groupEl("Formula").querySelector(".tag-everything-group-header"), tabEl("Work"));
+check("sections: the folder icon of Groups creates a named section in All, empty", !!sectionEl("Work") && /Empty/.test(sectionEl("Work").textContent) && tabEl("All").classList.contains("is-active"), sectionEl("Work")?.textContent);
+const dropped = dragTag(cloudChip("client"), sectionEl("Work")) && dragTag(groupEl("Formula").querySelector(".tag-everything-group-header"), sectionEl("Work"));
 await sleep(200);
-cloudChip("final").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
+await openMenu(cloudChip("final"));
+await menuClick('Move to the section "Work"');
+check("sections: tags and a group moved in by drop and by menu", dropped && sectionOf("Work")?.tags.join() === "client,final" && sectionOf("Work").groups.join() === formulaId, JSON.stringify(sectionOf("Work")));
+const workTags = () => [...(sectionEl("Work")?.querySelectorAll(".tag-everything-panel-section-tags .tag-everything-chip") ?? [])].map((c) => c.firstChild.textContent).join();
+check(
+  "sections: the group under its heading, not at the top; the tags there and still in Tags",
+  !!sectionEl("Work").querySelector(`.tag-everything-group[data-group="${formulaId}"]`) && !topGroups().split(",").includes("Formula") && workTags() === "client,final" && !!cloudChip("client"),
+  `${topGroups()} / ${workTags()}`,
+);
+await snap("sections"); // All with a section, to look at
+sectionEl("Work").querySelector(".tag-everything-panel-section-head").click();
 await sleep(200);
-[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent === 'Bookmark in the tab "Work"')?.click();
+check("sections: a click on the heading folds it, saved", sectionOf("Work").collapsed === true && !sectionEl("Work").querySelector(".tag-everything-group") && (await plugin.loadData())?.tabs?.[0]?.collapsed === true);
+sectionEl("Work").querySelector(".tag-everything-panel-section-head").click();
 await sleep(200);
-check("tabs: tags and groups bookmarked by drop and by menu", dropped && workTab()?.tags.join() === "client,final" && workTab().groups.join() === formulaId, JSON.stringify(workTab()));
-check("tabs: All still shows everything", shownGroups().split(",").length === plugin.settings.groups.length && shownTags().split(",").length > 2);
-tabEl("Work").click();
+check("sections: saved in data.json (under tabs, readable by the versions with bookmark tabs)", (await plugin.loadData())?.tabs?.[0]?.tags?.length === 2 && !sectionOf("Work").collapsed);
+await view.createSection("Home");
 await sleep(200);
-check("tabs: a tab shows only its bookmarks", shownGroups() === "Formula" && shownTags() === "client,final", `${shownGroups()} / ${shownTags()}`);
-check("tabs: saved in data.json, shown tab in the panel state", (await plugin.loadData())?.tabs?.[0]?.tags?.length === 2 && view.getState().tab === workTab().id);
+await openMenu(groupEl("Formula").querySelector(".tag-everything-group-header"));
+const movedByMenu = await menuClick('Move to the section "Home"');
+check("sections: a group moved to another section leaves the first", movedByMenu && sectionOf("Home").groups.join() === formulaId && !sectionOf("Work").groups.length, JSON.stringify(plugin.settings.tabs));
+await openMenu(groupEl("Formula").querySelector(".tag-everything-group-header"));
+await menuClick(/^Take out of the section "Home"/);
+check("sections: taken out, the group is back at the top", !sectionOf("Home").groups.length && topGroups().split(",").includes("Formula"), topGroups());
 const tempId = await view.createGroup("Temp");
+await view.moveToSection(sectionOf("Home").id, "groups", tempId);
 await sleep(200);
-const tempBookmarked = workTab().groups.includes(tempId);
-groupEl("Temp").querySelector(".tag-everything-group-header").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
-await sleep(200);
-[...document.querySelectorAll(".menu .menu-item")].find((m) => /^Delete group/.test(m.textContent))?.click();
-await sleep(200);
-check("tabs: a group created in a tab is bookmarked there; deleted, it leaves the tab", tempBookmarked && !workTab().groups.includes(tempId) && shownGroups() === "Formula", JSON.stringify(workTab()));
+await openMenu(groupEl("Temp").querySelector(".tag-everything-group-header"));
+await menuClick(/^Delete group/);
+check("sections: a deleted group leaves its section", !sectionOf("Home").groups.includes(tempId) && !groupEl("Temp"), JSON.stringify(sectionOf("Home")));
+await openMenu(sectionEl("Home").querySelector(".tag-everything-panel-section-head"));
+await menuClick(/^Delete section/);
+check("sections: a section deleted, nothing else", !sectionOf("Home") && !!groupEl("Formula") && !!sectionOf("Work"));
+await view.moveToSection(sectionOf("Work").id, "groups", formulaId); // in its section for the screenshot
 
 // left for the screenshot: a formula group search with a NOT and one tag switched off
 await view.setGroupFormula(formulaId, "(shared OR B27) AND (final OR INC) AND NOT IMAC");
@@ -1141,6 +1183,94 @@ check("consistency: nothing left to say once fixed", /nothing stands out/.test(d
 cs2.close();
 check("command: check tag consistency registered", !!app.commands.commands["tag-everything:check-consistency"]);
 await vault.delete(file("Cons"), true);
+
+// ---- put away: a tagged file moved to the folder whose files usually carry its tags, never over a file
+await vault.createFolder("Bills/Power");
+await vault.createFolder("Drop");
+for (const n of ["a[bill power]", "b[bill power]", "dup[bill power]"]) await vault.create(`Bills/Power/${n}.pdf`, "kept");
+for (const n of ["new[bill power 2026]", "dup[bill power]", "other[holiday]"]) await vault.create(`Drop/${n}.pdf`, "");
+await waitFor(() => plugin.index.ownTagsOf("Drop/other[holiday].pdf").length);
+const paMenu = fakeMenu();
+app.workspace.trigger("file-menu", paMenu, file("Drop"), "file-explorer");
+check("put away: the folder menu offers it for its files with a better folder", !!paMenu.sub("TagEverything")?.titles().includes("Put away (2 files)"), paMenu.sub("TagEverything")?.titles().join(" | "));
+const inPlace = fakeMenu();
+app.workspace.trigger("file-menu", inPlace, file("Bills/Power/a[bill power].pdf"), "file-explorer");
+check("put away: not offered for a file already in its place", !inPlace.sub("TagEverything")?.titles().some((t) => t.startsWith("Put away")), inPlace.sub("TagEverything")?.titles().join(" | "));
+paMenu.sub("TagEverything").click("Put away (2 files)");
+await waitFor(() => !!document.querySelector(".tag-everything-putaway-modal"));
+const paEl = document.querySelector(".tag-everything-putaway-modal");
+const paRows = [...(paEl?.querySelectorAll(".tag-everything-fix-row") ?? [])];
+check(
+  "put away: each file with its folder and why, ticked",
+  paRows.map((r) => r.dataset.path).sort().join() === "Drop/dup[bill power].pdf,Drop/new[bill power 2026].pdf" &&
+    paRows.every((r) => r.querySelector("input[type=checkbox]").checked && r.querySelector("select")?.value === "Bills/Power") &&
+    /3 files usually carry bill, power/.test(paRows[0]?.textContent ?? ""),
+  paRows.map((r) => r.textContent).join(" || "),
+);
+check("put away: Move counts the ticked files", paEl?.querySelector("button.mod-cta")?.textContent === "Move 2 files", paEl?.querySelector("button.mod-cta")?.textContent);
+await snap("putaway"); // the dialog, to look at
+expectError(/moving failed\s+path=Drop\/dup\[bill power\]\.pdf/);
+paEl.querySelector("button.mod-cta").click();
+await waitFor(() => !!file("Bills/Power/new[bill power 2026].pdf"));
+check(
+  "put away: moved, links follow; a name already there refused, both files untouched",
+  !!file("Bills/Power/new[bill power 2026].pdf") && !file("Drop/new[bill power 2026].pdf") && !!file("Drop/dup[bill power].pdf") && (await vault.read(file("Bills/Power/dup[bill power].pdf"))) === "kept" && !!file("Drop/other[holiday].pdf"),
+  file("Drop").children.map((c) => c.name).join(),
+);
+check("put away: its tags still read at the new place", plugin.index.ownTagsOf("Bills/Power/new[bill power 2026].pdf").length === 3);
+await vault.delete(file("Bills"), true);
+await vault.delete(file("Drop"), true);
+
+// ---- bring in: files arriving in a folder outside the vault are moved into a vault folder (then the inbox)
+const nfs = window.require("fs");
+const npath = window.require("path");
+const outside = nfs.mkdtempSync(npath.join(window.require("os").tmpdir(), "te-bring-"));
+const putOutside = (name) => {
+  const p = npath.join(outside, name);
+  nfs.writeFileSync(p, "x");
+  const t = new Date(Date.now() - 10_000); // settled: written 10 s ago
+  nfs.utimesSync(p, t, t);
+};
+putOutside("before.pdf"); // there before the folder is added: stays
+await vault.createFolder("Arrivals");
+await vault.create("Arrivals/dup.pdf", "kept");
+const biList = settingTab?.getSettingDefinitions().find((d) => d.heading === "Bring in files from outside the vault");
+check("bring in: a list in the settings, empty", !!biList && biList.items.length === 0);
+biList?.addItem.action();
+await waitFor(() => !!document.querySelector(".tag-everything-bring-in-modal"));
+const biEl = document.querySelector(".tag-everything-bring-in-modal");
+const biInputs = [...(biEl?.querySelectorAll("input[type=text]") ?? [])];
+const biType = (input, text) => {
+  input.value = text;
+  input.dispatchEvent(new Event("input"));
+};
+biType(biInputs[0], npath.join(app.vault.adapter.getBasePath(), "Docs"));
+await sleep(300);
+check("bring in: a folder of the vault is refused", /in the vault/.test(biEl.querySelector(".tag-everything-rule-preview")?.textContent ?? "") && biEl.querySelector("button.mod-cta")?.disabled, biEl.querySelector(".tag-everything-rule-preview")?.textContent);
+biType(biInputs[0], outside);
+biType(biInputs[1], "Arrivals");
+biType(biInputs[2], "pdf jpg");
+await sleep(300);
+check("bring in: the dialog says what will happen", /from now on are moved to Arrivals/.test(biEl.querySelector(".tag-everything-rule-preview")?.textContent ?? ""), biEl.querySelector(".tag-everything-rule-preview")?.textContent);
+await snap("bring-in");
+biEl.querySelector("button.mod-cta").click();
+await waitFor(() => plugin.settings.bringIn.length === 1);
+check("bring in: saved in the settings, from now on", plugin.settings.bringIn[0]?.target === "Arrivals" && Date.now() - plugin.settings.bringIn[0].since < 10_000, JSON.stringify(plugin.settings.bringIn));
+await sleep(100);
+for (const n of ["scan.pdf", "dup.pdf", "setup.exe", "half.pdf.crdownload"]) putOutside(n);
+await waitFor(() => !!file("Arrivals/scan.pdf"), 8000); // the watcher looks 2 s after the last change
+const outsideNow = nfs.readdirSync(outside).sort().join();
+check(
+  "bring in: a new file is moved in (the watcher), the old one, other types, downloads in progress and a taken name stay",
+  !!file("Arrivals/scan.pdf") && outsideNow === "before.pdf,dup.pdf,half.pdf.crdownload,setup.exe" && (await vault.read(file("Arrivals/dup.pdf"))) === "kept",
+  outsideNow,
+);
+check("bring in: a new file of the vault, so in the inbox", Date.now() - (file("Arrivals/scan.pdf")?.stat.ctime ?? 0) < 60_000);
+plugin.settings.bringIn = [];
+plugin.bringIn.restart(); // stops watching
+nfs.rmSync(outside, { recursive: true, force: true });
+await vault.delete(file("Arrivals"), true);
+document.querySelectorAll(".notice").forEach((n) => n.remove());
 
 // ---- inbox: files without tags that arrived lately, auto-tag rules (from a file), applied, dismissed, on arrival
 await vault.createFolder("Inbox");

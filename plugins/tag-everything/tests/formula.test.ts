@@ -125,3 +125,17 @@ test("date terms: evaluated with dated, never a tag; prune keeps them unless tol
   assert.equal(formatFormula(withTopDates(e, { modified: { within: false, days: 365 } })!), "tax AND modified:>1y");
   assert.equal(withTopDates(dateExpr("created", { within: true, days: 1 }), {}), null);
 });
+
+test("splitSearch: plain tags, NOT tags and dates at the top become the panel's chips, the rest one formula", async () => {
+  const { splitSearch } = await import("../src/formula.ts");
+  const s = splitSearch(parseFormula("a AND NOT b AND (c OR d) AND created:30d AND a"));
+  assert.deepEqual([s.tags, s.not, s.dates], [["a"], ["b"], { created: { within: true, days: 30 } }]);
+  assert.equal(formatFormula(s.rest!), "c OR d");
+  assert.equal(splitSearch(parseFormula("a b")).rest, null);
+  assert.equal(formatFormula(splitSearch(parseFormula("a OR b")).rest!), "a OR b");
+  assert.equal(formatFormula(splitSearch(parseFormula("NOT (a OR b)")).rest!), "NOT (a OR b)");
+  assert.deepEqual(splitSearch(null), { tags: [], not: [], dates: {}, rest: null });
+  // a tag both wanted and excluded keeps the contradiction in the formula, not silently dropped
+  const both = splitSearch(parseFormula("a AND NOT a"));
+  assert.deepEqual([both.tags, both.not, formatFormula(both.rest!)], [["a"], [], "NOT a"]);
+});

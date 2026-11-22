@@ -10,11 +10,11 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-/** One Notice for every item a batch could not tag: the first `shown`, then how many more. */
-export function failureMessage(failures: readonly string[], total: number, shown = 5): string {
+/** One Notice for every item a batch could not change (`what`: tag, move): the first `shown`, then how many more. */
+export function failureMessage(failures: readonly string[], total: number, shown = 5, what = "tags not changed on"): string {
   const more = failures.length - shown;
   return (
-    `${PLUGIN_NAME}: tags not changed on ${failures.length} of ${plural(total, "item")}:\n` +
+    `${PLUGIN_NAME}: ${what} ${failures.length} of ${plural(total, "item")}:\n` +
     failures.slice(0, shown).join("\n") +
     (more > 0 ? `\n…and ${more} more (details in the developer console, Ctrl+Shift+I)` : "")
   );

@@ -16,7 +16,7 @@ import {
 import { mapTagList } from "../src/format.ts";
 import { formatFormula, parseFormula, replaceTagsInExpr } from "../src/formula.ts";
 import { replaceTagsInGroups, type TagGroup } from "../src/groups.ts";
-import { replaceTagsInTabs } from "../src/tabs.ts";
+import { replaceTagsInSections } from "../src/sections.ts";
 
 const rule = makeRule();
 const map = (o: Record<string, string[]>) => new Map(Object.entries(o));
@@ -154,7 +154,7 @@ test("replaceTagsInExpr: a tag becomes the AND of its fix, a dropped one is prun
   assert.equal(replaceTagsInExpr(parseFormula("de"), m), null);
 });
 
-test("replaceTagsInGroups / replaceTagsInTabs: follow the fix, others untouched", () => {
+test("replaceTagsInGroups / replaceTagsInSections: follow the fix, others untouched", () => {
   const m = map({ "Tax-Receipt": ["tax", "receipt"], B27: ["b27"] });
   const plain: TagGroup = { id: "g1", name: "A", tags: ["B27", "tax"], collapsed: false };
   const withF: TagGroup = { id: "g2", name: "B", tags: ["Tax-Receipt", "x"], collapsed: false, formula: '"Tax-Receipt" OR x' };
@@ -166,7 +166,7 @@ test("replaceTagsInGroups / replaceTagsInTabs: follow the fix, others untouched"
   assert.deepEqual(b.tags, ["tax", "receipt", "x"]);
   assert.equal(c, other);
   assert.equal(d, broken);
-  const [t] = replaceTagsInTabs([{ id: "t1", name: "W", tags: ["B27", "b27", "y"], groups: ["g1"] }], m);
+  const [t] = replaceTagsInSections([{ id: "t1", name: "W", tags: ["B27", "b27", "y"], groups: ["g1"] }], m);
   assert.deepEqual(t.tags, ["b27", "y"]);
   assert.deepEqual(t.groups, ["g1"]);
 });

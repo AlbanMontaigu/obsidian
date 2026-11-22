@@ -2,13 +2,13 @@ import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile
 import { type CountRange, cloudWeights, inCountRange, narrowingTags, rangeText } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
-import * as tb from "./tabs.ts";
+import * as sc from "./sections.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { NameModal, dateMenu } from "./dialogs.ts";
 import { PanelGroups } from "./panel-groups.ts";
-import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag } from "./ui.ts";
+import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, paintTag } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { renderTools } from "./tools-pane.ts";
 import { type DateFilters, DATE_FIELDS, criterionText, filtersText, hasDates, normalizeDates } from "./dates.ts";
@@ -18,7 +18,7 @@ export const VIEW_TYPE = "tag-everything-view";
 export const MAX_RESULTS = 500;
 
 /**
- * A tab of the panel that is not a tag tab: Selection (the search and its results), Tools (vault-wide actions,
+ * A tab of the panel that is not All: Selection (the search and its results), Tools (vault-wide actions,
  * src/tools-pane.ts). The inbox is a tab of the TagEverything explorer (src/explorer.ts), not of the panel.
  */
 export type PanelPage = "selection" | "tools";
@@ -31,11 +31,11 @@ interface PanelState {
   excluded: string[];
   /** Date criteria of the search (src/dates.ts). */
   dates: DateFilters;
+  /** The part of the search written with Formula… that is not plain tags or dates (ORs, parentheses), as text. */
+  formula: string | null;
   activeGroup: string | null;
   filter: string;
-  /** Bookmark tab shown; null = All. */
-  tab: string | null;
-  /** The page shown instead of the tags of `tab`; null = the tags. */
+  /** The page shown instead of All; null = All. */
   page: PanelPage | null;
   /** `page === "selection"`, also read back from the state of 0.27 and before (no `page`). */
   selection: boolean;
@@ -44,9 +44,9 @@ interface PanelState {
 /**
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
  * carrying them, or exclude tags (NOT). Selecting a group selects its tags; each can then be switched off and on again.
- * Bookmark tabs (src/tabs.ts) narrow the groups and tags shown to those bookmarked in the tab; the search is shared.
+ * In All, groups and tags can be moved into named sections (src/sections.ts), foldable headings under the groups.
  * The search and its results have their own tab, Selection, shown while there is a search, with the tags that can still
- * narrow it: the tag tabs hold only groups and every tag (the search's ones marked), at full height, whatever the search.
+ * narrow it: All holds only groups, sections and every tag (the search's ones marked), at full height, whatever the search.
  */
 export class TagEverythingView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -57,12 +57,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private dates: DateFilters = {};
   /** Group whose tags make up the search, if the search started from a group. */
   private activeGroup: string | null = null;
+  /** The part of the search written with Formula… that chips can't show (ORs, parentheses); ANDed with the rest. */
+  private formula: fx.Expr | null = null;
   private filter = "";
-  /** Bookmark tab shown; null = All. */
-  private tab: string | null = null;
-  /** The page shown instead of the tag tab (Selection only while there is a search, see `hasSearch`). */
+  /** The page shown instead of All (Selection only while there is a search, see `hasSearch`). */
   private page: PanelPage | null = null;
-  /** The Groups section of the tag tabs, its menu and dialog (src/panel-groups.ts). */
+  /** The Groups area of All (groups, sections), its menus and dialogs (src/panel-groups.ts). */
   private groupsPane: PanelGroups;
   /** Tools: its content (files the rules would tag) follows the vault. */
   private requestRender = debounce(() => this.render(), 300, true);
@@ -98,11 +98,15 @@ export class TagEverythingView extends ItemView implements HoverParent {
       searchExpr: () => this.searchExpr(),
       selectGroup: (id) => this.selectGroup(id),
       showSelection: () => this.showSelection(),
-      currentTab: () => this.currentTab,
       save: (change) => this.save(change),
       chip: (parent, tag, extra) => this.chip(parent, tag, extra),
+      tagChips: (parent, tags) => {
+        const counts = plugin.index.counts();
+        this.cloud(parent, tags.map((t): [string, number] => [t, counts.get(t) ?? 0]), false);
+      },
       toggle: (tag) => this.toggle(tag),
-      bookmarkItems: (menu, kind, value) => this.bookmarkItems(menu, kind, value),
+      sectionItems: (menu, kind, value) => this.sectionItems(menu, kind, value),
+      newSection: (tags, groups) => this.newSection(tags, groups),
       matchPaths: (expr) => this.matchPaths(expr),
     });
   }
@@ -139,7 +143,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     search.addEventListener("input", () => {
       this.filter = search.value.trim().toLowerCase();
       if (this.page) {
-        this.page = null; // filtering is about tags: back to the tag tab
+        this.page = null; // filtering is about tags: back to All
         this.render();
       } else this.renderTags();
       this.app.workspace.requestSaveLayout();
@@ -220,9 +224,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
       selected: this.selected,
       excluded: this.excluded,
       dates: this.dates,
+      formula: this.formula && fx.formatFormula(this.formula),
       activeGroup: this.activeGroup,
       filter: this.filter,
-      tab: this.tab,
       page: this.page,
       selection: this.page === "selection",
     };
@@ -234,9 +238,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (Array.isArray(s.selected)) this.selected = s.selected.filter((t): t is string => typeof t === "string");
     if (Array.isArray(s.excluded)) this.excluded = s.excluded.filter((t): t is string => typeof t === "string");
     if ("dates" in s) this.dates = normalizeDates(s.dates);
+    if (typeof s.formula === "string" || s.formula === null) {
+      const parsed = s.formula ? fx.tryParseFormula(s.formula) : null;
+      this.formula = parsed && "expr" in parsed ? parsed.expr : null;
+    }
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
-    if (typeof s.tab === "string" || s.tab === null) this.tab = s.tab;
     if (typeof s.page === "string" && PAGES.includes(s.page)) this.page = s.page as PanelPage;
     else if (s.page === null || typeof s.selection === "boolean") this.page = s.selection === true ? "selection" : null;
     if (this.searchEl) this.searchEl.value = this.filter;
@@ -266,7 +273,22 @@ export class TagEverythingView extends ItemView implements HoverParent {
 
   /** There is a search (a tag selected or excluded, a group search, even with all its tags switched off, or a date criterion). */
   private hasSearch(): boolean {
-    return !!this.activeGroup || this.selected.length > 0 || this.excluded.length > 0 || hasDates(this.dates);
+    return !!this.activeGroup || !!this.formula || this.selected.length > 0 || this.excluded.length > 0 || hasDates(this.dates);
+  }
+
+  /**
+   * Replaces the whole search with a formula (Formula…; public for the smoke test): its plain tags, NOT tags and dates
+   * become chips as if clicked, the rest (ORs, parentheses) one formula chip. null: no search.
+   */
+  setSearchFormula(expr: fx.Expr | null): void {
+    const s = fx.splitSearch(expr);
+    this.resetSearch();
+    this.selected = s.tags;
+    this.excluded = s.not;
+    this.dates = s.dates;
+    this.formula = s.rest;
+    this.page = this.hasSearch() ? "selection" : null;
+    this.stateChanged();
   }
 
   /** Sets the date criteria of the search (public for the smoke test); one set shows what the search finds. */
@@ -276,10 +298,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** Empties the tags of the search: no tag selected or excluded, no active group. The date criteria stay (Clear drops them). */
+  /** Empties the tags of the search: no tag selected or excluded, no formula, no active group. The date criteria stay (Clear drops them). */
   private resetSearch(): void {
     this.selected = [];
     this.excluded = [];
+    this.formula = null;
     this.activeGroup = null;
   }
 
@@ -289,7 +312,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.app.workspace.requestSaveLayout();
   }
 
-  // ---- tag groups (src/panel-groups.ts) and bookmark tabs: stored in the settings, saved here
+  // ---- tag groups (src/panel-groups.ts) and sections: stored in the settings, saved here
 
   private get groups(): gr.TagGroup[] {
     return this.plugin.settings.groups;
@@ -314,24 +337,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     try {
       await this.plugin.saveData(this.plugin.settings);
     } catch (err) {
-      console.error("[tag-everything] saving tag groups / tabs failed", err);
-      new Notice("TagEverything: the tag groups and tabs could not be saved.");
+      console.error("[tag-everything] saving tag groups / sections failed", err);
+      new Notice("TagEverything: the tag groups and sections could not be saved.");
     }
   }
 
-  // ---- bookmark tabs (stored in settings.tabs, logic in src/tabs.ts)
+  // ---- sections of All (stored in settings.tabs, logic in src/sections.ts)
 
-  private get tabs(): tb.BookmarkTab[] {
+  private get sections(): sc.Section[] {
     return this.plugin.settings.tabs;
   }
 
-  private get currentTab(): tb.BookmarkTab | undefined {
-    return this.tabs.find((t) => t.id === this.tab);
-  }
-
-  /** Shows a bookmark tab, or All with null (public for the smoke test). */
-  showTab(id: string | null): void {
-    this.tab = id;
+  /** Shows All (public for main.ts and the smoke test). */
+  showAll(): void {
     this.page = null;
     this.stateChanged();
   }
@@ -342,61 +360,44 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** Creates a bookmark tab holding these bookmarks and shows it (public for the smoke test). Throws on an empty name. */
-  async createTab(name: string, tags: readonly string[] = [], groups: readonly string[] = []): Promise<string> {
-    const added = tb.addTab(this.tabs, name);
-    let tabs = added.tabs;
-    for (const t of tags) tabs = tb.setBookmark(tabs, added.id, "tags", t, true);
-    for (const g of groups) tabs = tb.setBookmark(tabs, added.id, "groups", g, true);
-    this.tab = added.id;
+  /** Creates a section, moves these tags and groups into it, and shows All (public for the smoke test). Throws on an empty name. */
+  async createSection(name: string, tags: readonly string[] = [], groups: readonly string[] = []): Promise<string> {
+    const added = sc.addSection(this.sections, name);
+    let sections = added.sections;
+    for (const t of tags) sections = sc.moveToSection(sections, added.id, "tags", t);
+    for (const g of groups) sections = sc.moveToSection(sections, added.id, "groups", g);
     this.page = null;
-    await this.save({ tabs });
+    await this.save({ tabs: sections });
     return added.id;
   }
 
-  private newTab(tags: readonly string[] = [], groups: readonly string[] = []): void {
-    new NameModal(this.app, "New bookmark tab", "", "Tab name", async (name) => void (await this.createTab(name, tags, groups))).open();
+  private newSection(tags: readonly string[] = [], groups: readonly string[] = []): void {
+    new NameModal(this.app, "New section", "", "Section name", async (name) => void (await this.createSection(name, tags, groups))).open();
   }
 
-  private bookmark(tabId: string, kind: tb.BookmarkKind, value: string, on: boolean): void {
-    void this.save({ tabs: tb.setBookmark(this.tabs, tabId, kind, value, on) });
+  /** Moves a tag or group into a section (null: out of its section, back to the top). Public for the smoke test. */
+  async moveToSection(id: string | null, kind: sc.SectionKind, value: string): Promise<void> {
+    await this.save({ tabs: sc.moveToSection(this.sections, id, kind, value) });
   }
 
-  /** Menu items: bookmark a tag or group in each tab (or remove it from a tab that has it), or in a new tab. */
-  private bookmarkItems(menu: Menu, kind: tb.BookmarkKind, value: string): void {
+  /** Menu items: move a tag or group into each other section, out of its own, or into a new one. */
+  private sectionItems(menu: Menu, kind: sc.SectionKind, value: string): void {
     menu.addSeparator();
-    for (const tab of this.tabs) {
-      const has = tab[kind].includes(value);
-      menu.addItem((i) =>
-        i
-          .setTitle(has ? `Remove from the tab "${tab.name}"` : `Bookmark in the tab "${tab.name}"`)
-          .setIcon(has ? "bookmark-minus" : "bookmark-plus")
-          .onClick(() => this.bookmark(tab.id, kind, value, !has)),
-      );
+    const own = sc.sectionOf(this.sections, kind, value);
+    for (const section of this.sections) {
+      if (section === own) continue;
+      menu.addItem((i) => i.setTitle(`Move to the section "${section.name}"`).setIcon("folder-input").onClick(() => void this.moveToSection(section.id, kind, value)));
+    }
+    if (own) {
+      const where = kind === "groups" ? "back to the top" : "the tag stays in Tags";
+      menu.addItem((i) => i.setTitle(`Take out of the section "${own.name}" (${where})`).setIcon("folder-output").onClick(() => void this.moveToSection(null, kind, value)));
     }
     menu.addItem((i) =>
       i
-        .setTitle("Bookmark in a new tab…")
-        .setIcon("bookmark")
-        .onClick(() => (kind === "tags" ? this.newTab([value]) : this.newTab([], [value]))),
+        .setTitle("Move to a new section…")
+        .setIcon("folder-plus")
+        .onClick(() => (kind === "tags" ? this.newSection([value]) : this.newSection([], [value]))),
     );
-  }
-
-  private tabMenu(tab: tb.BookmarkTab, evt: MouseEvent): void {
-    const menu = new Menu();
-    menu.addItem((i) =>
-      i
-        .setTitle("Rename tab")
-        .setIcon("pencil")
-        .onClick(() => new NameModal(this.app, "Rename bookmark tab", tab.name, "Tab name", (name) => this.save({ tabs: tb.renameTab(this.tabs, tab.id, name) })).open()),
-    );
-    menu.addItem((i) =>
-      i
-        .setTitle("Delete tab (its tags and groups stay)")
-        .setIcon("trash")
-        .onClick(() => void this.save({ tabs: tb.deleteTab(this.tabs, tab.id) })),
-    );
-    menu.showAtMouseEvent(evt);
   }
 
   /** Opens the Selection tab, where the active group's search lists what it finds. */
@@ -430,6 +431,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const groupPart = group ? gr.groupExpr(group) : null;
     return fx.andOf([
       groupPart && fx.prune(groupPart, on),
+      this.formula,
       ...this.selected.filter((t) => !group?.tags.includes(t)).map(fx.tagExpr),
       ...this.excluded.map((t) => fx.notExpr(fx.tagExpr(t))),
       ...fx.dateExprs(this.dates),
@@ -482,7 +484,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       if (this.plugin.index.counts(undefined, true).has(tag)) {
         menu.addItem((i) => i.setTitle("Rename or merge tag…").setIcon("pencil").onClick(() => this.plugin.renameTag(tag)));
       }
-      this.bookmarkItems(menu, "tags", tag);
+      this.sectionItems(menu, "tags", tag);
       menu.showAtMouseEvent(evt);
     });
   }
@@ -496,9 +498,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
       this.excluded = this.excluded.filter((t) => counts.has(t));
     }
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
-    if (this.tab && !this.currentTab) this.tab = null;
     if (this.page === "selection" && !this.hasSearch()) this.page = null;
-    // One tab at a time: a tag tab (groups, tags), Selection (search, results), or Tools.
+    // One tab at a time: All (groups, sections, tags), Selection (search, results), or Tools.
     const selection = this.page === "selection";
     for (const el of [this.groupsEl, this.tagsHeadEl, this.tagsEl]) el.toggle(!this.page);
     for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(selection);
@@ -534,42 +535,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return el;
   }
 
-  /**
-   * "All", then the bookmark tabs (a tag or group dropped on one is bookmarked there), and, while there is a search,
-   * Selection with the number of items it finds (`matches`).
-   */
+  /** "All", and, while there is a search, Selection with the number of items it finds (`matches`), then Tools. */
   private renderTabs(matches: string[] | null): void {
     const el = this.tabsEl;
     el.empty();
-    const tabEl = (id: string | null, name: string, label: string): HTMLElement => {
-      const active = !this.page && this.tab === id;
-      const t = el.createDiv({ cls: "tag-everything-tab", text: name, attr: { role: "tab", "aria-label": label, "aria-selected": String(active) } });
-      t.toggleClass("is-active", active);
-      clickable(t, () => this.showTab(id));
-      return t;
-    };
-    tabEl(null, "All", "Every group and tag");
-    for (const tab of this.tabs) {
-      const t = tabEl(tab.id, tab.name, `${plural(tab.groups.length, "group")}, ${plural(tab.tags.length, "tag")}. Drop a tag or group here to bookmark it; right-click: rename, delete`);
-      t.dataset.tab = tab.id;
-      t.addEventListener("contextmenu", (evt) => {
-        evt.preventDefault();
-        this.tabMenu(tab, evt);
-      });
-      dropZone(
-        t,
-        (tag) => this.bookmark(tab.id, "tags", tag, true),
-        (group) => this.bookmark(tab.id, "groups", group, true),
-      );
-    }
-    const add = el.createDiv({ cls: "clickable-icon tag-everything-tab-add", attr: { "aria-label": "New bookmark tab (or drop a tag or group here)" } });
-    setIcon(add, "plus");
-    clickable(add, () => this.newTab());
-    dropZone(
-      add,
-      (tag) => this.newTab([tag]),
-      (group) => this.newTab([], [group]),
-    );
+    const all = el.createDiv({ cls: "tag-everything-tab", text: "All", attr: { role: "tab", "aria-label": "Every group and tag", "aria-selected": String(!this.page) } });
+    all.toggleClass("is-active", !this.page);
+    clickable(all, () => this.showAll());
     // At the end of the strip: Selection (only while there is a search), Tools.
     const end = el.createDiv({ cls: "tag-everything-tabs-end" });
     const pageTab = (page: PanelPage, label: string, text: string, icon?: string): HTMLElement => {
@@ -591,7 +563,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private renderSelected(): void {
     this.selectedEl.empty();
     const group = this.groups.find((g) => g.id === this.activeGroup);
-    if (!group && !this.selected.length && !this.excluded.length && !hasDates(this.dates)) return;
+    if (!group && !this.formula && !this.selected.length && !this.excluded.length && !hasDates(this.dates)) return;
     // A group search shows the group's card, as in All: its tags (inside its formula) with their counts, a
     // switched-off one dashed (a click switches it on again).
     if (group) this.groupsPane.renderGroup(this.selectedEl, group, true);
@@ -604,6 +576,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
       clickable(el, () => this.setMode(tag, null));
       this.tagMenu(el, tag);
     };
+    if (this.formula) {
+      const el = this.selectedEl.createDiv({ cls: "tag-everything-chip is-selected tag-everything-formula-chip", attr: { "aria-label": "Remove from the search (Formula…: edit it)" } });
+      setIcon(el.createSpan({ cls: "tag-everything-date-icon" }), "square-function");
+      el.createSpan({ text: fx.formatFormula(this.formula) });
+      setIcon(el.createSpan({ cls: "tag-everything-chip-remove" }), "x");
+      clickable(el, () => {
+        this.formula = null;
+        this.stateChanged();
+      });
+    }
     for (const tag of this.selected) if (!group?.tags.includes(tag)) searchChip(tag, false);
     for (const tag of this.excluded) searchChip(tag, true);
     for (const field of DATE_FIELDS) {
@@ -630,9 +612,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     };
     if (group) button("tag-everything-view-formula", "pencil", "Edit group", `Edit the group "${group.name}": its name and formula`, () => this.groupsPane.editGroup(group));
     else {
-      button("tag-everything-view-formula", "square-function", "Formula…", "Write this search as a formula (AND, OR, NOT, parentheses) and keep it as a group", () =>
-        this.groupsPane.newGroup(this.searchExpr(), true),
+      button("tag-everything-view-formula", "square-function", "Formula…", "Edit this search as a formula (AND, OR, NOT, parentheses)", () =>
+        this.groupsPane.editSearch(this.searchExpr(), (expr) => this.setSearchFormula(expr)),
       );
+      button("tag-everything-view-save-group", "folder-plus", "", "Save this search as a group", () => this.groupsPane.newGroup(this.searchExpr(), true));
     }
     button("tag-everything-view-clear", "search-x", "Clear", "Clear the search", () => {
       this.resetSearch();
@@ -642,23 +625,21 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   /**
-   * The tag cloud of a tag tab: every tag (of the bookmark tab, if one is shown) with its count in the whole vault,
-   * whatever the search; the tags in the search stay in place, marked (a click takes one out).
+   * The tag cloud of All: every tag with its count in the whole vault, whatever the search; the tags in the search stay
+   * in place, marked (a click takes one out).
    */
   private renderTags(): void {
     this.tagsEl.empty();
     const index = this.plugin.index;
     const counts = index.counts();
-    // In a bookmark tab, its tags only; one no item carries any more stays (faded) so it can be removed.
-    const tab = this.currentTab;
-    // All: the extension tags only with the option on (a tag in the search stays).
+    // The extension tags only with the option on (a tag in the search stays).
     const shown = this.tagShown();
-    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]) : [...counts].filter(([t]) => shown(t));
+    const entries: [string, number][] = [...counts].filter(([t]) => shown(t));
     const named = entries.filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter));
-    // The count range keeps All to the tags that matter; not in a bookmark tab (picked by hand), nor while filtering
-    // by name (the tag looked for must show), and a tag in the search always stays (a click takes it out).
+    // The count range keeps All to the tags that matter; not while filtering by name (the tag looked for must show),
+    // and a tag in the search always stays (a click takes it out).
     const range = countRangeOf(this.plugin.settings);
-    const ranged = !tab && !this.filter && range.on;
+    const ranged = !this.filter && range.on;
     const rows = named
       .filter(([t, n]) => !ranged || inCountRange(n, range) || this.selected.includes(t) || this.excluded.includes(t))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -666,10 +647,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const hidden = named.length - rows.length;
     this.tagsCountEl.setText(hidden ? `${rows.length} of ${named.length}` : String(rows.length));
     this.tagsCountEl.setAttr("aria-label", hidden ? `${plural(hidden, "tag")} outside the range ${rangeText(range)}` : null);
-    this.range.el.toggle(!tab);
     this.range.update(range);
     const ext = this.plugin.settings.panelExtensionTags;
-    this.extToggleEl.toggle(!tab);
     this.extToggleEl.toggleClass("is-active", ext);
     this.extToggleEl.setAttr("aria-label", ext ? "Extension tags shown (pdf, md…): click to hide them" : "Show the extension tags (pdf, md…)");
     if (!rows.length) {
@@ -677,9 +656,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         cls: "tag-everything-view-empty",
         text: this.filter
           ? `No tag matches "${this.filter}".`
-          : tab
-            ? `No tag in this tab yet. In All, drag a tag onto "${tab.name}" (or right-click it → Bookmark in the tab).`
-            : hidden
+          : hidden
               ? `No tag is used ${rangeText(range)} times. Change the numbers above, or click See all.`
               : "No tags yet. Right-click a file or folder → Edit tags.",
       });

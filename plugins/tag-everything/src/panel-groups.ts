@@ -1,15 +1,16 @@
-// The tag groups of the TagEverything panel (src/view.ts): their section in a tag tab, their menu, the group dialog,
-// and the operations that change them (stored in settings.groups, pure logic in src/groups.ts). The search itself
-// (selected tags, the active group) stays in the view, reached through `GroupsHost`.
+// The tag groups of the TagEverything panel (src/view.ts): the Groups area of All (the groups in no section, then the
+// sections with their groups and tags), their menus, the group dialog, and the operations that change them (stored in
+// settings.groups and settings.tabs, pure logic in src/groups.ts and src/sections.ts). The search itself (selected
+// tags, the active group) stays in the view, reached through `GroupsHost`.
 
 import { type App, Menu, setIcon } from "obsidian";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
-import * as tb from "./tabs.ts";
+import * as sc from "./sections.ts";
 import { plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
-import { type FormulaContext, GroupModal } from "./dialogs.ts";
+import { type FormulaContext, GroupModal, NameModal } from "./dialogs.ts";
 import { GROUP_MIME, clickable, dateChip, dropZone, renderExpr } from "./ui.ts";
 
 /** What the groups need from the panel: its search, its chips and menus, and saving. */
@@ -28,16 +29,18 @@ export interface GroupsHost {
   selectGroup(id: string): void;
   /** Opens the Selection tab. */
   showSelection(): void;
-  /** The bookmark tab shown; undefined in All. */
-  currentTab(): tb.BookmarkTab | undefined;
-  /** Saves groups and tabs, and redraws the panel. */
+  /** Saves groups and sections, and redraws the panel. */
   save(change: Partial<Pick<TagEverythingSettings, "groups" | "tabs">>): Promise<void>;
   /** A draggable tag chip of the panel. */
   chip(parent: HTMLElement, tag: string, extra: string): HTMLElement;
+  /** The tags as the Tags list draws them (count, click to search, right-click menu), all the same size. */
+  tagChips(parent: HTMLElement, tags: readonly string[]): void;
   /** Puts the tag in the search, or takes it out. */
   toggle(tag: string): void;
-  /** Menu items bookmarking a tag or group in the tabs. */
-  bookmarkItems(menu: Menu, kind: tb.BookmarkKind, value: string): void;
+  /** Menu items moving a tag or group into a section, out of it, or into a new one. */
+  sectionItems(menu: Menu, kind: sc.SectionKind, value: string): void;
+  /** Asks a name, then creates a section holding these tags and groups. */
+  newSection(tags?: readonly string[], groups?: readonly string[]): void;
   /** Tagged paths matching `expr` (tags no item carries left out). */
   matchPaths(expr: fx.Expr | null): string[];
 }
@@ -47,6 +50,10 @@ export class PanelGroups {
 
   private get groups(): gr.TagGroup[] {
     return this.host.plugin.settings.groups;
+  }
+
+  private get sections(): sc.Section[] {
+    return this.host.plugin.settings.tabs;
   }
 
   private async saveGroups(groups: gr.TagGroup[]): Promise<void> {
@@ -61,17 +68,15 @@ export class PanelGroups {
     return this.createGroupFrom(name, fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]));
   }
 
-  /** Creates a group searching for `expr` (null: an empty group); created from a bookmark tab, it is bookmarked there. */
-  private async createGroupFrom(name: string, expr: fx.Expr | null): Promise<string> {
+  /** Creates a group searching for `expr` (null: an empty group), in no section; or in `section`. */
+  private async createGroupFrom(name: string, expr: fx.Expr | null, section: string | null = null): Promise<string> {
     const { groups, id } = gr.addGroup(this.groups, name);
-    const tab = this.host.currentTab();
-    const tabs = this.host.plugin.settings.tabs;
-    await this.host.save({ groups: gr.setFormula(groups, id, expr), tabs: tab ? tb.setBookmark(tabs, tab.id, "groups", id, true) : tabs });
+    await this.host.save({ groups: gr.setFormula(groups, id, expr), tabs: section ? sc.moveToSection(this.sections, section, "groups", id) : this.sections });
     return id;
   }
 
   private deleteGroup(id: string): void {
-    void this.host.save({ groups: gr.deleteGroup(this.groups, id), tabs: tb.forgetGroup(this.host.plugin.settings.tabs, id) });
+    void this.host.save({ groups: gr.deleteGroup(this.groups, id), tabs: sc.forgetGroup(this.sections, id) });
   }
 
   async addToGroup(id: string, tags: readonly string[]): Promise<void> {
@@ -113,11 +118,18 @@ export class PanelGroups {
    * New group: a name and what it searches for, starting from `expr` (the current search, a dropped tag). With `run`
    * (from the Selection tab), the search becomes the new group's, so its formula's results show at once.
    */
-  newGroup(expr: fx.Expr | null, run = false): void {
-    const heading = run ? "New group from this search" : "New group";
+  newGroup(expr: fx.Expr | null, run = false, section: sc.Section | null = null): void {
+    const heading = run ? "New group from this search" : section ? `New group in "${section.name}"` : "New group";
     new GroupModal(this.host.app, heading, "", expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (name, text) => {
-      const id = await this.createGroupFrom(name, this.parseFormula(text));
+      const id = await this.createGroupFrom(name, this.parseFormula(text), section?.id ?? null);
       if (run) this.host.selectGroup(id);
+    }).open();
+  }
+
+  /** Formula… in the Selection tab: the search as a formula, edited, then `run` (nothing is saved; an empty one: null). */
+  editSearch(expr: fx.Expr | null, run: (expr: fx.Expr | null) => void): void {
+    new GroupModal(this.host.app, "Search formula", null, expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (_name, text) => {
+      run(this.parseFormula(text)); // a syntax error throws first: the dialog stays open
     }).open();
   }
 
@@ -159,7 +171,7 @@ export class PanelGroups {
           .onClick(() => void this.addToGroup(group.id, extra)),
       );
     }
-    host.bookmarkItems(menu, "groups", group.id);
+    if (!inSelection) host.sectionItems(menu, "groups", group.id);
     menu.addSeparator();
     menu.addItem((i) =>
       i
@@ -176,7 +188,7 @@ export class PanelGroups {
     this.menu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }), inSelection);
   }
 
-  /** The Groups section of a tag tab (of the bookmark tab shown: its groups only), drawn into `el`. */
+  /** The Groups area of All, drawn into `el`: the groups in no section, then each section with its groups and tags. */
   render(el: HTMLElement): void {
     const host = this.host;
     el.empty();
@@ -190,21 +202,90 @@ export class PanelGroups {
     setIcon(add, "plus");
     clickable(add, () => this.newGroup(host.searchExpr()));
     dropZone(add, (tag) => this.newGroup(fx.tagExpr(tag)));
+    const addSection = head.createDiv({
+      cls: "clickable-icon tag-everything-section-add",
+      attr: { "aria-label": "New section: a heading to sort groups and tags under (or drop a tag or group here)" },
+    });
+    setIcon(addSection, "folder-plus");
+    clickable(addSection, () => host.newSection());
+    dropZone(
+      addSection,
+      (tag) => host.newSection([tag]),
+      (group) => host.newSection([], [group]),
+    );
 
-    // In a bookmark tab, its groups only, in the panel's group order (so dragging one onto another still reorders).
-    const tab = host.currentTab();
-    const shown = tab ? this.groups.filter((g) => tab.groups.includes(g.id)) : this.groups;
-    if (!shown.length) {
+    const inSection = new Set(this.sections.flatMap((s) => s.groups));
+    const loose = this.groups.filter((g) => !inSection.has(g.id));
+    if (!this.groups.length && !this.sections.length) {
       el.createDiv({
         cls: "tag-everything-view-empty",
-        text: tab
-          ? `No group in this tab. + creates one here; or in All, drag a group onto "${tab.name}" (or ⋯ → Bookmark in the tab).`
-          : "No groups yet. + creates one: a name and the tags it searches for, joined with AND, OR, NOT. Drag tags onto a group to add them; its Search button lists what it finds.",
+        text: "No groups yet. + creates one: a name and the tags it searches for, joined with AND, OR, NOT. Drag tags onto a group to add them; its Search button lists what it finds.",
       });
       return;
     }
+    for (const group of loose) this.renderGroup(el, group);
+    for (const section of this.sections) this.renderSection(el, section);
+  }
 
-    for (const group of shown) this.renderGroup(el, group);
+  /**
+   * A section: a foldable heading (name, what it holds, ⋯: new group in it, rename, delete), then its groups, in the
+   * panel's group order, and its tags. A tag or group dropped on it moves in.
+   */
+  private renderSection(el: HTMLElement, section: sc.Section): void {
+    const host = this.host;
+    const box = el.createDiv({ cls: "tag-everything-panel-section", attr: { "data-section": section.id } });
+    box.toggleClass("is-collapsed", !!section.collapsed);
+    const header = box.createDiv({ cls: "tag-everything-panel-section-head" });
+    const fold = header.createDiv({ cls: "tag-everything-group-fold", attr: { "aria-label": section.collapsed ? "Unfold" : "Fold" } });
+    setIcon(fold, "chevron-down");
+    const toggleFold = (): void => void host.save({ tabs: sc.setSectionCollapsed(this.sections, section.id, !section.collapsed) });
+    header.createSpan({ cls: "tag-everything-panel-section-name", text: section.name });
+    header.createSpan({ cls: "tag-everything-section-count", text: [plural(section.groups.length, "group"), plural(section.tags.length, "tag")].join(", ") });
+    clickable(header, toggleFold);
+    header.setAttr("aria-label", `${section.collapsed ? "Unfold" : "Fold"}. Drop a tag or group here to move it in; right-click: new group, rename, delete`);
+    const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Section options" } });
+    setIcon(more, "more-horizontal");
+    const menu = (evt: MouseEvent): void => this.sectionMenu(section, evt);
+    clickable(more, (evt) => {
+      evt.stopPropagation();
+      if (evt.instanceOf(MouseEvent)) menu(evt);
+      else {
+        const r = more.getBoundingClientRect();
+        menu(new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }));
+      }
+    });
+    header.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      menu(evt);
+    });
+    const move = (kind: sc.SectionKind) => (value: string) => void host.save({ tabs: sc.moveToSection(this.sections, section.id, kind, value) });
+    dropZone(box, move("tags"), move("groups"));
+    if (section.collapsed) return;
+
+    const body = box.createDiv({ cls: "tag-everything-panel-section-body" });
+    const groups = this.groups.filter((g) => section.groups.includes(g.id));
+    for (const group of groups) this.renderGroup(body, group);
+    if (section.tags.length) host.tagChips(body.createDiv({ cls: "tag-everything-panel-section-tags" }), section.tags);
+    if (!groups.length && !section.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Empty: drop a tag or group here, or right-click one → Move to the section." });
+  }
+
+  private sectionMenu(section: sc.Section, evt: MouseEvent): void {
+    const host = this.host;
+    const menu = new Menu();
+    menu.addItem((i) => i.setTitle("New group in this section…").setIcon("plus").onClick(() => this.newGroup(null, false, section)));
+    menu.addItem((i) =>
+      i
+        .setTitle("Rename section")
+        .setIcon("pencil")
+        .onClick(() => new NameModal(host.app, "Rename section", section.name, "Section name", (name) => host.save({ tabs: sc.renameSection(this.sections, section.id, name) })).open()),
+    );
+    menu.addItem((i) =>
+      i
+        .setTitle("Delete section (its groups and tags stay)")
+        .setIcon("trash")
+        .onClick(() => void host.save({ tabs: sc.deleteSection(this.sections, section.id) })),
+    );
+    menu.showAtMouseEvent(evt);
   }
 
   /**
@@ -223,7 +304,7 @@ export class PanelGroups {
     box.toggleClass("is-active", active);
 
     const header = box.createDiv({ cls: "tag-everything-group-header" });
-    header.draggable = true; // drop a group on another to reorder, or on a bookmark tab
+    header.draggable = true; // drop a group on another to reorder (and join its section), or on a section
     header.addEventListener("dragstart", (evt) => {
       if (!evt.dataTransfer) return;
       evt.dataTransfer.setData(GROUP_MIME, group.id);
@@ -287,7 +368,8 @@ export class PanelGroups {
     dropZone(
       box,
       (tag) => void this.addToGroup(group.id, [tag]),
-      (moved) => void this.saveGroups(gr.moveGroup(this.groups, moved, group.id)),
+      // placed before it, and in its section (or out of any, at the top)
+      (moved) => void host.save({ groups: gr.moveGroup(this.groups, moved, group.id), tabs: sc.moveToSection(this.sections, sc.sectionOf(this.sections, "groups", group.id)?.id ?? null, "groups", moved) }),
     );
 
     if (collapsed) return;

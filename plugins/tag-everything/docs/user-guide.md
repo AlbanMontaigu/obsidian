@@ -74,7 +74,7 @@ Command *Check tag names (naming rule) and fix them*, or the panel's **Tools** t
 3. Edit a fix if you want (several tags: separate them with spaces; empty: the tag is removed), untick the ones to
    leave, then **Fix N tags**.
 4. Each tag is rewritten **where it is**: in the file name (the file is renamed, links follow), the note's frontmatter
-   or the sidecar. Tag groups (formulas included: `Tax-Receipt` becomes `tax AND receipt`), bookmark tabs and the
+   or the sidecar. Tag groups (formulas included: `Tax-Receipt` becomes `tax AND receipt`), sections and the
    panel's search follow.
 
 Run it again to see what is left.
@@ -84,7 +84,7 @@ Run it again to see what is left.
 Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 
 - Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size). The tab **All**
-  (and each bookmark tab, Section 7) shows only the groups and the tags, two titled sections (*Groups*, then *Tags*
+  shows only the groups (with their sections, Section 7) and the tags, two titled parts (*Groups*, then *Tags*
   under a line, with the number of tags shown), using the panel's full height, and always
   every tag with its count in the whole vault, whatever the search: the tags in the search stay in place, highlighted
   (click one to take it out).
@@ -92,9 +92,12 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   **Selection** tab (at the right end of the tab strip, with the number of items found): the search in a box at the
   top (click a tag there to take it out, **Clear** to stop), then **Narrow**: the tags that can still narrow it, all
   the same size, counted in what it finds (only those on some of the items found, not on all of them: a tag on every
-  one would change nothing; click one to add it to the search), then **Results** with their number. **Formula…** (function icon), next to **Clear** on the line under the search, opens the search in the group
-  dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
-  runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
+  one would change nothing; click one to add it to the search), then **Results** with their number. **Formula…** (function icon), next to **Clear** on the line under the search, opens the search as a formula
+  (Section 6), no name needed, to combine its tags with `OR`, `NOT` and parentheses; **Search** runs it: its plain
+  tags, `NOT` tags and dates show as the usual chips, the rest (the `OR`s, the parentheses) as one chip with the
+  function icon (click it to take it out; **Formula…** again to edit it). Nothing is saved: the **folder-plus** icon
+  next to it saves the search as a group (a name, then the group's search runs). On a group search the button reads
+  **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.
 - **Dates**: the **calendar** icon next to the filter box picks a date for the search: **Created** or **Modified**,
   *in the last day / 7 days / 30 days / 90 days / year* (recent) or *more than 30 days / 90 days / a year ago* (old),
@@ -111,8 +114,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   the tags used 10 to 100 times: neither the one-offs nor the tags on almost everything; the count reads *42 of 180*.
   Type other numbers in the boxes: the tags follow as you type, **Enter** or leaving the box saves; an empty second
   box means *no limit*. **See all** shows every tag (the numbers are kept; typing one turns it off again). The tags
-  in the search always stay, and typing in the filter finds every tag. Bookmark tabs are not filtered (you chose
-  their tags). The TagEverything explorer has the same boxes (Section 10). Default 10–100; also in the settings
+  in the search always stay, and typing in the filter finds every tag. The tags of a section are not filtered (you
+  put them there). The TagEverything explorer has the same boxes (Section 10). Default 10–100; also in the settings
   (Section 14).
 - **Extension tags** (`pdf`, `md`, Section 1) are hidden from the tag lists (All, Narrow) by default: the **file type**
   icon in the *Tags* heading (All) shows them, click again to hide them; remembered. They still work everywhere else:
@@ -149,16 +152,16 @@ Groups keep related tags together and double as saved searches.
 
 - **One dialog** creates and edits a group: its **name**, and what it **searches for**, written as a formula (below),
   with buttons inserting `AND`, `OR`, `NOT`, `(`, `)`. Open it with **+** next to *Groups* (it starts from the
-  current search, if any; or drop a tag on **+**), with **Formula…** in the Selection tab (the new group's search
-  then runs), or to edit a group with *⋯ → Edit name and formula*, **Edit group** (pencil) during its search, or its formula icon (ƒ in a square) on the group.
+  current search, if any; or drop a tag on **+**), with the **folder-plus** icon of the Selection tab (the new
+  group's search then runs; **Formula…** there edits the search alone, without a name), or to edit a group with *⋯ → Edit name and formula*, **Edit group** (pencil) during its search, or its formula icon (ƒ in a square) on the group.
   **Drag** any tag onto a group to add it; a tag can be in several groups.
 - Groups **fold** (chevron) and reorder by dragging one onto another. **⋯** or right-click: search, edit the name and
-  formula, add the selected tags, bookmark, delete (the tags stay on the files).
+  formula, add the selected tags, move to a section (Section 7), delete (the tags stay on the files).
 - Hover a tag of a group: **×** takes it out of the group, **⊘** excludes it from the group's search (`NOT tag`,
   struck through; click ↶ to include it again). Both are also in the tag's right-click menu.
 - **A group is a search**: click its **Search** button (it shows how many items the group finds), its name, or
   *⋯ → Search with this group*. The results show in the **Selection** tab. While the search runs, the group's header
-  turns to the accent colour and its button reads **→ Selection** with the count: back in All or a bookmark tab, click
+  turns to the accent colour and its button reads **→ Selection** with the count: back in All, click
   it (or the group's name) to return to the results. In Selection, the group shows at the top as the same card as
   in All (its header in the accent colour, ⋯ for its menu, its tags with their counts, the same hover buttons):
   click a tag to leave it out (dashed, in All too), click again to put it back; click other tags to narrow further. **Clear** there,
@@ -182,18 +185,23 @@ Groups keep related tags together and double as saved searches.
     out. A group with dates of its own replaces the panel's dates while it searches.
 - Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
 
-## 7. Bookmark tabs
+## 7. Sections
 
-Under the filter box: a tab **All** (every group and tag), then your own named tabs, e.g. *Work* and *Home*.
+In All, groups and tags can be sorted under your own **sections**, e.g. *Work* and *Home*: foldable headings under
+the groups that are in no section.
 
-- **+** creates a tab (drop a tag or group on **+** to start the tab with it).
-- Bookmark a tag or group by **dragging it onto a tab**, or right-click it → **Bookmark in the tab "…"** /
-  **Bookmark in a new tab…**. **Remove from the tab "…"** takes it out (the tag stays on your files, the group stays
-  in All).
-- A tab shows only what is bookmarked in it. A group created with **+** while a tab is shown is bookmarked there.
-- Right-click a tab to rename or delete it (deleting a tab deletes nothing else).
-- The search is the same whatever the tab, and its results are in the Selection tab (Section 5); the panel reopens on
-  the tab you left. Tabs are saved with the groups.
+- The **folder-plus** icon next to **+** in the *Groups* heading creates a section (drop a tag or group on it to start
+  the section with it).
+- Move a group or tag into a section by **dragging it onto the section**, or right-click it (a group: its **⋯**) →
+  **Move to the section "…"** / **Move to a new section…**. A group or tag is in one section at most: moving it takes
+  it out of the other. **Take out of the section "…"** puts a group back at the top. A group dropped on a group of a
+  section joins that section, before it.
+- A section shows its groups, then its tags (with their counts, a click searches with one, as in *Tags*). A tag in a
+  section is still in the *Tags* list.
+- Click a section's heading to fold or unfold it. Its **⋯** (or right-click): *New group in this section…*, *Rename
+  section*, *Delete section* (its groups and tags stay, back at the top; nothing else is deleted).
+- Sections are saved with the groups. The bookmark tabs of 0.36 and before became sections (a group or tag that was in
+  several tabs stays in the first one).
 
 ## 8. Colours and explorer badges
 
@@ -353,7 +361,7 @@ changes:
 | nothing | **Remove**: the tag is taken off every item |
 
 The tag is rewritten where it is on each item (file name, note frontmatter, sidecar), exactly like *Check tag names*
-(Section 4): files whose name holds it are renamed (links follow), tag groups and bookmark tabs follow. With the naming
+(Section 4): files whose name holds it are renamed (links follow), tag groups and sections follow. With the naming
 rule on, the new name must follow it.
 
 ### Review tags
@@ -436,6 +444,40 @@ scan, a copy) gets its rule tags at once, 2 seconds after the last of a burst of
 the inbox; one notice says what was tagged. Tags go where new tags go (Section 1): a PDF is renamed
 (`Facture EDF[energie].pdf`) with the default settings.
 
+### Put files away
+
+Once a file has tags, TagEverything can move it to the folder where files with the same tags already are: right-click
+a file, a folder (every file below it) or a selection → *TagEverything → Put away (N files)*. The item shows only
+when some file there has a better folder to go to.
+
+- A folder's **usual tags** are the tags most of its own tagged files carry (at least 2 files and 3 in 4 of them; its
+  subfolders' files don't count, untagged files neither). A folder fits a file when the file carries **all** its
+  usual tags: `Bills/Power` (usually `bill`, `power`) fits `new[bill power 2026].pdf`.
+- The dialog lists each file, ticked, with the best folder (the one with the most usual tags matched, then the
+  biggest) and why (*Its 3 files usually carry bill, power*); the list offers up to 3 folders. Untick a file to
+  leave it. **Move N files** moves the ticked ones; links to them follow, and so do their `.ts` sidecars.
+- A file already in a folder that fits it as well as any other is left out. The inbox folder and the folders that
+  receive outside files (below) are never offered: files only pass through them.
+- A file is never moved over another: a name already taken in the folder is refused, listed in one notice, and both
+  files stay as they are.
+
+### Bring in files from outside the vault
+
+Downloads and scans land outside the vault. *Settings → Bring in files from outside the vault* → **+** adds a folder
+of your computer (e.g. `C:\Users\me\Downloads`), the vault folder its files go to (default `Inbox`, created if
+needed) and, optionally, the extensions wanted (`pdf jpg`; empty = any file).
+
+- Every file that **arrives** there afterwards is moved into the vault folder (copied, never over a file, then removed
+  outside): while Obsidian is open, about 2 seconds after it is written; the files that arrived while Obsidian was
+  closed, when it starts. The files already in the folder when you added it stay there.
+- A brought-in file is a new file of the vault: it waits in the inbox, and gets its rule tags at once when *Tag new
+  files with the rules automatically* is on. Then *Put away* files it.
+- Downloads in progress (`.crdownload`, `.part`, `.tmp`…), hidden files, Office lock files (`~$…`) and subfolders
+  are left alone. A name already taken in the vault folder is refused (one notice per file and session); the file
+  stays outside.
+- One notice says what came in (*TagEverything: 2 files brought in from Downloads to Inbox: …*). Click a folder in
+  the list to edit it, the bin to stop watching it. The dialog refuses a folder that is inside the vault.
+
 ### Exclude files and folders from the tag engine
 
 Right-click a file or folder → **TagEverything → Exclude from the tag engine** (or a selection: *Exclude N items*).
@@ -488,6 +530,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Inbox | | *Open the inbox*; *Days in the inbox* (30); *Inbox folder* (empty: the whole vault); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
 | Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
 | Excluded from the tag engine | none | Section 13: the files and folders excluded by right-click; the bin includes one again |
+| Bring in files from outside the vault | none | Section 13: folders of your computer whose new files are moved into a vault folder; click to edit, **+** to add, the bin to stop |
 | Exclusion rules | none | Section 13: click to edit, **+** to add, the bin to delete |
 | Tag maintenance | | *Tag tools*: opens the panel's Tools tab, where the actions are (Section 5) |
 

@@ -4,6 +4,7 @@ import { revealInExplorer } from "./items.ts";
 import { describeConditions } from "./inbox.ts";
 import type { Exclusion } from "./exclude.ts";
 import { RuleModal } from "./rule-modal.ts";
+import { openPutAway, putAwayPlan } from "./putaway-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 // The plugin's entries in Obsidian's context menus (file explorer, its own views): one "TagEverything" submenu. They
@@ -59,6 +60,8 @@ export function fileMenuEntries(plugin: TagEverythingPlugin, file: TAbstractFile
   entries.push({ title: "Suggest tags with Claude Code", icon: "sparkles", run: () => plugin.suggestTags([file]) });
   const rules = rulesEntry(plugin, [file]);
   if (rules) entries.push(rules);
+  const away = putAwayEntry(plugin, [file]);
+  if (away) entries.push(away);
   if (file instanceof TFolder) {
     entries.push({ title: "Inbox of this folder", icon: "inbox", run: () => void plugin.focusInbox(file.isRoot() ? "" : file.path) });
     entries.push({ title: "Check tag consistency", icon: "list-checks", run: () => void plugin.checkConsistency(file) });
@@ -80,6 +83,8 @@ export function filesMenuEntries(plugin: TagEverythingPlugin, files: readonly TA
     );
     const rules = rulesEntry(plugin, items);
     if (rules) entries.push(rules);
+    const away = putAwayEntry(plugin, items);
+    if (away) entries.push(away);
     entries.push({ title: `Exclude ${plural(items.length, "item")} from the tag engine`, icon: "eye-off", run: () => void plugin.setExcluded(items.map((i) => i.path), true) });
   }
   if (own.length) entries.push({ title: `Include ${plural(own.length, "item")} in the tag engine again`, icon: "eye", run: () => void plugin.setExcluded(own, false) });
@@ -92,6 +97,13 @@ function rulesEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile[]
   const n = plugin.ruleTargets(items).size;
   if (!n) return null;
   return { title: `Apply auto-tag rules (${plural(n, "file")})`, icon: "wand-sparkles", run: () => void plugin.applyRulesTo(items) };
+}
+
+/** "Put away", only when some file of the items (a folder: the files below it) has a better folder to go to. */
+function putAwayEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile[]): MenuEntry | null {
+  const n = putAwayPlan(plugin, items).size;
+  if (!n) return null;
+  return { title: `Put away (${plural(n, "file")})`, icon: "folder-input", run: () => void openPutAway(plugin, items) };
 }
 
 /** The entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */

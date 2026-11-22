@@ -20,6 +20,12 @@ entry of the area you change; add one when you leave a limit behind (users' side
   in the tree. Showing a file the core explorer hides in the file explorer only opens its folder.
 - Explorer ideas: reveal the active file in the tree, keyboard arrows between rows,
   extension tags as branches (an option).
+- Put away: a folder's usual tags come from its tagged files only, so a folder of untagged files is never offered;
+  a folder whose files all carry a year (`2025`) is not offered to a `2026` file (no new folder is ever created).
+  The menu entry computes the habits of the whole vault on each right-click (not measured on the owner's vault).
+- Bring in: only checked with Windows paths (`C:\...`); `fs.watch` events can be missed on network drives (the next
+  start catches up). A file copied in but not removable outside (locked) stays in both places, told once. Files
+  that arrived before the folder was added are never brought in: move them by hand.
 - Inline `#tags` in a note's body are not read (only frontmatter): they can't be removed through a property edit.
 - Tag groups don't follow a tag renamed outside the plugin (they keep the old name, shown faded); they do follow a
   *Check tag names* fix, a rename / merge and a review (all through `replaceTags`).
@@ -54,8 +60,8 @@ entry of the area you change; add one when you leave a limit behind (users' side
   new). Dismissed paths are kept in `data.json` and don't follow a rename. The inbox lists notes too (any untagged
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
-- `main.ts` is ~675 lines (0.36.0) (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
-  moved out; `view.ts` ~790 (0.34.0, date criteria) after the Groups section moved to `panel-groups.ts` (0.30.0): the bookmark tabs (`renderTabs`, tab menu, bookmark items) are the next to move out. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
+- `main.ts` is ~730 lines (0.37.0: `moveFiles`, the watcher's wiring) (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
+  moved out; `view.ts` ~760 (0.37.0, sections) after the Groups section moved to `panel-groups.ts` (0.30.0): the section actions (`createSection`, `sectionItems`) are the next to move out, to `panel-groups.ts`. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
 - Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a

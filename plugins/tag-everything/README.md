@@ -17,8 +17,7 @@ TagSpaces.
 - Browse in the **TagEverything explorer** (left sidebar), a tree of tags that looks like the file explorer: every tag
   at the root, inside a tag the tags found with it, then the files carrying exactly those tags (even files Obsidian's
   explorer hides); hover a file's folder icon to see where it really is, click it to show it in the file explorer.
-- Save searches as **tag groups**, with **formulas** (`(b27 OR inc) AND NOT draft`), and sort them into **bookmark
-  tabs**.
+- Save searches as **tag groups**, with **formulas** (`(b27 OR inc) AND NOT draft`), and sort them into **sections**.
 - See how many tags each item has in the file explorer (hover the number to list them); each file's extension (`pdf`, `md`) is a tag too, shown before its name.
 - Write a **guide for AI assistants** (`CLAUDE.md`) into a folder, so an assistant working in the vault tags files the
   way TagEverything reads them and reuses your tags.
@@ -70,7 +69,9 @@ src/format.ts      storage format: parse/write name tags, sidecar JSON, paths, w
 src/naming.ts      tag naming rule: check, suggested fix, vault audit, fix planning (pure, tested)
 src/formula.ts     tag formulas: parse, format, evaluate, switch tags off (pure, tested)
 src/groups.ts      tag groups: add, rename, move, fold, formula, load safely (pure, tested)
-src/tabs.ts        bookmark tabs: add, rename, bookmark tags and groups, load safely (pure, tested)
+src/sections.ts    sections of the panel: add, rename, fold, move tags and groups in, load safely (pure, tested)
+src/putaway.ts     put away: a folder's usual tags, where a tagged file belongs (pure, tested)
+src/bring-in.ts    bring in: which files of an outside folder to move into the vault (pure, tested)
 src/config.ts      settings: shape, defaults, loading a damaged data.json (pure, tested)
 src/suggest.ts     Claude Code suggestions: prompt, command line, reading and cleaning the answer (pure, tested)
 src/claude.ts      runs a program (Claude Code): stdin, stdout, timeout, cancel, not found (tested with real processes)

@@ -17,12 +17,13 @@ const waitFor = async (cond, ms = 3000) => {
 };
 await waitFor(() => plugin.index.ready, 10000);
 
-// Panel: groups (one with a formula), a bookmark tab, then a search in the Selection tab.
+// Panel: groups (one with a formula, one in a section), then a search in the Selection tab.
 const view = await plugin.openView();
 const g1 = await view.createGroup("Clients", ["client", "shared"]);
 const g2 = await view.createGroup("Formula");
 await view.setGroupFormula(g2, "(shared OR B27) AND NOT final");
-view.showTab(null);
+await view.createSection("Work", ["client"], [g1]);
+view.showAll();
 // The tag count range on (the gallery's tags are used a few times, not 10 to 100): "used [2] to [∞] times".
 plugin.settings.tagRangeMin = 2;
 plugin.settings.tagRangeMax = 0;
@@ -36,7 +37,7 @@ await snap("panel-selection");
 view.selectGroup(g2);
 await sleep(300);
 await snap("panel-group-search");
-view.showTab(null); // the group searching, as All shows it
+view.showAll(); // the group searching, as All shows it
 await sleep(300);
 await snap("panel-group-active");
 document.querySelector(".tag-everything-view-formula")?.click();
@@ -48,9 +49,15 @@ view.selectOnly("md");
 await sleep(200);
 document.querySelector(".tag-everything-view-formula")?.click();
 await sleep(300);
+await snap("dialog-search-formula");
+await closeModals();
+document.querySelector(".tag-everything-view-save-group")?.click();
+await sleep(300);
 await snap("dialog-group-new");
 await closeModals();
-document.querySelector(".tag-everything-tab-add")?.click();
+view.showAll();
+await sleep(200);
+document.querySelector(".tag-everything-section-add")?.click();
 await sleep(300);
 await snap("dialog-name");
 await closeModals();

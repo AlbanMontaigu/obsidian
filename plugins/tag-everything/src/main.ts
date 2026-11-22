@@ -10,7 +10,7 @@ import { PLUGIN_NAME, failureMessage, plural, progressMessage } from "./messages
 import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts";
 import { TagFixModal } from "./fix-modal.ts";
 import { replaceTagsInGroups } from "./groups.ts";
-import { replaceTagsInTabs } from "./tabs.ts";
+import { replaceTagsInSections } from "./sections.ts";
 import { GUIDE_FILE, claudeGuide, guidePath, hasGuide } from "./guide.ts";
 import type { ClaudeTask } from "./suggest.ts";
 import { runClaudeIn } from "./claude-runner.ts";
@@ -22,6 +22,7 @@ import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
 import { rulesTags } from "./inbox.ts";
 import { ConsistencyModal, openConsistency } from "./consistency-modal.ts";
 import { type Exclusion, exclusionOf, renameExcluded, setExcluded } from "./exclude.ts";
+import { BringInWatcher } from "./bring-in-watcher.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
@@ -38,6 +39,8 @@ export default class TagEverythingPlugin extends Plugin {
   index!: TagIndex;
   store!: MetaStore;
   badges!: ExplorerBadges;
+  /** Brings in the new files of the outside folders of the settings (src/bring-in-watcher.ts). */
+  bringIn!: BringInWatcher;
   /** Paths this plugin is renaming right now: their sidecars are moved by applyTags, not by the rename hook. */
   private ownRenames = new Set<string>();
   /** Edits run one after the other: two quick edits of the same file must not interleave their reads and writes. */
@@ -57,6 +60,8 @@ export default class TagEverythingPlugin extends Plugin {
     this.index.excluded = (path, isFolder) => !!this.exclusion(path, isFolder);
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
+    this.bringIn = new BringInWatcher(this);
+    this.register(() => this.bringIn.stop());
 
     this.registerView(VIEW_TYPE, (leaf) => new TagEverythingView(leaf, this));
     addIcon(EXPLORER_ICON, EXPLORER_ICON_SVG);
@@ -144,6 +149,7 @@ export default class TagEverythingPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("rename", (f, oldPath) => void this.onRename(f, oldPath)));
       void this.index.rebuild();
       this.closeOldInbox();
+      this.bringIn.restart(); // after the create event is registered: what it brings in is a new file of the vault
     });
   }
 
@@ -356,7 +362,7 @@ export default class TagEverythingPlugin extends Plugin {
     const failed = await this.enqueue(items, (state) => replacePlan(state, mapping));
     const { groups, tabs } = this.settings;
     const nextGroups = replaceTagsInGroups(groups, mapping);
-    const nextTabs = replaceTagsInTabs(tabs, mapping);
+    const nextTabs = replaceTagsInSections(tabs, mapping);
     if (nextGroups.some((g, i) => g !== groups[i]) || nextTabs.some((t, i) => t !== tabs[i])) {
       this.settings.groups = nextGroups;
       this.settings.tabs = nextTabs;
@@ -570,19 +576,64 @@ export default class TagEverythingPlugin extends Plugin {
 
   /** Runs one batch after the previous one; resolves to the number of items that failed. */
   private enqueue(items: TAbstractFile[], planner: Planner): Promise<number> {
+    return this.serial(() => this.applyNow(items, planner));
+  }
+
+  /** Runs `job` after the previous tag write or move: two of them never interleave on the same file. */
+  private serial<T>(job: () => Promise<T>): Promise<T> {
     const previous = this.queue;
-    const run = (async (): Promise<number> => {
+    const run = (async (): Promise<T> => {
       await previous; // never rejects: see below
-      return this.applyNow(items, planner);
+      return job();
     })();
-    this.queue = (async (): Promise<void> => {
-      try {
-        await run;
-      } catch {
-        // the caller of applyTags gets the error; the next edit still runs
-      }
-    })();
+    // the caller gets the error; the next job still runs
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
     return run;
+  }
+
+  /**
+   * Puts files away: moves each into its folder (src/putaway.ts), never over an existing file; links follow, and the
+   * sidecar too. Queued like tag writes; one notice. Resolves to the number of files moved.
+   */
+  moveFiles(moves: ReadonlyMap<TFile, string>): Promise<number> {
+    return this.serial(async () => {
+      const { vault } = this.app;
+      const failures: string[] = [];
+      let moved = 0;
+      for (const [file, folder] of moves) {
+        const to = ts.joinPath(folder, file.name);
+        try {
+          if (vault.getAbstractFileByPath(file.path) !== file) throw new Error("it no longer exists");
+          if (this.isExcluded(file)) throw new Error("it is excluded from the tag engine");
+          if (!vault.getFolderByPath(folder)) throw new Error(`the folder ${folder} no longer exists`);
+          // the adapter also sees a name differing only in case, which Windows takes for the same file
+          if (vault.getAbstractFileByPath(to) || (await vault.adapter.exists(to))) throw new Error(`a file of that name is already in ${folder}`);
+          await this.renameOwn(file, to);
+          moved++;
+        } catch (err) {
+          failures.push(`${file.name}: ${(err as Error).message}`);
+          console.error(`[tag-everything] moving failed  path=${file.path}  to=${folder}`, err);
+        }
+      }
+      if (failures.length) new Notice(failureMessage(failures, moves.size, 5, "could not move"), 10000);
+      else if (moved) new Notice(`${PLUGIN_NAME}: ${plural(moved, "file")} put away${moves.size === 1 ? ` in ${[...moves.values()][0]}` : ""}.`);
+      return moved;
+    });
+  }
+
+  /** Renames or moves a file itself (links follow), its sidecar and thumbnail along, whatever `followRenames` says. */
+  private async renameOwn(file: TFile, newPath: string): Promise<void> {
+    const oldPath = file.path;
+    this.ownRenames.add(newPath);
+    try {
+      await this.app.fileManager.renameFile(file, newPath); // also updates links in notes
+      await this.store.moveFileMeta(oldPath, newPath);
+    } finally {
+      this.ownRenames.delete(newPath);
+    }
   }
 
   private async applyNow(items: TAbstractFile[], planner: Planner): Promise<number> {
@@ -645,15 +696,7 @@ export default class TagEverythingPlugin extends Plugin {
 
     // Rename first: if it fails nothing has changed. Then the frontmatter, then the sidecar: tags only move from
     // the sidecar into the name or the frontmatter, so a failure part-way at worst leaves a tag in two places.
-    if (newPath !== oldPath) {
-      this.ownRenames.add(newPath);
-      try {
-        await this.app.fileManager.renameFile(item, newPath); // also updates links in notes
-        await this.store.moveFileMeta(oldPath, newPath);
-      } finally {
-        this.ownRenames.delete(newPath);
-      }
-    }
+    if (newPath !== oldPath) await this.renameOwn(item, newPath);
     if (plan.frontChanged) {
       await this.app.fileManager.processFrontMatter(item, (fm: Record<string, unknown>) => ts.setFrontmatterTags(fm, plan.frontTags));
       this.index.setFront(item.path, plan.frontTags);
