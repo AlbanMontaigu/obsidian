@@ -91,7 +91,7 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   **Selection** tab (at the right end of the tab strip, with the number of items found): the search at the top
   (click a tag there to take it out, **Clear** to stop), then the tags that can still narrow it, counted in what it
   finds (only those on some of the items found, not on all of them: a tag on every one would change nothing; click
-  one to add it to the search), the results below. **Σ Formula…** next to **Clear** opens the search in the group
+  one to add it to the search), the results below. **Σ Formula…**, next to **Clear** on the line under the search, opens the search in the group
   dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
   runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.

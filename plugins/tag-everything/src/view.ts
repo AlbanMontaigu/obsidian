@@ -646,7 +646,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     for (const tag of this.selected) if (!group?.tags.includes(tag)) searchChip(tag, false);
     for (const tag of this.excluded) searchChip(tag, true);
     // The way to OR and parentheses: the search as a formula, in the group dialog (a group search edits its group).
-    const formula = this.selectedEl.createEl("button", {
+    const actions = this.selectedEl.createDiv({ cls: "tag-everything-view-actions" });
+    const formula = actions.createEl("button", {
       cls: "tag-everything-view-formula",
       attr: {
         "aria-label": group
@@ -657,7 +658,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     setIcon(formula.createSpan(), "sigma");
     formula.createSpan({ text: group ? "Edit group" : "Formula…" });
     formula.addEventListener("click", () => (group ? this.editGroup(group) : this.newGroup(this.searchExpr(), true)));
-    const clear = this.selectedEl.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
+    const clear = actions.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
     clear.addEventListener("click", () => {
       this.resetSearch();
       this.stateChanged();

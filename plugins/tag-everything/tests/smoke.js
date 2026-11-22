@@ -583,7 +583,13 @@ selTab().click();
 await sleep(100);
 // The Selection tab's Formula… button: the search in the group dialog, operators by button, saved and run at once.
 const formulaBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-formula");
-check("formula button: in the Selection tab, labelled", formulaBtn()?.textContent === "Formula…", formulaBtn()?.outerHTML);
+const searchChipBottom = panel().querySelector(".tag-everything-view-selected > .tag-everything-chip")?.getBoundingClientRect().bottom ?? Infinity;
+check(
+  "formula button: in the Selection tab, labelled, with Clear on their own line under the search",
+  formulaBtn()?.textContent === "Formula…" && formulaBtn().parentElement.matches(".tag-everything-view-actions") &&
+    !!formulaBtn().parentElement.querySelector(".tag-everything-view-clear") && formulaBtn().getBoundingClientRect().top >= searchChipBottom,
+  formulaBtn()?.outerHTML,
+);
 formulaBtn().click();
 await sleep(300);
 const gModal = document.querySelector(".tag-everything-group-modal");

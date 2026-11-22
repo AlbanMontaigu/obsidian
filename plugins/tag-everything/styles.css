@@ -269,10 +269,19 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* Selection tab: Formula… and Clear on their own line under the search, with room around them. */
+.tag-everything-view-actions {
+  flex-basis: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
 .tag-everything-view-formula,
 .tag-everything-view-clear {
   font-size: var(--font-ui-smaller);
-  padding: 0 8px;
+  padding: 4px 12px;
   height: auto;
 }
 
@@ -281,7 +290,6 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
 }
 
 .tag-everything-view-formula svg {
