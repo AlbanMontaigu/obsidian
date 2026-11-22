@@ -360,8 +360,9 @@ if (settingTab) {
 
 // ---- tag groups in the panel: create, drag tags in, fold, select = search over the group's tags
 const panel = () => document.querySelector(".tag-everything-view");
+// A group of the Groups section (the Selection tab draws the group searching too: selCard below).
 const groupEl = (name) =>
-  [...panel().querySelectorAll(".tag-everything-group")].find((g) => g.querySelector(".tag-everything-group-name")?.textContent === name);
+  [...panel().querySelectorAll(".tag-everything-view-groups .tag-everything-group")].find((g) => g.querySelector(".tag-everything-group-name")?.textContent === name);
 const results = () => panel().querySelectorAll(".tag-everything-result").length;
 const dragTag = (chipEl, target) => {
   const dt = new DataTransfer();
@@ -663,14 +664,28 @@ const searchLabel = () => groupEl("Formula").querySelector(".tag-everything-grou
 check("groups: the search button is labelled", searchLabel() === "Search", searchLabel());
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
-check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group"));
-const groupName = panel().querySelector(".tag-everything-view-selected-group");
-const firstGroupChip = panel().querySelector(".tag-everything-view-selected .tag-everything-chip");
+// The Selection tab draws the group searching as its card in All: header (name, ⋯) above its chips with their counts.
+const selCard = panel().querySelector(".tag-everything-view-selected > .tag-everything-group");
+check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!selCard?.classList.contains("is-active"));
+const selHeader = selCard?.querySelector(".tag-everything-group-header");
+const selChips = [...(selCard?.querySelectorAll(".tag-everything-group-tags .tag-everything-chip") ?? [])];
+const cardChips = [...groupEl("Formula").querySelectorAll(".tag-everything-group-tags .tag-everything-chip")];
+const chipText = (c) => c.textContent;
 check(
-  "groups: the group's name on its own line, its tags below",
-  !!firstGroupChip && groupName.getBoundingClientRect().bottom <= firstGroupChip.getBoundingClientRect().top,
-  `${groupName?.getBoundingClientRect().bottom} vs ${firstGroupChip?.getBoundingClientRect().top}`,
+  "groups: in Selection, the group's card as in All: name and ⋯ in its header, no fold or search button, its tags below with their counts",
+  selHeader?.querySelector(".tag-everything-group-name")?.textContent === "Formula" && !!selHeader.querySelector(".tag-everything-group-more") &&
+    !selHeader.querySelector(".tag-everything-group-fold, .tag-everything-group-search") && selChips.length > 0 &&
+    selChips.every((c) => c.querySelector(".tag-everything-chip-count")) && selChips.map(chipText).join() === cardChips.map(chipText).join() &&
+    selHeader.getBoundingClientRect().bottom <= selChips[0].getBoundingClientRect().top,
+  `${selChips.map(chipText)} vs ${cardChips.map(chipText)}`,
 );
+selHeader?.querySelector(".tag-everything-group-more")?.click();
+await sleep(200);
+const selMenu = [...document.querySelectorAll(".menu .menu-item")].map((m) => m.textContent);
+check("groups: its ⋯ in Selection is the group menu, without Show in Selection", selMenu[0] === "Stop the search" && !selMenu.some((t) => /^Show in Selection/.test(t)), selMenu.join(" | "));
+document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+document.querySelectorAll(".menu").forEach((m) => m.remove());
+await sleep(100);
 allTab().click();
 await sleep(200);
 check("groups: on the group searching, the button leads to Selection", searchLabel() === "Selection" && !selTab()?.classList.contains("is-active"), searchLabel());
@@ -748,7 +763,7 @@ check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-
 
 // ---- bookmark tabs: create one, bookmark tags and a group (drop, menu), the tab shows only them, saved
 const tabEl = (name) => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === name);
-const shownGroups = () => [...panel().querySelectorAll(".tag-everything-group-name")].map((e) => e.textContent).join();
+const shownGroups = () => [...panel().querySelectorAll(".tag-everything-view-groups .tag-everything-group-name")].map((e) => e.textContent).join();
 const shownTags = () => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((e) => e.firstChild.textContent).sort().join();
 const workTab = () => plugin.settings.tabs.find((t) => t.name === "Work");
 check("tabs: All comes first and is active", panel().querySelector(".tag-everything-tab") === tabEl("All") && tabEl("All").classList.contains("is-active"));

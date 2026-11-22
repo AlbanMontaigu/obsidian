@@ -131,12 +131,13 @@ export class PanelGroups {
     }).open();
   }
 
-  private menu(group: gr.TagGroup, evt: MouseEvent): void {
+  /** The group menu; `inSelection`: opened in the Selection tab, so no "Show in Selection". */
+  private menu(group: gr.TagGroup, evt: MouseEvent, inSelection = false): void {
     const host = this.host;
     const menu = new Menu();
     const active = host.activeGroup() === group.id;
     const n = host.matchPaths(gr.groupExpr(group)).length;
-    if (active) menu.addItem((i) => i.setTitle(`Show in Selection (${plural(n, "item")})`).setIcon("arrow-right").onClick(() => host.showSelection()));
+    if (active && !inSelection) menu.addItem((i) => i.setTitle(`Show in Selection (${plural(n, "item")})`).setIcon("arrow-right").onClick(() => host.showSelection()));
     menu.addItem((i) =>
       i
         .setTitle(active ? "Stop the search" : `Search with this group (${plural(n, "item")})`)
@@ -170,16 +171,15 @@ export class PanelGroups {
   }
 
   /** The group menu, opened from the keyboard: under the ⋯ button. */
-  private menuAt(group: gr.TagGroup, el: HTMLElement): void {
+  private menuAt(group: gr.TagGroup, el: HTMLElement, inSelection = false): void {
     const r = el.getBoundingClientRect();
-    this.menu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }));
+    this.menu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }), inSelection);
   }
 
   /** The Groups section of a tag tab (of the bookmark tab shown: its groups only), drawn into `el`. */
   render(el: HTMLElement): void {
     const host = this.host;
     el.empty();
-    const counts = host.plugin.index.counts();
 
     const head = el.createDiv({ cls: "tag-everything-section-head" });
     head.createSpan({ cls: "tag-everything-section-title", text: "Groups" });
@@ -204,39 +204,55 @@ export class PanelGroups {
       return;
     }
 
-    for (const group of shown) {
-      const active = host.activeGroup() === group.id;
-      const box = el.createDiv({ cls: "tag-everything-group", attr: { "data-group": group.id } });
-      box.toggleClass("is-collapsed", group.collapsed);
-      box.toggleClass("is-active", active);
+    for (const group of shown) this.renderGroup(el, group);
+  }
 
-      const header = box.createDiv({ cls: "tag-everything-group-header" });
-      header.draggable = true; // drop a group on another to reorder
-      header.addEventListener("dragstart", (evt) => {
-        if (!evt.dataTransfer) return;
-        evt.dataTransfer.setData(GROUP_MIME, group.id);
-        evt.dataTransfer.effectAllowed = "move";
-      });
+  /**
+   * A group's card: a header (fold, name, formula icon, search button, ⋯) above its chips, each with its vault count.
+   * The Selection tab draws the group searching with it too (`inSelection`): no fold and no search button there (its
+   * results are below it), and the header does nothing on click. On the group searching, a tag switched off is
+   * dashed; a click on a chip switches it on or off.
+   */
+  renderGroup(el: HTMLElement, group: gr.TagGroup, inSelection = false): void {
+    const host = this.host;
+    const counts = host.plugin.index.counts();
+    const active = host.activeGroup() === group.id;
+    const collapsed = group.collapsed && !inSelection;
+    const box = el.createDiv({ cls: "tag-everything-group", attr: { "data-group": group.id } });
+    box.toggleClass("is-collapsed", collapsed);
+    box.toggleClass("is-active", active);
 
+    const header = box.createDiv({ cls: "tag-everything-group-header" });
+    header.draggable = true; // drop a group on another to reorder, or on a bookmark tab
+    header.addEventListener("dragstart", (evt) => {
+      if (!evt.dataTransfer) return;
+      evt.dataTransfer.setData(GROUP_MIME, group.id);
+      evt.dataTransfer.effectAllowed = "move";
+    });
+
+    if (!inSelection) {
       const fold = header.createDiv({ cls: "tag-everything-group-fold", attr: { "aria-label": group.collapsed ? "Unfold" : "Fold" } });
       setIcon(fold, "chevron-down");
       clickable(fold, (evt) => {
         evt.stopPropagation();
         void this.saveGroups(gr.setCollapsed(this.groups, group.id, !group.collapsed));
       });
+    }
 
-      const n = host.matchPaths(gr.groupExpr(group)).length;
-      header.createSpan({ cls: "tag-everything-group-name", text: group.name });
-      if (group.formula) {
-        const fxIcon = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
-        setIcon(fxIcon, "square-function");
-        clickable(fxIcon, (evt) => {
-          evt.stopPropagation();
-          this.editGroup(group);
-        });
-      }
+    header.createSpan({ cls: "tag-everything-group-name", text: group.name });
+    if (group.formula) {
+      const fxIcon = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
+      setIcon(fxIcon, "square-function");
+      clickable(fxIcon, (evt) => {
+        evt.stopPropagation();
+        this.editGroup(group);
+      });
+    }
+    if (inSelection) header.setAttr("aria-label", "The search runs this group (⋯: its options)");
+    else {
       // Labelled search button: the whole header searches too, but an icon alone was easy to miss. On the group
       // searching it leads to the Selection tab, where its results are; stopping is in ⋯ (and Clear there).
+      const n = host.matchPaths(gr.groupExpr(group)).length;
       const open = (): void => (active ? host.showSelection() : host.selectGroup(group.id));
       const find = header.createDiv({
         cls: "tag-everything-group-search",
@@ -253,68 +269,73 @@ export class PanelGroups {
         evt.stopPropagation();
         open();
       });
-      const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Group options" } });
-      setIcon(more, "more-horizontal");
-      clickable(more, (evt) => {
-        evt.stopPropagation();
-        if (evt.instanceOf(MouseEvent)) this.menu(group, evt);
-        else this.menuAt(group, more);
-      });
       clickable(header, open);
       header.setAttr("aria-label", active ? "Click to show its results in the Selection tab" : "Click to search with this group");
-      header.addEventListener("contextmenu", (evt) => {
-        evt.preventDefault();
-        this.menu(group, evt);
-      });
-
-      dropZone(
-        box,
-        (tag) => void this.addToGroup(group.id, [tag]),
-        (moved) => void this.saveGroups(gr.moveGroup(this.groups, moved, group.id)),
-      );
-
-      if (group.collapsed) continue;
-      const body = box.createDiv({ cls: "tag-everything-group-tags" });
-      if (!group.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
-      const groupChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
-        const c = counts.get(tag) ?? 0;
-        const chip = host.chip(parent, tag, (host.selected().includes(tag) ? "is-selected" : "") + (c ? "" : " is-missing") + (negated ? " is-negated" : ""));
-        chip.createSpan({ cls: "tag-everything-chip-count", text: String(c) });
-        // Hover buttons, also in the chip's right-click menu: NOT on / off in the group's search, take out of the group.
-        const notLabel = negated ? "Include it again in the group's search" : "Exclude it in the group's search (NOT)";
-        const negate = (): void => void this.saveGroups(gr.toggleTagNot(this.groups, group.id, tag));
-        const remove = (): void => void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
-        const not = chip.createSpan({ cls: "tag-everything-chip-not", attr: { "aria-label": notLabel } });
-        setIcon(not, negated ? "undo-2" : "ban");
-        const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": "Remove from the group" } });
-        setIcon(x, "x");
-        not.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          negate();
-        });
-        x.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          remove();
-        });
-        chip.addEventListener("contextmenu", (evt) => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          const menu = new Menu();
-          menu.addItem((i) => i.setTitle(notLabel).setIcon(negated ? "undo-2" : "ban").onClick(negate));
-          menu.addItem((i) => i.setTitle("Remove from the group").setIcon("x").onClick(remove));
-          menu.showAtMouseEvent(evt);
-        });
-        if (c) clickable(chip, () => host.toggle(tag));
-        else chip.setAttr("aria-label", "No file or folder carries this tag");
-      };
-      const error = gr.formulaError(group);
-      if (error) {
-        const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit name and formula.` });
-        err.setAttr("aria-label", group.formula ?? "");
-      }
-      const expr = gr.groupFormula(group);
-      if (expr) renderExpr(body, expr, groupChip);
-      else for (const tag of group.tags) groupChip(body, tag, false);
     }
+    const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Group options" } });
+    setIcon(more, "more-horizontal");
+    clickable(more, (evt) => {
+      evt.stopPropagation();
+      if (evt.instanceOf(MouseEvent)) this.menu(group, evt, inSelection);
+      else this.menuAt(group, more, inSelection);
+    });
+    header.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      this.menu(group, evt, inSelection);
+    });
+
+    dropZone(
+      box,
+      (tag) => void this.addToGroup(group.id, [tag]),
+      (moved) => void this.saveGroups(gr.moveGroup(this.groups, moved, group.id)),
+    );
+
+    if (collapsed) return;
+    const body = box.createDiv({ cls: "tag-everything-group-tags" });
+    if (!group.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
+    const groupChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
+      const c = counts.get(tag) ?? 0;
+      const on = host.selected().includes(tag);
+      const state = on ? "is-selected" : active ? "is-off" : "";
+      const chip = host.chip(parent, tag, state + (c ? "" : " is-missing") + (negated ? " is-negated" : ""));
+      chip.createSpan({ cls: "tag-everything-chip-count", text: String(c) });
+      // Hover buttons, also in the chip's right-click menu: NOT on / off in the group's search, take out of the group.
+      const notLabel = negated ? "Include it again in the group's search" : "Exclude it in the group's search (NOT)";
+      const negate = (): void => void this.saveGroups(gr.toggleTagNot(this.groups, group.id, tag));
+      const remove = (): void => void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
+      const not = chip.createSpan({ cls: "tag-everything-chip-not", attr: { "aria-label": notLabel } });
+      setIcon(not, negated ? "undo-2" : "ban");
+      const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": "Remove from the group" } });
+      setIcon(x, "x");
+      not.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        negate();
+      });
+      x.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        remove();
+      });
+      chip.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        const menu = new Menu();
+        menu.addItem((i) => i.setTitle(notLabel).setIcon(negated ? "undo-2" : "ban").onClick(negate));
+        menu.addItem((i) => i.setTitle("Remove from the group").setIcon("x").onClick(remove));
+        menu.showAtMouseEvent(evt);
+      });
+      if (!c) chip.setAttr("aria-label", "No file or folder carries this tag");
+      else {
+        clickable(chip, () => host.toggle(tag));
+        if (active) chip.setAttr("aria-label", on ? "Click to leave it out of the search" : "Click to search with it");
+      }
+    };
+    const error = gr.formulaError(group);
+    if (error) {
+      const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit name and formula.` });
+      err.setAttr("aria-label", group.formula ?? "");
+    }
+    const expr = gr.groupFormula(group);
+    if (expr) renderExpr(body, expr, groupChip);
+    else for (const tag of group.tags) groupChip(body, tag, false);
   }
 }

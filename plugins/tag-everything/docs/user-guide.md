@@ -147,8 +147,9 @@ Groups keep related tags together and double as saved searches.
 - **A group is a search**: click its **Search** button (it shows how many items the group finds), its name, or
   *⋯ → Search with this group*. The results show in the **Selection** tab. While the search runs, the group's header
   turns to the accent colour and its button reads **→ Selection** with the count: back in All or a bookmark tab, click
-  it (or the group's name) to return to the results. In Selection, the group's tags show at the top:
-  click one to leave it out (dashed), click again to put it back; click other tags to narrow further. **Clear** there,
+  it (or the group's name) to return to the results. In Selection, the group shows at the top as the same card as
+  in All (its header in the accent colour, ⋯ for its menu, its tags with their counts, the same hover buttons):
+  click a tag to leave it out (dashed, in All too), click again to put it back; click other tags to narrow further. **Clear** there,
   or the group's *⋯ → Stop the search*, stops it.
 - **Formulas** (the group dialog's *Searches for*): any combination of tags, e.g. `(b27 OR inc) AND (q3 OR 2026)`.
   - Operators `AND` / `OR` / `NOT`, also `ET` / `OU` / `NON` and `&` / `|` / `!`, and parentheses. Two tags side by

@@ -8,7 +8,7 @@ import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { NameModal } from "./dialogs.ts";
 import { PanelGroups } from "./panel-groups.ts";
-import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag, renderExpr } from "./ui.ts";
+import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { InboxPane, inboxFiles } from "./inbox-pane.ts";
 import { renderTools } from "./tools-pane.ts";
@@ -558,24 +558,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.selectedEl.empty();
     const group = this.groups.find((g) => g.id === this.activeGroup);
     if (!group && !this.selected.length && !this.excluded.length) return;
-    const counts = this.plugin.index.counts();
-    if (group) {
-      const label = this.selectedEl.createDiv({ cls: "tag-everything-view-selected-group", attr: { "aria-label": "Search started from this group" } });
-      setIcon(label.createSpan({ cls: "tag-everything-button-icon" }), "layers");
-      label.createSpan({ text: group.name });
-      // The group's tags stay listed (inside its formula, if it has one): a switched-off one (dashed) can be
-      // switched on again.
-      const toggleChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
-        const on = this.selected.includes(tag);
-        const used = counts.has(tag);
-        const el = this.chip(parent, tag, (on ? "is-selected" : "is-off" + (used ? "" : " is-missing")) + (negated ? " is-negated" : ""));
-        el.setAttr("aria-label", !used ? "No file or folder carries this tag" : on ? "Click to leave it out of the search" : "Click to search with it");
-        if (used) clickable(el, () => this.toggle(tag));
-      };
-      const expr = gr.groupFormula(group);
-      if (expr) renderExpr(this.selectedEl.createDiv({ cls: "tag-everything-formula" }), expr, toggleChip);
-      else for (const tag of group.tags) toggleChip(this.selectedEl, tag, false);
-    }
+    // A group search shows the group's card, as in All: its tags (inside its formula) with their counts, a
+    // switched-off one dashed (a click switches it on again).
+    if (group) this.groupsPane.renderGroup(this.selectedEl, group, true);
     const searchChip = (tag: string, negated: boolean): void => {
       if (negated) this.selectedEl.createSpan({ cls: "tag-everything-op", text: "NOT" });
       const el = this.chip(this.selectedEl, tag, negated ? "is-selected is-negated" : "is-selected");

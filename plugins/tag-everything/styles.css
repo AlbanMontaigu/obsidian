@@ -551,8 +551,7 @@
 }
 
 .tag-everything-group-fold svg,
-.tag-everything-group-more svg,
-.tag-everything-view-selected-group svg {
+.tag-everything-group-more svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
@@ -611,15 +610,16 @@
   color: var(--text-muted);
 }
 
-/* The group's name on a line of its own, its tags (or formula) below. */
-.tag-everything-view-selected-group {
-  display: flex;
+/* A group search: the group's card, as in All, on a line of its own above the other tags of the search. Its header
+   runs nothing there (the results are below), so it keeps the plain cursor and colour. */
+.tag-everything-view-selected > .tag-everything-group {
   flex-basis: 100%;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-  font-weight: var(--font-semibold);
+}
+
+.tag-everything-view-selected .tag-everything-group-header,
+.tag-everything-view-selected .tag-everything-group.is-active .tag-everything-group-header:hover {
+  cursor: default;
+  background: var(--interactive-accent);
 }
 
 .tag-everything-view-selected {
