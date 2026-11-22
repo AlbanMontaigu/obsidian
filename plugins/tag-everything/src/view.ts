@@ -470,7 +470,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     menu.addItem((i) =>
       i
         .setTitle("Edit name and formula (AND, OR, NOT)…")
-        .setIcon("sigma")
+        .setIcon("pencil")
         .onClick(() => this.editGroup(group)),
     );
     const extra = this.selected.filter((t) => !group.tags.includes(t));
@@ -672,7 +672,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const counts = this.plugin.index.counts();
     if (group) {
       const label = this.selectedEl.createDiv({ cls: "tag-everything-view-selected-group", attr: { "aria-label": "Search started from this group" } });
-      setIcon(label.createSpan(), "layers");
+      setIcon(label.createSpan({ cls: "tag-everything-button-icon" }), "layers");
       label.createSpan({ text: group.name });
       // The group's tags stay listed (inside its formula, if it has one): a switched-off one (dashed) can be
       // switched on again.
@@ -700,19 +700,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     for (const tag of this.excluded) searchChip(tag, true);
     // The way to OR and parentheses: the search as a formula, in the group dialog (a group search edits its group).
     const actions = this.selectedEl.createDiv({ cls: "tag-everything-view-actions" });
-    const formula = actions.createEl("button", {
-      cls: "tag-everything-view-formula",
-      attr: {
-        "aria-label": group
-          ? `Edit the group "${group.name}": its name and formula`
-          : "Write this search as a formula (AND, OR, NOT, parentheses) and keep it as a group",
-      },
-    });
-    setIcon(formula.createSpan(), "sigma");
-    formula.createSpan({ text: group ? "Edit group" : "Formula…" });
-    formula.addEventListener("click", () => (group ? this.editGroup(group) : this.newGroup(this.searchExpr(), true)));
-    const clear = actions.createEl("button", { cls: "tag-everything-view-clear", text: "Clear" });
-    clear.addEventListener("click", () => {
+    const button = (cls: string, icon: string, text: string, label: string, run: () => void): void => {
+      const b = actions.createEl("button", { cls: `tag-everything-icon-button ${cls}`, attr: { "aria-label": label } });
+      setIcon(b.createSpan({ cls: "tag-everything-button-icon" }), icon);
+      b.createSpan({ text });
+      b.addEventListener("click", run);
+    };
+    if (group) button("tag-everything-view-formula", "pencil", "Edit group", `Edit the group "${group.name}": its name and formula`, () => this.editGroup(group));
+    else {
+      button("tag-everything-view-formula", "square-function", "Formula…", "Write this search as a formula (AND, OR, NOT, parentheses) and keep it as a group", () =>
+        this.newGroup(this.searchExpr(), true),
+      );
+    }
+    button("tag-everything-view-clear", "search-x", "Clear", "Clear the search", () => {
       this.resetSearch();
       this.stateChanged();
     });
@@ -771,9 +771,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const n = this.matchPaths(gr.groupExpr(group)).length;
       header.createSpan({ cls: "tag-everything-group-name", text: group.name });
       if (group.formula) {
-        const sigma = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
-        setIcon(sigma, "sigma");
-        clickable(sigma, (evt) => {
+        const fxIcon = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
+        setIcon(fxIcon, "square-function");
+        clickable(fxIcon, (evt) => {
           evt.stopPropagation();
           this.editGroup(group);
         });

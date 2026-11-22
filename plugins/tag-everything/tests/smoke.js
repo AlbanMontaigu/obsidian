@@ -597,6 +597,21 @@ check(
     !!formulaBtn().parentElement.querySelector(".tag-everything-view-clear") && formulaBtn().getBoundingClientRect().top >= searchChipBottom,
   formulaBtn()?.outerHTML,
 );
+// Each button: its own icon, centred on its label (not on the text baseline).
+const iconOf = (b) => b?.querySelector(".tag-everything-button-icon svg");
+// Icon centre minus the label's centre, in px.
+const iconOffset = (b) => {
+  const i = iconOf(b)?.getBoundingClientRect();
+  const t = b?.querySelector(".tag-everything-button-icon + span")?.getBoundingClientRect();
+  return i && t && i.height > 0 ? i.top + i.height / 2 - (t.top + t.height / 2) : NaN;
+};
+const centred = (b) => Math.abs(iconOffset(b)) <= 0.5;
+const clearBtn = () => panel().querySelector(".tag-everything-view-selected .tag-everything-view-clear");
+check(
+  "selection buttons: Formula… and Clear each have their icon, centred on the label",
+  iconOf(formulaBtn())?.classList.contains("lucide-square-function") && iconOf(clearBtn())?.classList.contains("lucide-search-x") && centred(formulaBtn()) && centred(clearBtn()),
+  `${iconOf(formulaBtn())?.getAttribute("class")} / ${iconOf(clearBtn())?.getAttribute("class")} / offsets ${iconOffset(formulaBtn())} ${iconOffset(clearBtn())}`,
+);
 formulaBtn().click();
 await sleep(300);
 const gModal = document.querySelector(".tag-everything-group-modal");
@@ -623,7 +638,11 @@ check(
   !document.querySelector(".tag-everything-group-modal") && either?.formula === "shared OR B27" && view.getState().activeGroup === either.id && selTab().classList.contains("is-active") && results() === eitherN,
   JSON.stringify(either) + ` ${results()} vs ${eitherN}`,
 );
-check("formula button: on a group search it edits the group", formulaBtn()?.textContent === "Edit group");
+check(
+  "formula button: on a group search it edits the group, with a pencil",
+  formulaBtn()?.textContent === "Edit group" && /lucide-(pencil|edit-3)\b/.test(iconOf(formulaBtn())?.getAttribute("class")) && centred(formulaBtn()),
+  `${iconOf(formulaBtn())?.getAttribute("class")} offset ${iconOffset(formulaBtn())}`,
+);
 groupEl("Either").querySelector(".tag-everything-group-header").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 300 }));
 await sleep(200);
 [...document.querySelectorAll(".menu .menu-item")].find((m) => /^Delete group/.test(m.textContent))?.click();

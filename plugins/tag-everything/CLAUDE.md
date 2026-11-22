@@ -136,7 +136,7 @@ and `docs/user-guide.md` when users see it.
   saved state, the Selection tab: a selected tag switches to it with search and results only, All shows only groups
   and every tag with its vault count, the selected one marked (a click there takes it out); with one item no narrowing
   tag, with `shared` the narrowing tags (on some items, not all, not `shared`) and a click on one narrows and stays
-  in Selection; the sections *Narrow* and *Results* titled with their counts, narrowing chips without cloud weight, the search in a card; its *Σ Formula…* button (with Clear on their own line under the search) opens the group dialog with the search and the operator buttons, OR inserted
+  in Selection; the sections *Narrow* and *Results* titled with their counts, narrowing chips without cloud weight, the search in a card; its *Formula…* button (with Clear on their own line under the search; each with its icon (function, search-x; pencil for *Edit group*) centred on the label within 0.5px) opens the group dialog with the search and the operator buttons, OR inserted
   with its spaces, live count, saved as a group whose search runs at once, *Edit group* on a group search; gone once cleared, labelled group search button "Search", then "Selection" on the group searching (opens the Selection tab, search kept), *⋯ → Stop the search* clears it, draggable results, hover source), bookmark tabs (+ creates and shows one,
   bookmark by dropping a tag and a group on the tab and through the tag menu, All unchanged, a tab shows only its bookmarks, `data.json` and panel state, a group
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a

@@ -92,7 +92,7 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   **Selection** tab (at the right end of the tab strip, with the number of items found): the search in a box at the
   top (click a tag there to take it out, **Clear** to stop), then **Narrow**: the tags that can still narrow it, all
   the same size, counted in what it finds (only those on some of the items found, not on all of them: a tag on every
-  one would change nothing; click one to add it to the search), then **Results** with their number. **Σ Formula…**, next to **Clear** on the line under the search, opens the search in the group
+  one would change nothing; click one to add it to the search), then **Results** with their number. **Formula…** (function icon), next to **Clear** on the line under the search, opens the search in the group
   dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
   runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.
@@ -130,8 +130,8 @@ Groups keep related tags together and double as saved searches.
 
 - **One dialog** creates and edits a group: its **name**, and what it **searches for**, written as a formula (below),
   with buttons inserting `AND`, `OR`, `NOT`, `(`, `)`. Open it with **+** next to *Groups* (it starts from the
-  current search, if any; or drop a tag on **+**), with **Σ Formula…** in the Selection tab (the new group's search
-  then runs), or to edit a group with *⋯ → Edit name and formula*, **Edit group** during its search, or its Σ icon.
+  current search, if any; or drop a tag on **+**), with **Formula…** in the Selection tab (the new group's search
+  then runs), or to edit a group with *⋯ → Edit name and formula*, **Edit group** (pencil) during its search, or its formula icon (ƒ in a square) on the group.
   **Drag** any tag onto a group to add it; a tag can be in several groups.
 - Groups **fold** (chevron) and reorder by dragging one onto another. **⋯** or right-click: search, edit the name and
   formula, add the selected tags, bookmark, delete (the tags stay on the files).
@@ -150,7 +150,7 @@ Groups keep related tags together and double as saved searches.
     what is wrong.
   - A tag switched off during a group search drops out of its `OR` / `AND` as if it were not written, `NOT x`
     included. Dropping a tag on a group with a formula adds `AND tag`; its × removes it from the formula.
-  - What the dialog shows is what the group searches for: tags joined by `AND` alone make a plain group (no Σ), an
+  - What the dialog shows is what the group searches for: tags joined by `AND` alone make a plain group (no formula icon), an
     empty field an empty group. Tags match whatever the case; a tag in quotes may contain a parenthesis or be
     spelled like an operator (`"ou"`).
 - Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.

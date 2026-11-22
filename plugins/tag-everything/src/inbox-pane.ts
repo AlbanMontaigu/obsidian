@@ -110,7 +110,7 @@ export class InboxPane {
     const labelled = (icon: string, text: string, tooltip: string, run: () => void): void => {
       const b = new ButtonComponent(actions).setButtonText(text).setTooltip(tooltip).onClick(run);
       b.buttonEl.addClass("tag-everything-icon-button");
-      const i = createSpan();
+      const i = createSpan({ cls: "tag-everything-button-icon" });
       setIcon(i, icon);
       b.buttonEl.prepend(i);
     };

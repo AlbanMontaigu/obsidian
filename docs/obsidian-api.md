@@ -109,6 +109,9 @@ positives on placeholders and operator words).
 - **The settings dialog opens in a pop-out window (1.15)** (`.modal.mod-settings` in an `is-popout-modal` window):
   the smoke screenshot of the main window does not show it, and `document.querySelector` from the main window does
   not find its rows. Query the tab's own `containerEl`. Code that runs in a settings tab must be pop-out safe.
+- **An icon next to a label sits ~1.6px high**: `setIcon` puts an inline `<svg>` in its span, which rests on the
+  text baseline even inside an `inline-flex` button. Make the icon's span a flex box too (`tag-everything`
+  `.tag-everything-button-icon`), and pick an icon that says the action (a pencil to edit, not the formula sign).
 
 - **Don't name a method `open`, `close`, `load`, `unload`, `onload`... on a `View`, `Modal` or `Component`
   subclass** unless you mean to override it. `ItemView` has an internal `open(containerEl)` that Obsidian calls when

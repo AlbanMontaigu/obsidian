@@ -300,21 +300,14 @@
   margin-top: var(--size-4-2);
 }
 
-.tag-everything-view-formula,
-.tag-everything-view-clear {
+.tag-everything-view-actions .tag-everything-icon-button {
   font-size: var(--font-ui-smaller);
   padding: 4px 12px;
   height: auto;
-}
-
-/* The Selection tab's way to a formula: labelled, so OR and parentheses are one click away from any search. */
-.tag-everything-view-formula {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
 }
 
-.tag-everything-view-formula svg {
+.tag-everything-view-actions .tag-everything-icon-button svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
@@ -1305,11 +1298,17 @@
   padding-right: 16px;
 }
 
-/* A button with an icon and a label (inbox). */
+/* A button with an icon and a label (inbox, Selection tab). */
 .tag-everything-icon-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* An icon next to a label: a flex box, so the svg is centred on the text instead of sitting on its baseline. */
+.tag-everything-button-icon {
+  display: flex;
+  align-items: center;
 }
 
 .tag-everything-icon-button svg {
