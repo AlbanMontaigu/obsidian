@@ -61,11 +61,15 @@ async function pool<T>(items: readonly T[], size: number, fn: (item: T) => Promi
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
 }
 
+/** The keys of a path-keyed map at `path` and, with `below`, under it. */
+function keysAt<V>(map: Map<string, V>, path: string, below: boolean): string[] {
+  return below ? [...map.keys()].filter((k) => k === path || k.startsWith(path + "/")) : map.has(path) ? [path] : [];
+}
+
 /** Re-keys `oldPath` and everything below it to `newPath` in a path-keyed map. */
 function rekey<V>(map: Map<string, V>, oldPath: string, newPath: string, below: boolean): boolean {
   let moved = false;
-  const keys = below ? [...map.keys()].filter((k) => k === oldPath || k.startsWith(oldPath + "/")) : map.has(oldPath) ? [oldPath] : [];
-  for (const key of keys) {
+  for (const key of keysAt(map, oldPath, below)) {
     const v = map.get(key)!;
     map.delete(key);
     map.set(newPath + key.slice(oldPath.length), v);
@@ -105,7 +109,7 @@ export class TagIndex extends Events {
   autoColors = true;
   /**
    * Items excluded from TagEverything (set by the plugin, src/exclude.ts): never kept in the index. After the
-   * exclusions change, `prune()` drops the newly excluded; items included again need a `rebuild()`.
+   * exclusions change, a `rebuild()`; after a rename, `prune()` drops what moved into an exclusion.
    */
   excluded: (path: string, isFolder: boolean) => boolean = () => false;
   /** Mirrors the `extensionTags` setting: change it with `setExtensionTags`. */
@@ -197,12 +201,16 @@ export class TagIndex extends Events {
     else this.entries.set(path, stored(e));
   }
 
-  /** Drops the items excluded since they were indexed (after an exclusion or a move into an excluded folder). */
-  prune(): void {
+  /**
+   * Drops the item at `path` (with `below`, also everything under it) if it is excluded now: after a move into an
+   * excluded folder, or a rename matching an exclusion rule. Only what moved is checked: a folder renamed also sends
+   * one rename per item inside it.
+   */
+  prune(path: string, below: boolean): void {
     let dropped = false;
-    for (const path of [...this.entries.keys()]) {
-      if (!this.excluded(path, this.app.vault.getAbstractFileByPath(path) instanceof TFolder)) continue;
-      this.entries.delete(path);
+    for (const key of keysAt(this.entries, path, below)) {
+      if (!this.excluded(key, this.app.vault.getAbstractFileByPath(key) instanceof TFolder)) continue;
+      this.entries.delete(key);
       dropped = true;
     }
     if (dropped) this.changed();

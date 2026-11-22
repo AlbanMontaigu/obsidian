@@ -63,11 +63,17 @@ export function runProcess(spawn: Spawn, command: string, args: readonly string[
     if (opts.signal?.aborted) return stop("cancelled");
     opts.signal?.addEventListener("abort", onAbort);
 
-    child.stdout?.on("data", (c) => out.push(String(c)));
-    child.stderr?.on("data", (c) => err.push(String(c)));
+    // A UTF-8 character (an accented tag) can be split across two chunks: decode them as one stream.
+    const outText = new TextDecoder();
+    const errText = new TextDecoder();
+    const text = (decoder: TextDecoder, c: unknown): string => (typeof c === "string" ? c : decoder.decode(c as Uint8Array, { stream: true }));
+    child.stdout?.on("data", (c) => out.push(text(outText, c)));
+    child.stderr?.on("data", (c) => err.push(text(errText, c)));
     child.on("error", (e) => finish(() => reject(notFound(e, command))));
     child.on("close", (code) =>
       finish(() => {
+        out.push(outText.decode());
+        err.push(errText.decode());
         if (code === 0) resolve(out.join(""));
         else reject(new Error(`exited with code ${code}: ${lastLines(err.join("") || out.join(""))}`));
       }),

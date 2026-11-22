@@ -14,6 +14,12 @@ test("runProcess: stdin in, stdout out, in the working folder", async () => {
   assert.equal(out, `HÉLLO "QUOTED" {JSON}|${tmpdir()}`);
 });
 
+test("runProcess: a character split across two output chunks stays whole", async () => {
+  // "é" is two bytes in UTF-8: the first one is written, then the second a moment later
+  const script = "process.stdout.write(Buffer.from([0x66,0xc3]));setTimeout(()=>process.stdout.write(Buffer.from([0xa9,0x65])),100)";
+  assert.equal(await runProcess(run, node, ["-e", script], opts), "fée");
+});
+
 test("runProcess: a failing exit gives the end of stderr", async () => {
   await assert.rejects(runProcess(run, node, ["-e", "console.error('first');console.error('boom');process.exit(3)"], opts), /code 3: first boom/);
 });

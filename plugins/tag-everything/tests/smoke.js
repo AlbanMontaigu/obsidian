@@ -101,6 +101,16 @@ await sleep(800);
 check("sidecar moved with the file", (await adapter.exists("Projects/.ts/spec.md.json")) && !(await adapter.exists("Docs/.ts/spec.md.json")));
 check("index follows the move", plugin.index.tagsOf("Projects/spec.md").join() === "final");
 
+// ---- a folder renamed with "Follow renames" off: its files' sidecars moved with its .ts folder, their tags stay
+plugin.settings.followRenames = false;
+await app.fileManager.renameFile(file("Projects"), "Projects2");
+await waitFor(() => plugin.index.tagsOf("Projects2/spec.md").length > 0, 2000);
+check("rename: a folder renamed with Follow renames off keeps its files' sidecar tags", plugin.index.tagsOf("Projects2/spec.md").join() === "final" && plugin.index.tagsOf("Projects2/Alpha").join() === "client,2026", plugin.index.tagsOf("Projects2/spec.md").join());
+await app.fileManager.renameFile(file("Projects2"), "Projects");
+await waitFor(() => plugin.index.tagsOf("Projects/spec.md").length > 0, 2000);
+plugin.settings.followRenames = true;
+check("rename: and back", plugin.index.tagsOf("Projects/spec.md").join() === "final" && !!file("Projects/Alpha"));
+
 // ---- multi-item edit
 await plugin.applyTags([file("Index.md"), file("Projects/spec.md")], { added: ["shared"], removed: [] });
 await sleep(500);

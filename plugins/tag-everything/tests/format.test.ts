@@ -112,6 +112,11 @@ test("parseSidecar tolerates BOM and empty files, rejects junk", () => {
   assert.ok(typeof withSidecarTags({}, ["a"]).id === "string");
 });
 
+test("withSidecarTags: a tag stored with spaces around its title keeps its colour (it is read trimmed)", () => {
+  const next = withSidecarTags({ tags: [{ title: " red ", color: "#f00", type: "sidecar" }] }, ["red"], 1);
+  assert.deepEqual(sidecarTags(next), [{ title: "red", color: "#f00", type: "sidecar" }]);
+});
+
 test("planTags: filename mode moves every tag into the name", () => {
   const plan = planTags({ nameTags: ["a"], sideTags: ["s"] }, ["a", "s", "n"], "filename");
   assert.deepEqual(plan, { nameTags: ["a", "s", "n"], sideTags: [], frontTags: [], renamed: true, sideChanged: true, frontChanged: false });

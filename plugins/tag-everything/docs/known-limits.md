@@ -29,7 +29,7 @@ entry of the area you change; add one when you leave a limit behind (users' side
 - Deleting a file in Obsidian leaves its `.ts` sidecar (orphan, ignored by the scan); a file created later with the
   same name would pick its tags up at the next rebuild. Not deleted on purpose (never delete metadata unasked).
 - The panel re-renders on every index change even when hidden (cheap: counts are cached and the search runs once per render),
-  and on vault create / delete / rename (debounced 300 ms); the Tools tab runs the rules over every file when shown. The
+  and on vault create / delete / rename (debounced 300 ms); the Tools tab runs the rules over every file when shown (about 50 ms for 9 500 synthetic paths and 10 rules, measured with `node`). The
   explorer redraws on the same events for the inbox count on its tab, which scans every vault file (`inboxFiles`). Not measured on the owner's 9 500-file vault.
 - The AI assistant guide is a snapshot (tag lists, settings) and is never overwritten, so it goes stale: the owner
   deletes and rewrites it. A refresh that rewrites only a marked section of an existing `CLAUDE.md` would fix it, but

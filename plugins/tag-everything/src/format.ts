@@ -249,8 +249,12 @@ function newId(): string {
 
 /** Returns a copy of `meta` with `tags` replaced. Every other field (id, description, perspective, order...) is kept. */
 export function withSidecarTags(meta: SidecarMeta, tags: readonly string[], now = Date.now()): SidecarMeta {
-  const previous = new Map(sidecarTags(meta).map((t) => [t.title, t]));
-  const next: SidecarTag[] = dedupe(tags).map((title) => previous.get(title) ?? { title, type: "sidecar" });
+  // keyed as read (trimmed), so a tag stored as " red " keeps its colour and other fields
+  const previous = new Map(sidecarTags(meta).map((t) => [t.title.trim(), t]));
+  const next: SidecarTag[] = dedupe(tags).map((title) => {
+    const kept = previous.get(title);
+    return kept ? { ...kept, title } : { title, type: "sidecar" };
+  });
   const out: SidecarMeta = { ...meta, tags: next, lastUpdated: now };
   if (typeof out.id !== "string" || !out.id) out.id = newId();
   return out;

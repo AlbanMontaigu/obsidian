@@ -66,29 +66,79 @@ export function normalizeRules(raw: unknown): AutoTagRule[] {
   return out;
 }
 
-/** Does the rule apply to the file at `path`? Its name is read without its tags and extension. */
-export function ruleMatches(rule: RuleConditions, path: string): boolean {
-  if (!hasCondition(rule)) return false;
-  if (!inFolder(path, rule.folder)) return false;
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const exts = wordList(rule.extensions);
-  if (exts.length && !exts.includes(extensionTag(name) ?? "")) return false;
-  const words = wordList(rule.words);
-  if (!words.length) return true;
-  let bare = name;
-  try {
-    bare = setNameTags(name, []);
-  } catch {
-    // a name made only of tags (`[tax].pdf`): read as it is
+/** A rule's conditions as `ruleMatches` reads them. */
+interface ParsedConditions {
+  any: boolean;
+  /** Folded folder, "" = anywhere. */
+  folder: string;
+  exts: string[];
+  words: string[];
+}
+
+/** Parsed once per rule object: a rule is matched against every file of the vault (Tools tab, inbox, a folder). */
+const parsedRules = new WeakMap<RuleConditions, ParsedConditions>();
+
+function parseConditions(rule: RuleConditions): ParsedConditions {
+  let p = parsedRules.get(rule);
+  if (!p) {
+    p = { any: hasCondition(rule), folder: foldTag(cleanFolder(rule.folder)), exts: wordList(rule.extensions), words: wordList(rule.words) };
+    parsedRules.set(rule, p);
   }
-  const base = foldTag(splitExtension(bare)[0]);
-  return words.some((w) => base.includes(w));
+  return p;
+}
+
+/** What the rules read of a file's path, each part computed on first use: several rules share it. */
+interface PathParts {
+  ext(): string;
+  folded(): string;
+  /** The name without its tags and extension, folded. */
+  base(): string;
+}
+
+function pathParts(path: string): PathParts {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  let ext: string | undefined;
+  let folded: string | undefined;
+  let base: string | undefined;
+  return {
+    ext: () => (ext ??= extensionTag(name) ?? ""),
+    folded: () => (folded ??= foldTag(path)),
+    base: () => {
+      if (base !== undefined) return base;
+      let bare = name;
+      try {
+        bare = setNameTags(name, []);
+      } catch {
+        // a name made only of tags (`[tax].pdf`): read as it is
+      }
+      return (base = foldTag(splitExtension(bare)[0]));
+    },
+  };
+}
+
+function matchesParts(rule: RuleConditions, parts: PathParts): boolean {
+  const { any, folder, exts, words } = parseConditions(rule);
+  if (!any) return false;
+  // cheapest test first
+  if (exts.length && !exts.includes(parts.ext())) return false;
+  if (folder && !parts.folded().startsWith(`${folder}/`)) return false;
+  return !words.length || words.some((w) => parts.base().includes(w));
+}
+
+/**
+ * Does the rule apply to the file at `path`? Its name is read without its tags and extension. Rules are never
+ * mutated (settings and dialogs build new ones), so their parsed conditions are cached.
+ */
+export function ruleMatches(rule: RuleConditions, path: string): boolean {
+  return matchesParts(rule, pathParts(path));
 }
 
 /** The tags the rules add to the file at `path`, without those it already has (any case), in rule order. */
 export function rulesTags(rules: readonly AutoTagRule[], path: string, has: readonly string[]): string[] {
+  if (!rules.length) return [];
+  const parts = pathParts(path);
   const own = new Set(has.map((t) => t.toLowerCase()));
-  return dedupe(rules.filter((r) => ruleMatches(r, path)).flatMap((r) => r.tags)).filter((t) => !own.has(t.toLowerCase()));
+  return dedupe(rules.filter((r) => matchesParts(r, parts)).flatMap((r) => r.tags)).filter((t) => !own.has(t.toLowerCase()));
 }
 
 /** The conditions in one line: `In Banque · name has facture or invoice · pdf`. */
@@ -137,8 +187,10 @@ export interface InboxCandidate {
  */
 export function inboxPaths(files: readonly InboxCandidate[], now: number, days: number, dismissed: ReadonlySet<string>, folder = "", dates: DateFilters = {}): string[] {
   const window: DateFilters = { created: dates.created ?? { within: true, days }, modified: dates.modified };
+  const folded = foldTag(cleanFolder(folder)); // `inFolder`, the folder folded once
+  const inside = (path: string): boolean => !folded || foldTag(path).startsWith(`${folded}/`);
   return files
-    .filter((f) => !f.tagged && !dismissed.has(f.path) && inFolder(f.path, folder) && datesMatch(window, { ctime: f.ctime, mtime: f.mtime ?? f.ctime }, now))
+    .filter((f) => !f.tagged && !dismissed.has(f.path) && inside(f.path) && datesMatch(window, { ctime: f.ctime, mtime: f.mtime ?? f.ctime }, now))
     .sort((a, b) => b.ctime - a.ctime || a.path.localeCompare(b.path))
     .map((f) => f.path);
 }

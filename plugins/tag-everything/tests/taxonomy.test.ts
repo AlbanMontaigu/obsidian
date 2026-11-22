@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanSynonyms, editDistance, mergeMapping, rareTags, similarTags, synonymPrompt } from "../src/taxonomy.ts";
+import { cleanSynonyms, mergeMapping, rareTags, similarTags, synonymPrompt, withinOneEdit } from "../src/taxonomy.ts";
 import { makeRule } from "../src/naming.ts";
 
 const counts = (o: Record<string, number>): Map<string, number> => new Map(Object.entries(o));
@@ -18,7 +18,26 @@ test("similarTags: a one-letter typo or swap is a guess; short words and numbers
   assert.equal(c.length, 1, JSON.stringify(c));
   assert.deepEqual(c[0].tags, ["receipt", "reciept"]);
   assert.equal(c[0].sure, false);
-  assert.equal(editDistance("reciept", "receipt"), 1);
+  assert.ok(withinOneEdit("reciept", "receipt"));
+});
+
+/** Reference: edit distance with a swap of two neighbours counting as one (optimal string alignment). */
+function editDistance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+test("withinOneEdit: same answer as the edit distance <= 1, on every pair of short words", () => {
+  const words = [""];
+  for (let len = 1; len <= 4; len++) for (const w of words.filter((x) => x.length === len - 1)) for (const c of "abc") words.push(w + c);
+  for (const a of words) for (const b of words) assert.equal(withinOneEdit(a, b), editDistance(a, b) <= 1, `${a} / ${b}`);
 });
 
 test("rareTags: tags on one item, by name", () => {

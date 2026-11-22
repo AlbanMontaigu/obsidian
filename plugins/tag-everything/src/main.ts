@@ -287,12 +287,21 @@ export default class TagEverythingPlugin extends Plugin {
     }
     this.index.onRename(item, oldPath);
     if (this.settings.excluded.length || this.settings.excludeRules.length) {
-      this.index.prune(); // moved into an excluded folder, or now matching an exclusion rule
+      this.index.prune(item.path, folder); // moved into an excluded folder, or now matching an exclusion rule
       if (wasExcluded && !this.isExcluded(item)) void this.index.rebuild(); // moved out: its tags are read back
     }
     if (own || !(item instanceof TFile)) return; // a folder's .ts folder moves with it
     if (!this.settings.followRenames) {
-      this.index.setSide(item.path, []);
+      // The sidecar stays under the old name, unless the file moved with its folder (Obsidian sends one rename per
+      // file inside a renamed folder): then it moved too. Whatever sits at the new place is the file's.
+      const path = item.path;
+      let side: string[] = [];
+      try {
+        side = await this.store.readTags(item);
+      } catch (err) {
+        console.warn(`[tag-everything] unreadable sidecar ignored  path=${path}`, err); // as the index scan does
+      }
+      if (item.path === path) this.index.setSide(path, side); // not renamed again meanwhile
       return;
     }
     try {

@@ -38,12 +38,18 @@ export interface Finding {
   replaces: string[];
 }
 
+/** Appends `value` to the list of `key`. */
+function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 /** The findings of `files`, by folder, then file, then tag. */
 export function findInconsistencies(files: readonly FileTags[]): Finding[] {
   const folders = new Map<string, FileTags[]>();
   for (const f of files) {
-    const folder = parentOf(f.path);
-    folders.set(folder, [...(folders.get(folder) ?? []), f]);
+    push(folders, parentOf(f.path), f);
   }
   const out: Finding[] = [];
   for (const [folder, group] of folders) {
@@ -60,7 +66,7 @@ export function findInconsistencies(files: readonly FileTags[]): Finding[] {
     const byExt = new Map<string, FileTags[]>();
     for (const f of group) {
       const ext = extensionTag(f.path.slice(f.path.lastIndexOf("/") + 1));
-      if (ext) byExt.set(ext, [...(byExt.get(ext) ?? []), f]);
+      if (ext) push(byExt, ext, f);
     }
     for (const [ext, members] of byExt) if (members.length < group.length) add(members, ext);
   }
@@ -72,7 +78,7 @@ function groupFindings(members: readonly FileTags[], folder: string, ext: string
   const size = members.length;
   if (size < MIN_CARRIERS + 1) return []; // every file would need the tag: nothing to tell apart
   const carriers = new Map<string, FileTags[]>();
-  for (const f of members) for (const t of f.tags) carriers.set(t, [...(carriers.get(t) ?? []), f]);
+  for (const f of members) for (const t of f.tags) push(carriers, t, f);
   const habits = [...carriers].filter(([, on]) => on.length >= MIN_CARRIERS && on.length >= HABIT_SHARE * size && on.length < size);
   const out: Finding[] = [];
   for (const [tag, on] of habits) {

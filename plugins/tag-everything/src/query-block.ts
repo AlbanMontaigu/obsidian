@@ -3,6 +3,7 @@ import { PLUGIN_NAME, plural } from "./messages.ts";
 import { MAX_QUERY_LIMIT, type Query, compareQueryItems, matchQuery, parseQuery } from "./query.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { clickable, paintTag, renderExpr } from "./ui.ts";
+import { hasDateTerms } from "./formula.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 /** Hover-link source of the query blocks' rows (Ctrl/Cmd + hover: page preview), registered by main.ts. */
@@ -16,6 +17,8 @@ export const QUERY_HOVER_SOURCE = "tag-everything-query";
 export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
   hoverPopover: HoverPopover | null = null;
   private query: Query;
+  /** The paths the block found at its last render: a file saved elsewhere changes nothing (unless dates are searched). */
+  private found = new Set<string>();
   /** Tag edits come in bursts (a batch, a rebuild): one redraw once they stop. */
   private requestRender = debounce(() => this.render(), 200, true);
 
@@ -35,7 +38,9 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
     this.registerEvent(this.plugin.index.on("changed", redraw));
     this.registerEvent(vault.on("rename", redraw));
     this.registerEvent(vault.on("delete", redraw));
-    if (this.query.sort !== "name") this.registerEvent(vault.on("modify", redraw));
+    // A save changes a file's modification date: the order (sort by date) and what date terms find.
+    const dated = !!this.query.expr && hasDateTerms(this.query.expr);
+    if (this.query.sort !== "name" || dated) this.registerEvent(vault.on("modify", (file) => (dated || this.found.has(file.path)) && redraw()));
     this.render();
   }
 
@@ -66,6 +71,7 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
     const known = [...index.counts().keys()];
     const now = Date.now();
     const found = matchQuery(query.expr, index.paths(), (p, t) => index.hasTag(p, t), known, (p, f, r) => index.dated(p, f, r, now));
+    this.found = new Set(found.paths);
     const unknown = new Set(found.unknown);
     const formulaEl = head.createDiv({ cls: "tag-everything-formula" });
     renderExpr(formulaEl, found.expr, (parent, tag, negated) => {

@@ -478,7 +478,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Tag naming rule | On | Section 3 |
 | Liaison words | French + English list | Words never used as tags while the rule is on; empty the box to restore the list |
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
-| Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along |
+| Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along. Off: they stay under the old name, so the file loses its sidecar tags; the files of a renamed folder keep theirs (the folder's `.ts` moves with it) |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
 | Colour tags automatically | On | Section 8 |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | On / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |

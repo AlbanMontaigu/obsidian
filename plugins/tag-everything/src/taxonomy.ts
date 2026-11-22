@@ -34,29 +34,33 @@ function stem(tag: string): string {
   return f.length > 3 && /[^s][sx]$/.test(f) ? f.slice(0, -1) : f;
 }
 
-/** Edit distance counting a swap of two neighbours as one edit (`reciept` / `receipt` = 1). */
-export function editDistance(a: string, b: string): number {
-  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-    }
-  }
-  return d[a.length][b.length];
-}
-
 /**
  * A one-letter typo between two words long enough for it to mean something (5+ letters). Never between tags with
  * digits: `invoice1` and `invoice2`, `2024` and `2025` are different on purpose.
  */
 function typo(a: string, b: string): boolean {
-  const fa = foldTag(a);
-  const fb = foldTag(b);
+  return foldedTypo(foldTag(a), foldTag(b));
+}
+
+/** `typo` on folded tags. */
+function foldedTypo(fa: string, fb: string): boolean {
   if (fa.length < 5 || fb.length < 5 || Math.abs(fa.length - fb.length) > 1 || /\d/.test(fa + fb)) return false;
-  return editDistance(fa, fb) <= 1;
+  return withinOneEdit(fa, fb);
+}
+
+/**
+ * At most one edit apart, a swap of two neighbours counting as one (`reciept` / `receipt`). One pass, no distance
+ * table: the review compares every pair of tags. After the first difference, the rest must match once one letter is
+ * changed, inserted, or swapped with the next one.
+ */
+export function withinOneEdit(a: string, b: string): boolean {
+  if (a.length < b.length) [a, b] = [b, a];
+  let i = 0;
+  while (i < b.length && a[i] === b[i]) i++;
+  if (i === b.length) return a.length - b.length <= 1;
+  if (a.length !== b.length) return a.slice(i + 1) === b.slice(i);
+  if (a.slice(i + 1) === b.slice(i + 1)) return true;
+  return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
 }
 
 /** Two different tags for the same word (case, accents, plural) or one typo apart: the look-alike rule of the review. */
@@ -79,13 +83,20 @@ export function similarTags(counts: ReadonlyMap<string, number>): TagCluster[] {
   const parent = tags.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   const stems = tags.map(stem);
+  const folded = tags.map(foldTag);
   for (let i = 0; i < tags.length; i++) {
     for (let j = i + 1; j < tags.length; j++) {
-      if (stems[i] === stems[j] || typo(tags[i], tags[j])) parent[find(i)] = find(j); // lookAlike, with the stems computed once
+      // lookAlike, with the stems and folds computed once
+      if (stems[i] === stems[j] || foldedTypo(folded[i], folded[j])) parent[find(i)] = find(j);
     }
   }
   const groups = new Map<number, string[]>();
-  tags.forEach((t, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), t]));
+  for (const [i, t] of tags.entries()) {
+    const root = find(i);
+    const group = groups.get(root);
+    if (group) group.push(t);
+    else groups.set(root, [t]);
+  }
   const out: TagCluster[] = [];
   for (const group of groups.values()) {
     if (group.length < 2) continue;
