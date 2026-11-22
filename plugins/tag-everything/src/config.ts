@@ -51,6 +51,8 @@ export interface TagEverythingSettings {
   tagRangeMin: number;
   /** Most uses of a tag the All tab shows while `tagRangeOn`; 0 = no upper limit. */
   tagRangeMax: number;
+  /** The panel's tag lists (All, Narrow) show the extension tags too; off: only stored tags (a tag in the search stays). */
+  panelExtensionTags: boolean;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   tagRangeOn: true,
   tagRangeMin: 10,
   tagRangeMax: 100,
+  panelExtensionTags: false,
   groups: [],
   tabs: [],
 };
@@ -122,6 +125,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     tagRangeOn: bool("tagRangeOn"),
     tagRangeMin: int("tagRangeMin", 1, 1_000_000),
     tagRangeMax: int("tagRangeMax", 0, 1_000_000),
+    panelExtensionTags: bool("panelExtensionTags"),
     groups,
     tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
   };

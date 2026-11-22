@@ -219,6 +219,31 @@
   min-width: 0;
 }
 
+/* Date criteria (src/dates.ts): the calendar icon of the panel's bar and the inbox's Dates button turn to the accent
+   colour while a criterion is set; in the search, a criterion is a chip with a calendar icon. */
+.tag-everything-dates-button.is-active,
+.tag-everything-ext-toggle.is-active {
+  color: var(--interactive-accent);
+}
+
+.tag-everything-date-chip {
+  gap: 4px;
+}
+
+.tag-everything-date-icon {
+  display: inline-flex;
+}
+
+.tag-everything-date-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The extension tags toggle, in All's Tags heading next to the count. */
+.tag-everything-ext-toggle {
+  padding: 2px;
+}
+
 .tag-everything-view-selected,
 .tag-everything-refine-chips,
 .tag-everything-view-tags {

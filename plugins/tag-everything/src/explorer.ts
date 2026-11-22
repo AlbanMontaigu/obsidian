@@ -85,7 +85,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     private plugin: TagEverythingPlugin,
   ) {
     super(leaf);
-    this.inbox = new InboxPane(plugin, this.rowHost());
+    this.inbox = new InboxPane(plugin, this.rowHost(), () => this.render());
   }
 
   getViewType(): string {

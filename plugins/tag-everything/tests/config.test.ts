@@ -91,3 +91,9 @@ test("normalizeSettings: the All tab's count range, on at 10–100 by default, d
   assert.deepEqual([bad.tagRangeOn, bad.tagRangeMin, bad.tagRangeMax], [true, 10, 100]);
   assert.equal(normalizeSettings({ tagRangeMax: -1 }).tagRangeMax, 100);
 });
+
+test("panelExtensionTags: off by default, a boolean kept, anything else back to off", () => {
+  assert.equal(normalizeSettings({}).panelExtensionTags, false);
+  assert.equal(normalizeSettings({ panelExtensionTags: true }).panelExtensionTags, true);
+  assert.equal(normalizeSettings({ panelExtensionTags: "yes" }).panelExtensionTags, false);
+});

@@ -70,6 +70,20 @@ test("inboxPaths: focused on a folder, at any depth, case and accents ignored, w
   assert.equal(inboxPaths(files, 1, 30, new Set(), "").length, 5, "empty = the whole vault");
 });
 
+test("inboxPaths: date criteria: created replaces the last days, modified is checked too", () => {
+  const day = 24 * 3600_000;
+  const now = 1000 * day;
+  const files = [
+    { path: "new.pdf", ctime: now - day, mtime: now - day, tagged: false },
+    { path: "old.pdf", ctime: now - 400 * day, mtime: now - 400 * day, tagged: false },
+    { path: "old-touched.pdf", ctime: now - 400 * day, mtime: now - 2 * day, tagged: false },
+  ];
+  assert.deepEqual(inboxPaths(files, now, 30, new Set(), "", { created: { within: false, days: 365 } }), ["old-touched.pdf", "old.pdf"]);
+  assert.deepEqual(inboxPaths(files, now, 30, new Set(), "", { created: { within: false, days: 365 }, modified: { within: true, days: 7 } }), ["old-touched.pdf"]);
+  assert.deepEqual(inboxPaths(files, now, 30, new Set(), "", { modified: { within: true, days: 7 } }), ["new.pdf"], "still within the last 30 days created");
+  assert.deepEqual(inboxPaths([{ path: "a.pdf", ctime: now - 400 * day, tagged: false }], now, 30, new Set(), "", { modified: { within: false, days: 365 }, created: { within: false, days: 1 } }), ["a.pdf"], "mtime defaults to ctime");
+});
+
 test("ageText", () => {
   assert.equal(ageText(10_000), "just now");
   assert.equal(ageText(5 * 60_000), "5 min");

@@ -96,6 +96,14 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   dialog (Section 6) to combine its tags with `OR`, `NOT` and parentheses; saved, it becomes a group and its search
   runs at once. On a group search the button reads **Edit group**. Typing in the filter goes back to the tags. Selection disappears
   once the search is empty.
+- **Dates**: the **calendar** icon next to the filter box picks a date for the search: **Created** or **Modified**,
+  *in the last day / 7 days / 30 days / 90 days / year* (recent) or *more than 30 days / 90 days / a year ago* (old),
+  or *Any date*. Both can be set at once (e.g. created more than a year ago, modified in the last 7 days). With tags,
+  the search keeps only the files carrying them that meet the dates (`invoice` + *modified in the last 7 days*); alone,
+  a date lists every file that meets it. The dates show in the search as chips with a calendar icon (click one to take
+  it out), the icon turns to the accent colour, and they stay when you click other tags or a group; **Clear** removes
+  them too. Folders have no date: a date search leaves them out. They are not part of a formula (*Formula…* and
+  groups keep only the tags).
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
@@ -106,6 +114,9 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   in the search always stay, and typing in the filter finds every tag. Bookmark tabs are not filtered (you chose
   their tags). The TagEverything explorer has the same boxes (Section 10). Default 10–100; also in the settings
   (Section 14).
+- **Extension tags** (`pdf`, `md`, Section 1) are hidden from the tag lists (All, Narrow) by default: the **file type**
+  icon in the *Tags* heading (All) shows them, click again to hide them; remembered. They still work everywhere else:
+  in formulas, in the explorer, as the badge before a result's name, and a badge click searches with one.
 - **Filter tags**: type, then **Enter** selects the first match, **Escape** clears.
 - **Results** work like the file explorer: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files open
   in their default app, folders are revealed), **Ctrl/Cmd + hover** for a page preview, **drag** one into a note to
@@ -372,7 +383,10 @@ on it. A file leaves the inbox as soon as it has a tag.
   (Section 9), *New rule from this file…* (its folder and extension filled in), *Dismiss: no tag needed*
   (*Settings → Show dismissed files again* brings them back).
 - At the top: **Apply rules to N files** adds every row's rule tags at once; **Suggest tags** asks Claude Code for
-  tags for the newest 50 (Section 9); **New rule** creates a rule.
+  tags for the newest 50 (Section 9); **Dates** picks date criteria as in the panel (Section 5); **New rule** creates a rule.
+- **Dates**: *Created* replaces the *Days in the inbox* window, so *Created → More than a year ago* lists the old
+  untagged files; *Modified* narrows the list further (rows then also say when the file was modified). The line at
+  the top and the tab's count follow; **Any date** goes back to the settings' window. Not remembered across restarts.
 
 **Auto-tag rules**: "a file in this folder, whose name contains one of these words, with one of these extensions,
 gets these tags". Each condition is optional, but a rule needs at least one. Names are compared without case or
@@ -431,7 +445,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Liaison words | French + English list | Words never used as tags while the rule is on; empty the box to restore the list |
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along |
-| File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer |
+| File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
 | Colour tags automatically | On | Section 8 |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | On / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |

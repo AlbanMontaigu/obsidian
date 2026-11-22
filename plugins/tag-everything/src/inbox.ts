@@ -1,5 +1,5 @@
 // The inbox of untagged files and the auto-tag rules. Pure, no `obsidian` import (unit-tested); the view is
-// inbox-pane.ts (a tab of the panel), the rule dialog rule-modal.ts.
+// inbox-pane.ts (a tab of the TagEverything explorer), the rule dialog rule-modal.ts.
 //
 // A rule: "a file in this folder, whose name contains one of these words, with one of these extensions, gets these
 // tags". Every condition left empty matches anything, but a rule needs at least one. Rules are offered in the inbox
@@ -8,6 +8,7 @@
 import { foldTag } from "./taxonomy.ts";
 import { dedupe, extensionTag, setNameTags, splitExtension } from "./format.ts";
 import { cleanTagList, nextId } from "./groups.ts";
+import { type DateFilters, datesMatch } from "./dates.ts";
 
 export interface AutoTagRule {
   id: string;
@@ -119,23 +120,25 @@ export function deleteRule<R extends { id: string }>(rules: readonly R[], id: st
   return rules.filter((r) => r.id !== id);
 }
 
-const DAY_MS = 24 * 3600_000;
-
-/** A file the inbox may list: its path, when it arrived in the vault, whether it carries a stored tag. */
+/** A file the inbox may list: its path, when it arrived in the vault and was last modified, whether it carries a stored tag. */
 export interface InboxCandidate {
   path: string;
   ctime: number;
+  /** Default: `ctime`. */
+  mtime?: number;
   tagged: boolean;
 }
 
 /**
  * The inbox: files with no stored tag that arrived (were created in the vault) in the last `days` days, newest first,
  * without those the user dismissed; only those inside `folder` when it is set (the inbox focused on one folder).
+ * `dates` (src/dates.ts), the inbox's date criteria: a `created` one replaces the last `days` days (so older files
+ * can be listed), a `modified` one is checked as well.
  */
-export function inboxPaths(files: readonly InboxCandidate[], now: number, days: number, dismissed: ReadonlySet<string>, folder = ""): string[] {
-  const since = now - days * DAY_MS;
+export function inboxPaths(files: readonly InboxCandidate[], now: number, days: number, dismissed: ReadonlySet<string>, folder = "", dates: DateFilters = {}): string[] {
+  const window: DateFilters = { created: dates.created ?? { within: true, days }, modified: dates.modified };
   return files
-    .filter((f) => !f.tagged && f.ctime >= since && !dismissed.has(f.path) && inFolder(f.path, folder))
+    .filter((f) => !f.tagged && !dismissed.has(f.path) && inFolder(f.path, folder) && datesMatch(window, { ctime: f.ctime, mtime: f.mtime ?? f.ctime }, now))
     .sort((a, b) => b.ctime - a.ctime || a.path.localeCompare(b.path))
     .map((f) => f.path);
 }

@@ -3,6 +3,7 @@ import { PLUGIN_NAME, plural } from "./messages.ts";
 import { revealInExplorer } from "./items.ts";
 import { describeConditions } from "./inbox.ts";
 import type { Exclusion } from "./exclude.ts";
+import { DATE_FIELDS, DATE_PRESETS, type DateFilters, type DateRange, rangeText, sameRange } from "./dates.ts";
 import { RuleModal } from "./rule-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
@@ -105,4 +106,28 @@ function includeEntry(plugin: TagEverythingPlugin, item: TAbstractFile, why: Exc
   }
   const title = why.path === item.path ? "Include in the tag engine again" : `Include "${why.path}" in the tag engine again`;
   return { title, icon: "eye", run: () => void plugin.setExcluded([why.path], false) };
+}
+
+/**
+ * The date criteria menu (panel search, inbox): for the creation date, then the modification date, *Any date* and the
+ * presets of src/dates.ts, the current one checked. A pick calls `change` with the new criteria.
+ */
+export function dateMenu(filters: DateFilters, change: (f: DateFilters) => void): Menu {
+  const menu = new Menu();
+  for (const field of DATE_FIELDS) {
+    const set = (r: DateRange | undefined): void => {
+      const next = { ...filters };
+      if (r) next[field] = r;
+      else delete next[field];
+      change(next);
+    };
+    if (field !== DATE_FIELDS[0]) menu.addSeparator();
+    menu.addItem((i) => i.setTitle(field === "created" ? "Created" : "Modified").setIsLabel(true));
+    menu.addItem((i) => i.setTitle("Any date").setChecked(!filters[field]).onClick(() => set(undefined)));
+    for (const r of DATE_PRESETS) {
+      const text = rangeText(r);
+      menu.addItem((i) => i.setTitle(text[0].toUpperCase() + text.slice(1)).setChecked(sameRange(filters[field], r)).onClick(() => set(r)));
+    }
+  }
+  return menu;
 }

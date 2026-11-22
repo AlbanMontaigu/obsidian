@@ -1212,6 +1212,37 @@ check("menu: Inbox of this folder focuses the inbox there and shows it", plugin.
 ibEl.querySelector(".tag-everything-inbox-actions button:last-child")?.click(); // "Whole vault"
 await sleep(400);
 check("inbox: Whole vault stops the focus", plugin.settings.inboxFolder === "", plugin.settings.inboxFolder);
+// Date criteria, from the Dates button's menu: a created one replaces the last days, a modified one shows on the rows.
+const menuItem = (title, nth = 0) => [...document.querySelectorAll(".menu .menu-item:not(.is-label)")].filter((m) => m.textContent === title)[nth];
+const ibCount = inbox.files().length;
+const ibDates = () => ibEl.querySelector(".tag-everything-inbox-actions .tag-everything-dates-button");
+ibDates()?.click();
+await sleep(200);
+menuItem("More than a year ago")?.click(); // the first one: Created
+await sleep(300);
+check(
+  "inbox: Dates → created more than a year ago: nothing, said at the top, the tab's count follows, the button marked",
+  inbox.dates.created?.within === false && inbox.dates.created.days === 365 && inbox.files().length === 0 && /Inbox zero: every file created more than a year ago has tags/.test(ibEl.textContent) && !ibTab()?.querySelector(".tag-everything-chip-count") && ibDates()?.classList.contains("is-active"),
+  JSON.stringify(inbox.dates) + " " + ibEl.querySelector(".tag-everything-inbox-status")?.textContent,
+);
+ibDates()?.click();
+await sleep(200);
+menuItem("Any date")?.click();
+await sleep(200);
+const ibAll = inbox.files();
+ibDates()?.click();
+await sleep(200);
+menuItem("In the last day", 1)?.click(); // the second one: Modified
+await sleep(300);
+// The fixture's files keep their old modification dates: only those modified since yesterday stay.
+const ibRecent = ibAll.filter((f) => f.stat.mtime >= Date.now() - 24 * 3600_000).length;
+check(
+  "inbox: Dates → Any date brings the files back; modified in the last day keeps those, rows say when they were modified",
+  ibAll.length === ibCount && !inbox.dates.created && inbox.dates.modified?.days === 1 && ibRecent > 0 && inbox.files().length === ibRecent &&
+    / from the last 30 days, modified in the last day\./.test(ibEl.textContent) && /Arrived .*, modified /.test(ibEl.querySelector(".tag-everything-inbox-row")?.textContent ?? ""),
+  `${ibAll.length}/${ibCount} ${inbox.files().length}/${ibRecent} ` + ibEl.querySelector(".tag-everything-inbox-row")?.textContent,
+);
+inbox.dates = {};
 ibView.showTab("tags"); // the explorer as the later sections expect it
 // The Tools tab: the vault-wide actions, the rules applied to every file they match.
 const toolsView = await plugin.openTools();
@@ -1373,6 +1404,49 @@ await plugin.showTag("pdf");
 await sleep(300);
 const pdfResult = resultRow(pdfPath.split("/").pop());
 check("ext: panel result of the PDF: pdf chip first, not repeated below", pdfResult?.firstElementChild?.textContent === "pdf" && !rowChips(pdfResult).split(",").includes("pdf"), pdfResult?.innerHTML.slice(0, 400));
+// The panel's tag lists show the extension tags only when its toggle is on (off by default).
+await view.setState({ selected: [], excluded: [], dates: {}, activeGroup: null, tab: null, page: null }, { history: false });
+await sleep(300);
+const extToggle = () => panel().querySelector(".tag-everything-tags-head .tag-everything-ext-toggle");
+check("ext: the panel's All hides extension tags by default", plugin.settings.panelExtensionTags === false && !cloudChip("md") && !!cloudChip(reportTags[0]) && !extToggle()?.classList.contains("is-active"));
+extToggle()?.click();
+await sleep(300);
+check("ext: the toggle in All's Tags heading shows them, saved", !!cloudChip("md") && extToggle()?.classList.contains("is-active") && (await plugin.loadData())?.panelExtensionTags === true);
+extToggle()?.click();
+await sleep(300);
+check("ext: clicked again, hidden", !cloudChip("md") && plugin.settings.panelExtensionTags === false);
+// Date criteria of the search (calendar icon of the panel's bar): alone, with tags, kept by a new tag search, cleared.
+const DAY = 24 * 3600_000;
+const hasDatesIn = (state) => Object.keys(state.dates ?? {}).length > 0;
+const createdToday = (paths) => paths.filter((p) => { const f = file(p); return f?.stat && f.stat.ctime >= Date.now() - DAY; }).length;
+const selCount = () => selTab()?.querySelector(".tag-everything-chip-count")?.textContent;
+const dateChip = () => panel().querySelector(".tag-everything-view-selected .tag-everything-date-chip");
+const pickDate = async (title) => {
+  panel().querySelector(".tag-everything-view-bar .tag-everything-dates-button")?.click();
+  await sleep(200);
+  menuItem(title)?.click(); // the first one: Created
+  await sleep(300);
+};
+await pickDate("In the last day");
+const todayN = createdToday(plugin.index.paths());
+check(
+  "dates: a criterion alone is a search: Selection with what it finds, its chip, the icon marked",
+  view.getState().dates?.created?.days === 1 && view.getState().page === "selection" && todayN > 0 && selCount() === String(todayN) && dateChip()?.textContent === "created in the last day" && panel().querySelector(".tag-everything-view-bar .tag-everything-dates-button")?.classList.contains("is-active"),
+  `${JSON.stringify(view.getState().dates)} ${selCount()} / ${todayN} ${dateChip()?.textContent}`,
+);
+await plugin.showTag("pdf");
+await sleep(300);
+const pdfToday = createdToday(plugin.index.paths().filter((p) => plugin.index.hasTag(p, "pdf")));
+check("dates: combined with a tag, kept by a new tag search", view.getState().selected.join() === "pdf" && view.getState().dates?.created?.days === 1 && selCount() === String(pdfToday) && pdfToday > 0, `${selCount()} / ${pdfToday}`);
+await pickDate("More than a year ago");
+check("dates: created more than a year ago: nothing found", view.getState().dates?.created?.within === false && selCount() === "0" && dateChip()?.textContent === "created more than a year ago", `${selCount()} ${dateChip()?.textContent}`);
+dateChip()?.click();
+await sleep(300);
+check("dates: the chip clicked takes the criterion out, the tags stay", !hasDatesIn(view.getState()) && view.getState().selected.join() === "pdf" && !dateChip());
+await pickDate("In the last 7 days");
+panel().querySelector(".tag-everything-view-clear")?.click();
+await sleep(300);
+check("dates: Clear drops the dates too", !hasDatesIn(view.getState()) && !view.getState().selected.length && !selTab());
 await plugin.showTag(reportTags[0]);
 plugin.settings.extensionTags = false;
 await plugin.saveSettings();

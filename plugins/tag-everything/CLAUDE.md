@@ -14,8 +14,8 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
   telling its files apart, then its files), a formula box, a count range, an *Inbox* tab.
 - **Context menu** (*TagEverything* submenu): edit tags, suggest tags with Claude Code (read-only `claude -p`),
   apply auto-tag rules, exclude from the tag engine, write an AI assistant guide (`CLAUDE.md`, never over one).
-- **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range), bookmark
-  tabs, *Selection* (search by tags AND / NOT, narrowing tags, results), *Tools* (vault-wide: re-read, apply
+- **Panel** (right sidebar): *All* (groups = saved searches with formulas, every tag within a count range, extension
+  tags only when toggled), bookmark tabs, *Selection* (search by tags AND / NOT and date criteria, narrowing tags, results), *Tools* (vault-wide: re-read, apply
   rules, check tag names, review tags, rename / merge). The inbox (new untagged files, auto-tag rules) is only the
   explorer's *Inbox* tab.
 - **Settings**: options only. Also: `tag-everything` query blocks in notes (live lists from a formula), a tag naming
@@ -29,6 +29,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
 | Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts` (search, tag cloud, tabs, Selection), `panel-groups.ts` (the Groups section, its menu and dialog), `dialogs.ts` | user guide §5-7 |
+| Date criteria (created / modified, panel search and inbox) | `dates.ts` (pure), `menu.ts` `dateMenu`, `view.ts` `setDates` / `searchMatches`, `inbox.ts` `inboxPaths`, `inbox-pane.ts` | user guide §5, §13 |
 | Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
@@ -77,16 +78,17 @@ Budget first (root `CLAUDE.md`, *Definition of done*): every Obsidian launch cos
 
 Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pure module, named after it:
 `format`, `config`, `naming`, `cloud`, `colors`, `groups`, `tabs`, `formula`, `ui`, `query`, `taxonomy`,
-`exclude`, `inbox`, `explore` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
+`exclude`, `inbox`, `explore`, `dates` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
 
 `tests/smoke.js` + `tests/fixtures/vault/`: ~310 in-app checks in one script (a run executes them all). Each check
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
 `groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `tabs:`, `fix:`, `command:`,
 `guide:`, `suggest:`, `query:`, `rename:`, `review:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
-`ext:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
+`ext:`, `dates:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is turned off at the start (the fixture's
-tags are used once or twice); extension tags are off for the engine sections and checked in their own section;
+tags are used once or twice); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle
+and the panel's date criteria, `dates:`);
 Claude Code is faked (`plugin.runClaude`). It ends with the explorer under `shared AND NOT final` and the panel's
 bookmark tab "Work" with a formula group search, for the screenshot.
 

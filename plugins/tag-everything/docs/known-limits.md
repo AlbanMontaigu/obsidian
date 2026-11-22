@@ -51,11 +51,16 @@ entry of the area you change; add one when you leave a limit behind (users' side
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
 - `main.ts` is ~650 lines (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
-  moved out; `view.ts` ~730 after the Groups section moved to `panel-groups.ts` (0.30.0): the bookmark tabs (`renderTabs`, tab menu, bookmark items) are the next to move out. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
+  moved out; `view.ts` ~790 (0.34.0, date criteria) after the Groups section moved to `panel-groups.ts` (0.30.0): the bookmark tabs (`renderTabs`, tab menu, bookmark items) are the next to move out. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
 - Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a
   tag carried only by excluded items leaves the panel's search (it is not put back on inclusion).
+- Date criteria (panel search, inbox; src/dates.ts): presets only (1, 7, 30, 90, 365 days; older than 30, 90, 365
+  days), no custom number. "Created" is `stat.ctime`: a copy or a sync can make an old document new. A folder has no
+  date, so any criterion leaves folders out. They are not part of a formula: *Formula…* and groups keep the tags only,
+  the explorer's formula box and query blocks have none. The inbox's criteria are not remembered across restarts (the
+  panel's are, with its search).
 - Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
-  its frontmatter (renames the note, so opt-in); date conditions in query blocks and the panel; a rename / merge
-  that also rewrites query blocks.
+  its frontmatter (renames the note, so opt-in); date conditions in query blocks and the explorer's formula box (as
+  `created:30d` terms of the formula, so groups could keep them); a rename / merge that also rewrites query blocks.

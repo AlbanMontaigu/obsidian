@@ -11,6 +11,8 @@ import { PanelGroups } from "./panel-groups.ts";
 import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { renderTools } from "./tools-pane.ts";
+import { type DateFilters, DATE_FIELDS, criterionText, datesMatch, filtersText, hasDates, normalizeDates } from "./dates.ts";
+import { dateMenu } from "./menu.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 /** Most items listed at once (panel results, a level of the TagEverything explorer). */
@@ -28,6 +30,8 @@ interface PanelState {
   selected: string[];
   /** Tags searched with NOT. */
   excluded: string[];
+  /** Date criteria of the search (src/dates.ts). */
+  dates: DateFilters;
   activeGroup: string | null;
   filter: string;
   /** Bookmark tab shown; null = All. */
@@ -50,6 +54,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private selected: string[] = [];
   /** Tags the search excludes (AND NOT tag). */
   private excluded: string[] = [];
+  /** Date criteria (created / modified): the search keeps only the files meeting them. Kept by a new tag search. */
+  private dates: DateFilters = {};
   /** Group whose tags make up the search, if the search started from a group. */
   private activeGroup: string | null = null;
   private filter = "";
@@ -74,6 +80,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private resultsEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private searchEl!: HTMLInputElement;
+  private datesEl!: HTMLElement;
+  /** In All's Tags heading: shows or hides the extension tags (setting `panelExtensionTags`). */
+  private extToggleEl!: HTMLElement;
   private pageEl!: HTMLElement;
 
   constructor(
@@ -152,6 +161,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
         this.renderTags();
       }
     });
+    const dates = (this.datesEl = bar.createDiv({ cls: "clickable-icon tag-everything-dates-button", attr: { "aria-label": "Dates: created or modified, recently or long ago" } }));
+    setIcon(dates, "calendar");
+    clickable(dates, () => {
+      const r = dates.getBoundingClientRect(); // under the icon, from the mouse or the keyboard alike
+      dateMenu(this.dates, (f) => this.setDates(f)).showAtPosition({ x: r.left, y: r.bottom });
+    });
     const rebuild = bar.createDiv({ cls: "clickable-icon", attr: { "aria-label": "Re-read tags (picks up changes made outside Obsidian)" } });
     setIcon(rebuild, "refresh-cw");
     clickable(rebuild, () => {
@@ -168,6 +183,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.tagsHeadEl.createSpan({ cls: "tag-everything-section-title", text: "Tags" });
     const headEnd = this.tagsHeadEl.createDiv({ cls: "tag-everything-tags-head-end" });
     this.tagsCountEl = headEnd.createSpan({ cls: "tag-everything-section-count" });
+    this.extToggleEl = headEnd.createDiv({ cls: "clickable-icon tag-everything-ext-toggle" });
+    setIcon(this.extToggleEl, "file-type");
+    clickable(this.extToggleEl, () => {
+      this.plugin.settings.panelExtensionTags = !this.plugin.settings.panelExtensionTags;
+      this.render();
+      this.plugin.saveSettings().catch((err) => {
+        console.error("[tag-everything] saving the extension tags option failed", err);
+        new Notice("TagEverything: the option could not be saved.");
+      });
+    });
     this.range = countRangeControl(headEnd, countRangeOf(this.plugin.settings), (r, save) => {
       setCountRange(this.plugin, r, save);
       if (!save) this.renderTags(); // saved: every view redraws (index "changed")
@@ -195,6 +220,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const state: PanelState = {
       selected: this.selected,
       excluded: this.excluded,
+      dates: this.dates,
       activeGroup: this.activeGroup,
       filter: this.filter,
       tab: this.tab,
@@ -208,6 +234,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const s = (state && typeof state === "object" ? state : {}) as Partial<Record<keyof PanelState, unknown>>;
     if (Array.isArray(s.selected)) this.selected = s.selected.filter((t): t is string => typeof t === "string");
     if (Array.isArray(s.excluded)) this.excluded = s.excluded.filter((t): t is string => typeof t === "string");
+    if ("dates" in s) this.dates = normalizeDates(s.dates);
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
     if (typeof s.tab === "string" || s.tab === null) this.tab = s.tab;
@@ -238,12 +265,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** There is a search (a tag selected or excluded, or a group search, even with all its tags switched off). */
+  /** There is a search (a tag selected or excluded, a group search, even with all its tags switched off, or a date criterion). */
   private hasSearch(): boolean {
-    return !!this.activeGroup || this.selected.length > 0 || this.excluded.length > 0;
+    return !!this.activeGroup || this.selected.length > 0 || this.excluded.length > 0 || hasDates(this.dates);
   }
 
-  /** Empties the search: no tag selected or excluded, no active group. */
+  /** Sets the date criteria of the search (public for the smoke test); one set shows what the search finds. */
+  setDates(dates: DateFilters): void {
+    this.dates = dates;
+    if (hasDates(dates)) this.page = "selection";
+    this.stateChanged();
+  }
+
+  /** Empties the tags of the search: no tag selected or excluded, no active group. The date criteria stay (Clear drops them). */
   private resetSearch(): void {
     this.selected = [];
     this.excluded = [];
@@ -397,10 +431,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     ]);
   }
 
-  /** Paths the current search finds; null when there is no search. */
+  /** Paths the current search finds (its tags, then its date criteria); null when there is no search. */
   private searchMatches(): string[] | null {
     const search = this.searchExpr();
-    return search ? this.matchPaths(search) : null;
+    const dated = hasDates(this.dates);
+    if (!search && !dated) return null;
+    const paths = search ? this.matchPaths(search) : this.plugin.index.paths();
+    if (!dated) return paths;
+    const now = Date.now();
+    const vault = this.app.vault;
+    return paths.filter((p) => {
+      const f = vault.getAbstractFileByPath(p);
+      return datesMatch(this.dates, f instanceof TFile ? f.stat : null, now);
+    });
   }
 
   /** Tagged paths matching `expr`; tags no item carries (e.g. renamed since) are left out of it first. */
@@ -466,6 +509,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.requestRender.cancel();
     const matches = this.searchMatches(); // used by the tabs, narrowing tags and results: computed once
     this.renderTabs(matches);
+    this.datesEl.toggleClass("is-active", hasDates(this.dates));
+    this.datesEl.setAttr("aria-label", hasDates(this.dates) ? `Dates: ${filtersText(this.dates)}` : "Dates: created or modified, recently or long ago");
     this.renderSelected();
     this.renderRefine(matches);
     this.groupsPane.render(this.groupsEl);
@@ -549,7 +594,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private renderSelected(): void {
     this.selectedEl.empty();
     const group = this.groups.find((g) => g.id === this.activeGroup);
-    if (!group && !this.selected.length && !this.excluded.length) return;
+    if (!group && !this.selected.length && !this.excluded.length && !hasDates(this.dates)) return;
     // A group search shows the group's card, as in All: its tags (inside its formula) with their counts, a
     // switched-off one dashed (a click switches it on again).
     if (group) this.groupsPane.renderGroup(this.selectedEl, group, true);
@@ -564,6 +609,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
     };
     for (const tag of this.selected) if (!group?.tags.includes(tag)) searchChip(tag, false);
     for (const tag of this.excluded) searchChip(tag, true);
+    for (const field of DATE_FIELDS) {
+      const range = this.dates[field];
+      if (!range) continue;
+      const el = this.selectedEl.createDiv({ cls: "tag-everything-chip is-selected tag-everything-date-chip", attr: { "aria-label": "Remove from the search (the calendar icon above: other dates)" } });
+      el.dataset.date = field;
+      setIcon(el.createSpan({ cls: "tag-everything-date-icon" }), "calendar");
+      el.createSpan({ text: criterionText(field, range) });
+      setIcon(el.createSpan({ cls: "tag-everything-chip-remove" }), "x");
+      clickable(el, () => {
+        const next = { ...this.dates };
+        delete next[field];
+        this.setDates(next);
+      });
+    }
     // The way to OR and parentheses: the search as a formula, in the group dialog (a group search edits its group).
     const actions = this.selectedEl.createDiv({ cls: "tag-everything-view-actions" });
     const button = (cls: string, icon: string, text: string, label: string, run: () => void): void => {
@@ -580,6 +639,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
     button("tag-everything-view-clear", "search-x", "Clear", "Clear the search", () => {
       this.resetSearch();
+      this.dates = {};
       this.stateChanged();
     });
   }
@@ -594,7 +654,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const counts = index.counts();
     // In a bookmark tab, its tags only; one no item carries any more stays (faded) so it can be removed.
     const tab = this.currentTab;
-    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]) : [...counts];
+    // All: the extension tags only with the option on (a tag in the search stays).
+    const shown = this.tagShown();
+    const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]) : [...counts].filter(([t]) => shown(t));
     const named = entries.filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter));
     // The count range keeps All to the tags that matter; not in a bookmark tab (picked by hand), nor while filtering
     // by name (the tag looked for must show), and a tag in the search always stays (a click takes it out).
@@ -609,6 +671,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.tagsCountEl.setAttr("aria-label", hidden ? `${plural(hidden, "tag")} outside the range ${rangeText(range)}` : null);
     this.range.el.toggle(!tab);
     this.range.update(range);
+    const ext = this.plugin.settings.panelExtensionTags;
+    this.extToggleEl.toggle(!tab);
+    this.extToggleEl.toggleClass("is-active", ext);
+    this.extToggleEl.setAttr("aria-label", ext ? "Extension tags shown (pdf, md…): click to hide them" : "Show the extension tags (pdf, md…)");
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
@@ -625,6 +691,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.cloud(this.tagsEl, rows);
   }
 
+  /**
+   * Whether the tag lists of the panel (All, Narrow) show a tag: with `panelExtensionTags` off, only the stored ones
+   * (a tag that is only an extension is left out) and those in the search.
+   */
+  private tagShown(): (tag: string) => boolean {
+    if (this.plugin.settings.panelExtensionTags) return () => true;
+    const own = this.plugin.index.counts(undefined, true);
+    return (t) => own.has(t) || this.selected.includes(t) || this.excluded.includes(t);
+  }
+
   /** In the Selection tab, above the results: the tags that can still narrow the search, counted in what it finds. */
   private renderRefine(matches: string[] | null): void {
     this.refineEl.empty();
@@ -632,7 +708,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const group = this.groups.find((g) => g.id === this.activeGroup);
     // the active group's tags are already in the search bar, switched on or off
     const taken = [...this.selected, ...this.excluded, ...(group?.tags ?? [])];
-    const rows = narrowingTags(this.plugin.index.counts(matches), matches.length, taken);
+    const shown = this.tagShown();
+    const rows = narrowingTags(this.plugin.index.counts(matches), matches.length, taken).filter(([t]) => shown(t));
     if (!rows.length) return;
     const head = this.refineEl.createDiv({ cls: "tag-everything-section-head tag-everything-refine-head" });
     head.createSpan({ cls: "tag-everything-section-title", text: "Narrow" });
