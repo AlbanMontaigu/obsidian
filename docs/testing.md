@@ -12,31 +12,24 @@ Two levels, both runnable without the owner and without touching a real vault.
 
 ## Test budget: test what matters, not everything every time
 
-Every run costs tokens (its output is read). The owner's rule: **do not over-test**. Tests are run, but **only
-those targeting what was modified and what it can affect**, never every test each time.
+The limits (at most 2 Obsidian launches per change, when not to relaunch, look-only changes) are in the root
+`CLAUDE.md` → *Definition of done*, read on every change. How to keep within them:
 
-- **Targeted, always**: the test files of the modules you changed **and of what they can affect** (their callers,
-  a shared module they rely on, the view that shows them), e.g.
-  `node --test plugins/<id>/tests/format.test.ts plugins/<id>/tests/naming.test.ts`. Not `npm test -- <id>` (every
-  test file) by default. `npm run typecheck` is cheap and covers every caller: run it after any code change.
-- **No baseline run** before starting, except the targeted files you are about to change (to know they were green).
-- **Smoke (end to end)**: `tests/smoke.js` is one script, so a run is the whole of it: **once**, when the change is
-  finished, and only if wiring, UI or vault I/O changed (pure logic or docs: skip it). Print only the checks of your
-  change and of what it affects: `npm run smoke -- <id> --only "explorer|inbox"` (a regular expression on check
-  names, case ignored) still runs every check but prints only the matching ones, every failure, console errors and
-  one count line (`3 check(s) matched; 290/290 ok in all`), not the 200+ `ok` lines. Run it
-  again only to confirm a fix of a smoke failure. CSS-only change, or a label / wording change: no smoke run and no
-  new `check()` (a check on a string tests nothing), one gallery shot of the screen touched instead (a second only if
-  that shot showed something to fix). Count the Obsidian launches before you start: each one is the cost.
+- **Unit tests**: the files of the modules you changed and of what imports them, e.g.
+  `node --test plugins/<id>/tests/format.test.ts plugins/<id>/tests/naming.test.ts`. `npm run typecheck` is cheap
+  and covers every caller. No baseline run except those files.
+- **Smoke**: `tests/smoke.js` is one script: a run executes every check (~20 s of Obsidian, the cost is the
+  launch). `--only "explorer|inbox"` (a regular expression on check names, case ignored) prints only the matching
+  checks, every failure, console errors and one count line. The runner checks the script's syntax in Node first, so
+  a typo costs no launch.
 - **Full non-regression run** (`npm run typecheck`, `npm test` for all plugins, `npm run smoke -- <id>`, the plugin's
-  read-only vault checks): only when it is really needed: a **minor or major** version, a change to a module many
-  others use (the write path, the index, the format), when the owner asks, or when the last full run is several
-  changes old.
+  read-only vault checks): a **minor or major** version, a change to a module many others use (the write path, the
+  index, the format), when the owner asks, or when the last full run is several changes old.
 - **Write few tests that bite**: edge cases that touch user data and the behaviour you changed; no test for trivial
-  code, no second test of what another test already covers.
-- **Mutation check every new test**: break the code it covers (flip a condition, drop a line, return early), run the
-  test, see it **fail**, restore the code. A test that stays green tests nothing: fix it or delete it. For a new
-  smoke `check()`, one mutated smoke run with `--only "<that check>"`.
+  code or a string, no second test of what another test already covers.
+- **Mutation check every new test**: break the code it covers, run the test, see it **fail**, restore. For a unit
+  test it is free. For a new smoke `check()` it is a launch: skip it when the check queries something the old code
+  does not have (it cannot pass there); otherwise one mutated run with `--only "<that check>"`.
 
 ## Unit tests
 

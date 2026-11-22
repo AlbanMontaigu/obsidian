@@ -60,7 +60,8 @@ node plugins/tag-everything/tools/check-vault.ts "<vault>"   # read-only: every 
 | [docs/user-guide.md](docs/user-guide.md) | Users: every feature, command, setting and limit |
 | [docs/architecture.md](docs/architecture.md) | Developers: layers, data flow, index, search, module reference (Mermaid diagrams) |
 | [docs/format.md](docs/format.md) | The storage format (file names, sidecars, frontmatter), compatibility with other apps |
-| [CLAUDE.md](CLAUDE.md) | Claude Code (and anyone changing the code): invariants, tests, guidelines, known limits |
+| [CLAUDE.md](CLAUDE.md) | Claude Code (and anyone changing the code): where to change what, invariants, tests, guidelines |
+| [docs/known-limits.md](docs/known-limits.md) | Developers: known limits and ideas not done |
 
 ## Layout
 

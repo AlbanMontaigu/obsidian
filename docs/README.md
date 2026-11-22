@@ -36,7 +36,8 @@ flowchart TB
 | `docs/user-guide.md` | Users | Every feature, command and setting, limits and troubleshooting |
 | `docs/architecture.md` | Developers | Layers, data storage, main flows (Mermaid), module reference |
 | `docs/<topic>.md` | Developers, other apps | Specs that outlive the code, e.g. a storage format |
-| `CLAUDE.md` | Claude | What it does in short, where to change what, invariants, tests, guidelines audit, known limits |
+| `CLAUDE.md` | Claude | Kept short (read on every change): what it does in short, where to change what, invariants, how tests are organised, guidelines audit |
+| `docs/known-limits.md` | Developers, Claude | Known limits and ideas not done, per area |
 
 ## When to update what
 
@@ -45,7 +46,8 @@ flowchart TB
 | Something a user sees (command, menu, setting, behaviour, limit) | the plugin's `docs/user-guide.md`; its README list if it is a headline feature |
 | A module's role, a flow, a new module | the plugin's `docs/architecture.md` (module reference, diagrams) and the README layout |
 | A stored format | the plugin's `docs/<format>.md` |
-| An invariant, a test file, a known limit | the plugin's `CLAUDE.md` |
+| An invariant, a test file | the plugin's `CLAUDE.md` (no per-check lists: the check names say it) |
+| A known limit | the plugin's `docs/known-limits.md` |
 | Tooling, conventions, a new trap | root `CLAUDE.md`, `docs/*.md` |
 
 Rules: diagrams in **Mermaid** only; one fact in one place (link to it rather than copying it); no counts or dates that

@@ -50,17 +50,23 @@ Then **look at** `dist/<id>-smoke.png` with the Read tool: it is the app as `tes
 
 ## Definition of done (every change)
 
-Do not over-test: follow the **test budget** in `docs/testing.md`: run only the tests targeting what you modified
-and what it can affect, never all of them each time; smoke once at the end; a full non-regression run only when
-needed (minor/major version, a widely used module changed, on request, or long overdue); every new test
-mutation-checked.
+**Test budget: the owner pays for every run, and reruns are what burn it.** Details in `docs/testing.md`.
+Each Obsidian launch (`npm run smoke`, gallery included) is the expensive unit: **plan them before starting, at
+most 2 per change**, and say in the report how many ran.
+
+- Never relaunch on code unchanged since a passing run, to confirm a failure unrelated to your change (report it
+  as flaky instead), or after a CSS / label-only fix.
+- Look-only change (CSS, label, wording): typecheck + **one** gallery run, no smoke, no new `check()`.
+- A new smoke `check()` only for new wiring or behaviour; its mutation run (one launch, `--only`) is skipped when
+  it queries something the old code does not have (it cannot pass there).
+- Unit tests: only the files of what changed and what imports it, never `npm test` by default. A full
+  non-regression run only for a minor/major version, a widely used module, on request, or when long overdue.
 
 1. `npm run typecheck` clean.
-2. The targeted unit tests pass (`node --test` on the test files of what changed and what it affects); pure logic
-   you added has a test, and you saw it fail on broken code.
-3. `npm run smoke -- <id>` (once, at the end; skip if no wiring/UI/vault I/O changed) prints `PASS` with no
-   unexpected console error; you looked at the screenshot.
-4. A smoke `check()` covers the new behaviour (a new command, menu item, view, setting...).
+2. The targeted unit tests pass; pure logic you added has a test, and you saw it fail on broken code.
+3. `npm run smoke -- <id> --only "<area>"` **once**, at the end, if wiring / UI / vault I/O changed: `PASS`, no
+   unexpected console error, and you looked at the screenshot. (It checks the script's syntax before launching.)
+4. New behaviour (a command, menu item, view, setting...) has a smoke `check()`.
 5. The docs describe the change (`docs/README.md` → *When to update what*): the plugin's `docs/user-guide.md`
    for what users see, `docs/architecture.md` for modules and flows, `CLAUDE.md` for invariants, tests, limits;
    `manifest.json` `version` bumped (patch for fixes, minor for features).

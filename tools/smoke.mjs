@@ -131,6 +131,18 @@ function killOurs() {
 const id = JSON.stringify(plugin.manifest.id);
 const shot = join(DIST_DIR, `${plugin.name}-smoke.png`);
 const smokeScript = join(plugin.dir, "tests", `${args.flags.script ?? "smoke"}.js`);
+// A syntax error in the script would cost a whole Obsidian launch to find: check it first, in Node (as it runs: the
+// body of an async function).
+if (existsSync(smokeScript)) {
+  try {
+    const input = `(async () => {\n${readFileSync(smokeScript, "utf8")}\n})();`;
+    execSync("node --check --input-type=module", { input, stdio: ["pipe", "ignore", "pipe"] });
+  } catch (err) {
+    rmSync(work, { recursive: true, force: true });
+    // Node's message without its stack (lines are those of the script + 1: the wrapper's first line).
+    fail(`${smokeScript}: syntax error, Obsidian not started.\n${String(err.stderr ?? err).replace(/^\s*at .*\n?/gm, "")}`);
+  }
+}
 let pass = false;
 console.log(`smoke ${plugin.name}: throwaway Obsidian (profile + vault in ${work})`);
 const child = spawn(OBSIDIAN_EXE, [`--user-data-dir=${userData}`, `--remote-debugging-port=${port}`], { stdio: "ignore", detached: false });
