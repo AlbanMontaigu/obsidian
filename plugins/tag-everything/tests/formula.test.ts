@@ -89,3 +89,39 @@ test("requiredTags: the tags every match carries (AND: all, OR: common, NOT: non
   assert.deepEqual(req("tax AND NOT b"), ["tax"]);
   assert.deepEqual(req("tax AND tax"), ["tax"]);
 });
+
+test("date terms: parsed with units, created / modified (also créé / modifié), > = older", async () => {
+  const { dateExpr } = await import("../src/formula.ts");
+  assert.deepEqual(parseFormula("created:30d"), dateExpr("created", { within: true, days: 30 }));
+  assert.deepEqual(parseFormula("modified:>1y"), dateExpr("modified", { within: false, days: 365 }));
+  assert.deepEqual(parseFormula("Créé:2w"), dateExpr("created", { within: true, days: 14 }));
+  assert.deepEqual(parseFormula("modifie:3m"), dateExpr("modified", { within: true, days: 90 }));
+  assert.deepEqual(parseFormula("created:7"), dateExpr("created", { within: true, days: 7 }));
+  assert.equal(formatFormula(parseFormula("tax created:30d")), "tax AND created:30d");
+  assert.equal(formatFormula(parseFormula("NOT modified:>730d OR a")), "NOT modified:>2y OR a");
+  assert.match((tryParseFormula("created:soon") as { error: string }).error, /created:30d/);
+  assert.match((tryParseFormula("created:0d") as { error: string }).error, /created:30d/);
+  // a tag spelled like a date term is quoted, and stays a tag
+  assert.deepEqual(parseFormula('"created:30d"'), { k: "tag", tag: "created:30d" });
+  assert.equal(formatFormula({ k: "tag", tag: "created:30d" }), '"created:30d"');
+  assert.deepEqual(parseFormula("note:x"), { k: "tag", tag: "note:x" }, "another prefix is a tag");
+});
+
+test("date terms: evaluated with dated, never a tag; prune keeps them unless told", async () => {
+  const { dateExpr, topDates, withTopDates, hasDateTerms } = await import("../src/formula.ts");
+  const e = parseFormula("tax AND created:30d");
+  assert.equal(evaluate(e, () => true, (f, r) => f === "created" && r.days === 30), true);
+  assert.equal(evaluate(e, () => true, () => false), false);
+  assert.equal(evaluate(e, () => true), false, "no dates known: no match");
+  assert.deepEqual(formulaTags(e), ["tax"]);
+  assert.deepEqual(requiredTags(e), ["tax"]);
+  assert.equal(formatFormula(prune(e, () => false)!), "created:30d");
+  assert.equal(formatFormula(prune(e, () => true, () => false)!), "tax");
+  assert.equal(formatFormula(toggleNot(e, "tax")), "NOT tax AND created:30d");
+  assert.equal(formatFormula(resolveTags(parseFormula("TAX modified:1d"), ["tax"])), "tax AND modified:1d");
+  assert.equal(hasDateTerms(e), true);
+  assert.equal(hasDateTerms(parseFormula("a OR b")), false);
+  assert.deepEqual(topDates(e), { created: { within: true, days: 30 } });
+  assert.equal(formatFormula(withTopDates(e, { modified: { within: false, days: 365 } })!), "tax AND modified:>1y");
+  assert.equal(withTopDates(dateExpr("created", { within: true, days: 1 }), {}), null);
+});

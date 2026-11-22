@@ -6,13 +6,12 @@ import * as tb from "./tabs.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
-import { NameModal } from "./dialogs.ts";
+import { NameModal, dateMenu } from "./dialogs.ts";
 import { PanelGroups } from "./panel-groups.ts";
 import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { renderTools } from "./tools-pane.ts";
-import { type DateFilters, DATE_FIELDS, criterionText, datesMatch, filtersText, hasDates, normalizeDates } from "./dates.ts";
-import { dateMenu } from "./menu.ts";
+import { type DateFilters, DATE_FIELDS, criterionText, filtersText, hasDates, normalizeDates } from "./dates.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 /** Most items listed at once (panel results, a level of the TagEverything explorer). */
@@ -410,6 +409,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
   selectGroup(id: string): void {
     const group = this.activeGroup === id ? undefined : this.groups.find((g) => g.id === id);
     this.resetSearch();
+    const expr = group && gr.groupExpr(group);
+    if (expr && fx.hasDateTerms(expr)) this.dates = {}; // a group with dates of its own replaces the search's
     if (group) {
       const counts = this.plugin.index.counts();
       this.activeGroup = group.id;
@@ -419,7 +420,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.stateChanged();
   }
 
-  /** The current search: the active group's formula without its switched-off tags, AND the other selected tags, AND NOT the excluded ones. */
+  /**
+   * The current search: the active group's formula without its switched-off tags, AND the other selected tags, AND NOT
+   * the excluded ones, AND the date criteria (so *Formula…* keeps them in the new group).
+   */
   private searchExpr(): fx.Expr | null {
     const group = this.groups.find((g) => g.id === this.activeGroup);
     const on = (t: string): boolean => this.selected.includes(t);
@@ -428,31 +432,24 @@ export class TagEverythingView extends ItemView implements HoverParent {
       groupPart && fx.prune(groupPart, on),
       ...this.selected.filter((t) => !group?.tags.includes(t)).map(fx.tagExpr),
       ...this.excluded.map((t) => fx.notExpr(fx.tagExpr(t))),
+      ...fx.dateExprs(this.dates),
     ]);
   }
 
-  /** Paths the current search finds (its tags, then its date criteria); null when there is no search. */
+  /** Paths the current search finds; null when there is no search. */
   private searchMatches(): string[] | null {
     const search = this.searchExpr();
-    const dated = hasDates(this.dates);
-    if (!search && !dated) return null;
-    const paths = search ? this.matchPaths(search) : this.plugin.index.paths();
-    if (!dated) return paths;
-    const now = Date.now();
-    const vault = this.app.vault;
-    return paths.filter((p) => {
-      const f = vault.getAbstractFileByPath(p);
-      return datesMatch(this.dates, f instanceof TFile ? f.stat : null, now);
-    });
+    return search ? this.matchPaths(search) : null;
   }
 
-  /** Tagged paths matching `expr`; tags no item carries (e.g. renamed since) are left out of it first. */
+  /** Indexed paths matching `expr` (tags and dates); tags no item carries (e.g. renamed since) are left out of it first. */
   private matchPaths(expr: fx.Expr | null): string[] {
     const index = this.plugin.index;
     const counts = index.counts();
     const used = expr && fx.prune(expr, (t) => counts.has(t));
     if (!used) return [];
-    return index.paths().filter((p) => fx.evaluate(used, (t) => index.hasTag(p, t)));
+    const now = Date.now();
+    return index.paths().filter((p) => index.matches(used, p, now));
   }
 
   // ---- rendering

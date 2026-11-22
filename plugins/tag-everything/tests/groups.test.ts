@@ -10,6 +10,7 @@ import {
   moveGroup,
   nextId,
   normalizeGroups,
+  removeDateFromGroup,
   removeTagFromGroup,
   renameGroup,
   setCollapsed,
@@ -121,4 +122,14 @@ test("toggleTagNot: NOT on / off in the group's search; a group without formula 
   assert.deepEqual(toggleTagNot(groups, id, "zzz"), groups, "a tag not in the group changes nothing");
   const broken = [{ ...groups[0], formula: "(a" }];
   assert.deepEqual(toggleTagNot(broken, id, "a"), broken, "an unparsable formula is left alone");
+});
+
+test("date terms in a group: a formula group; removeDateFromGroup takes one out, keeps the tags", () => {
+  const { groups, id } = addGroup([], "Recent tax");
+  const withDate = setFormula(groups, id, parseFormula("tax AND created:30d AND modified:>1y"));
+  assert.equal(withDate[0].formula, "tax AND created:30d AND modified:>1y");
+  assert.deepEqual(withDate[0].tags, ["tax"]);
+  const term = { k: "date" as const, field: "created" as const, range: { within: true, days: 30 } };
+  assert.equal(removeDateFromGroup(withDate, id, term)[0].formula, "tax AND modified:>1y");
+  assert.equal(removeTagFromGroup(withDate, id, "tax")[0].formula, "created:30d AND modified:>1y", "the dates stay without the tag");
 });

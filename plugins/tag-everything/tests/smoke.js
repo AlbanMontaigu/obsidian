@@ -626,7 +626,7 @@ const gInput = gModal?.querySelector(".tag-everything-formula-input");
 const opButtons = [...(gModal?.querySelectorAll(".tag-everything-formula-op") ?? [])];
 check(
   "formula button: the dialog starts from the search, with operator buttons",
-  gModal?.querySelector(".modal-title")?.textContent === "New group from this search" && gInput?.value === "shared" && opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( )",
+  gModal?.querySelector(".modal-title")?.textContent === "New group from this search" && gInput?.value === "shared" && opButtons.map((b) => b.textContent).join(" ") === "AND OR NOT ( ) Date",
   `${gInput?.value} / ${opButtons.map((b) => b.textContent)}`,
 );
 gInput.setSelectionRange(gInput.value.length, gInput.value.length);
@@ -1447,6 +1447,39 @@ await pickDate("In the last 7 days");
 panel().querySelector(".tag-everything-view-clear")?.click();
 await sleep(300);
 check("dates: Clear drops the dates too", !hasDatesIn(view.getState()) && !view.getState().selected.length && !selTab());
+// Dates in groups: Formula… keeps the search's dates, the dialog's Date button inserts a term, a group's date terms
+// are chips with a × and its search uses them (replacing the panel's dates).
+await pickDate("In the last day");
+panel().querySelector(".tag-everything-view-formula")?.click();
+await sleep(300);
+const dInput = document.querySelector(".tag-everything-group-modal .tag-everything-formula-input");
+check("dates: Formula… from a search with a date writes it in the formula", dInput?.value === "created:1d", dInput?.value);
+document.querySelector(".tag-everything-group-modal .tag-everything-formula-date")?.click();
+await sleep(200);
+menuItem("More than a year ago", 1)?.click(); // the second one: Modified
+await sleep(200);
+check("dates: the group dialog's Date button inserts a term", /^created:1d modified:>1y\s*$/.test(dInput?.value ?? ""), dInput?.value);
+[...document.querySelectorAll(".tag-everything-group-modal button")].find((b) => b.textContent === "Cancel")?.click();
+await sleep(200);
+const datedId = await view.createGroup("Old PDFs");
+await view.setGroupFormula(datedId, "pdf AND created:>1y");
+await sleep(300);
+view.selectGroup(datedId);
+await sleep(300);
+const datedCard = () => panel().querySelector(`.tag-everything-view-selected .tag-everything-group[data-group="${datedId}"]`);
+check(
+  "dates: a group with a date term: its chip in the card, its search finds only what meets it, the panel's date dropped",
+  datedCard()?.querySelector(".tag-everything-date-chip")?.textContent === "created more than a year ago" && selCount() === "0" && !hasDatesIn(view.getState()),
+  `${datedCard()?.textContent} / ${selCount()} / ${JSON.stringify(view.getState().dates)}`,
+);
+datedCard()?.querySelector(".tag-everything-date-chip .tag-everything-chip-remove")?.click();
+await sleep(300);
+const datedGroup = () => plugin.settings.groups.find((g) => g.id === datedId);
+check("dates: a group's date chip × takes it out of the formula", datedGroup()?.formula === "pdf" && selCount() === String(plugin.index.paths().filter((p) => plugin.index.hasTag(p, "pdf")).length), `${datedGroup()?.formula} / ${selCount()}`);
+view.selectGroup(datedId); // stop its search
+plugin.settings.groups = plugin.settings.groups.filter((g) => g.id !== datedId);
+await plugin.saveSettings();
+await sleep(200);
 await plugin.showTag(reportTags[0]);
 plugin.settings.extensionTags = false;
 await plugin.saveSettings();
@@ -1591,6 +1624,26 @@ await exKey2("Backspace");
 check("explorer: Backspace in the empty box removes the last chip", exChips() === "shared", exChips());
 await exKey2("Escape");
 check("explorer: Escape clears the formula box, the whole tree back", exSearch.value === "" && exChips() === "" && exTop().join() === ownTags.join());
+// Date terms: typed (created:1d) or picked with the calendar icon; a chip with a × each.
+const exDateChip = () => exEl.querySelector(".tag-everything-explorer-search .tag-everything-date-chip");
+const exDatesBtn = () => exEl.querySelector(".tag-everything-explorer-bar .tag-everything-dates-button");
+const createdToday2 = (p) => { const f = file(p); return !!f?.stat && f.stat.ctime >= Date.now() - 24 * 3600_000; };
+await exType("shared created:1d");
+await exKey2("Enter");
+check(
+  "explorer: a date term typed is a chip; the tree holds only the items meeting it",
+  exDateChip()?.textContent === "created in the last day" && exStatus().endsWith("shared AND created:1d") && exTop().join() === rootFor((p) => has("shared")(p) && createdToday2(p)).join() && exDatesBtn()?.classList.contains("is-active"),
+  `${exDateChip()?.textContent} / ${exStatus()} / ${exTop().join(" | ")}`,
+);
+exDatesBtn()?.click();
+await sleep(200);
+menuItem("More than a year ago")?.click(); // the first one: Created
+await sleep(200);
+check("explorer: the calendar's menu replaces the date: nothing that old", exDateChip()?.textContent === "created more than a year ago" && exStatus().endsWith("shared AND created:>1y") && exTop().length === 0, `${exDateChip()?.textContent} / ${exStatus()}`);
+exDateChip()?.querySelector(".tag-everything-chip-remove")?.click();
+await sleep(150);
+check("explorer: a date chip's × takes it out", exChips() === "shared" && !exDateChip() && !exDatesBtn()?.classList.contains("is-active"), exChips());
+await exKey2("Escape");
 exEl.querySelector(".tag-everything-explorer-collapse").click();
 await sleep(100);
 tagRow("kpi").click();

@@ -714,6 +714,12 @@
   min-height: 24px;
 }
 
+/* The Date button (a date term from the dates menu), after the operators: a label, not an operator. */
+.tag-everything-formula-date {
+  font-family: var(--font-interface);
+  margin-left: auto;
+}
+
 .tag-everything-formula-preview {
   margin-top: 6px;
   font-size: var(--font-ui-small);

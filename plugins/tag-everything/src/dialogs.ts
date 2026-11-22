@@ -1,7 +1,8 @@
 // Small dialogs and input completions: a name (bookmark tab), a group (name and formula); tag and folder completion.
 
-import { AbstractInputSuggest, App, Modal, TFolder } from "obsidian";
+import { AbstractInputSuggest, App, Menu, Modal, TFolder, setIcon } from "obsidian";
 import * as fx from "./formula.ts";
+import { DATE_FIELDS, DATE_PRESETS, type DateFilters, type DateRange, rangeText, sameRange } from "./dates.ts";
 import { plural } from "./messages.ts";
 import { matchTags, onEnter, renderTagSuggestion } from "./ui.ts";
 
@@ -165,7 +166,7 @@ export class GroupModal extends Modal {
     this.contentEl.createEl("h4", { cls: "tag-everything-section", text: "Searches for" });
     this.contentEl.createDiv({
       cls: "tag-everything-where",
-      text: "Type tags (they complete) and join them: AND = all of them, OR = any, NOT = without. Parentheses group terms, e.g. (b27 OR inc) AND NOT draft.",
+      text: "Type tags (they complete) and join them: AND = all of them, OR = any, NOT = without. Parentheses group terms, e.g. (b27 OR inc) AND NOT draft. Dates: created:30d (in the last 30 days), modified:>1y (more than a year ago), or the Date button.",
     });
     const ops = this.contentEl.createDiv({ cls: "tag-everything-formula-ops" });
     const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-formula-input", attr: { placeholder: "(tag1 OR tag2) AND tag3", spellcheck: "false", "aria-label": "Formula" } });
@@ -174,6 +175,17 @@ export class GroupModal extends Modal {
       const b = ops.createEl("button", { cls: "tag-everything-formula-op", text: op.text, attr: { "aria-label": op.label, type: "button" } });
       b.addEventListener("click", () => insertAtCaret(input, op.text));
     }
+    // A date term from the same menu as the panel's (src/menu.ts dateMenu), inserted as text.
+    const date = ops.createEl("button", { cls: "tag-everything-formula-op tag-everything-formula-date tag-everything-icon-button", attr: { "aria-label": "Insert a date: created or modified, recently or long ago", type: "button" } });
+    setIcon(date.createSpan({ cls: "tag-everything-button-icon" }), "calendar");
+    date.createSpan({ text: "Date" });
+    date.addEventListener("click", () => {
+      const r = date.getBoundingClientRect();
+      dateMenu({}, (f) => {
+        const term = fx.dateExprs(f)[0];
+        if (term) insertAtCaret(input, fx.dateTermText(term));
+      }).showAtPosition({ x: r.left, y: r.bottom });
+    });
     const preview = this.contentEl.createDiv({ cls: "tag-everything-formula-preview" });
     const error = this.contentEl.createDiv({ cls: "tag-everything-error" });
     new FormulaTagSuggest(this.app, input, () => tags, (t) => counts.get(t) ?? 0);
@@ -218,4 +230,28 @@ function insertAtCaret(input: HTMLInputElement, op: string): void {
   input.setSelectionRange(caret, caret);
   input.focus();
   input.dispatchEvent(new Event("input"));
+}
+
+/**
+ * The date criteria menu (panel search, inbox): for the creation date, then the modification date, *Any date* and the
+ * presets of src/dates.ts, the current one checked. A pick calls `change` with the new criteria.
+ */
+export function dateMenu(filters: DateFilters, change: (f: DateFilters) => void): Menu {
+  const menu = new Menu();
+  for (const field of DATE_FIELDS) {
+    const set = (r: DateRange | undefined): void => {
+      const next = { ...filters };
+      if (r) next[field] = r;
+      else delete next[field];
+      change(next);
+    };
+    if (field !== DATE_FIELDS[0]) menu.addSeparator();
+    menu.addItem((i) => i.setTitle(field === "created" ? "Created" : "Modified").setIsLabel(true));
+    menu.addItem((i) => i.setTitle("Any date").setChecked(!filters[field]).onClick(() => set(undefined)));
+    for (const r of DATE_PRESETS) {
+      const text = rangeText(r);
+      menu.addItem((i) => i.setTitle(text[0].toUpperCase() + text.slice(1)).setChecked(sameRange(filters[field], r)).onClick(() => set(r)));
+    }
+  }
+  return menu;
 }

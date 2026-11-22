@@ -102,8 +102,8 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   the search keeps only the files carrying them that meet the dates (`invoice` + *modified in the last 7 days*); alone,
   a date lists every file that meets it. The dates show in the search as chips with a calendar icon (click one to take
   it out), the icon turns to the accent colour, and they stay when you click other tags or a group; **Clear** removes
-  them too. Folders have no date: a date search leaves them out. They are not part of a formula (*Formula…* and
-  groups keep only the tags).
+  them too. Folders have no date: a date search leaves them out. **Formula…** writes them into the new group's formula
+  (`created:1d`, Section 6), so a group can keep them.
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
@@ -165,6 +165,11 @@ Groups keep related tags together and double as saved searches.
 - **Formulas** (the group dialog's *Searches for*): any combination of tags, e.g. `(b27 OR inc) AND (q3 OR 2026)`.
   - Operators `AND` / `OR` / `NOT`, also `ET` / `OU` / `NON` and `&` / `|` / `!`, and parentheses. Two tags side by
     side mean AND. `NOT` binds first, then `AND`, then `OR`.
+  - **Dates**: `created:30d` = created in the last 30 days, `modified:>1y` = modified more than a year ago. Units
+    `d` (days, the default), `w` (weeks), `m` (30 days), `y` (years); `>` means older than; also `créé:` /
+    `modifié:`. They combine like tags: `invoice AND created:>1y`, `(tax OR bank) modified:7d`, `NOT modified:90d`.
+    The dialog's **Date** button inserts one from the same menu as the panel's calendar. A folder has no date: a date
+    term never matches it. A tag really spelled like a date term goes in quotes (`"created:30d"`).
   - Tag names complete as you type; the dialog shows the formula as it understood it and how many items it finds, or
     what is wrong.
   - A tag switched off during a group search drops out of its `OR` / `AND` as if it were not written, `NOT x`
@@ -172,6 +177,8 @@ Groups keep related tags together and double as saved searches.
   - What the dialog shows is what the group searches for: tags joined by `AND` alone make a plain group (no formula icon), an
     empty field an empty group. Tags match whatever the case; a tag in quotes may contain a parenthesis or be
     spelled like an operator (`"ou"`).
+  - A group's date terms show in its card as chips in words (*created in the last 30 days*); their × takes one
+    out. A group with dates of its own replaces the panel's dates while it searches.
 - Groups are saved in the plugin's settings (`.obsidian/plugins/tag-everything/data.json`), not in your files.
 
 ## 7. Bookmark tabs
@@ -249,7 +256,9 @@ the inbox of Section 13 (rule tags, the ⋮ menu of actions), so you can empty i
   the empty box removes the last one); a `NOT` tag is struck through. The tree then holds **only the items matching
   the formula**, and the line under the box says how many. A tag no item carries is left out (and named, its chip
   faded), so a half-typed tag leaves the tree as it is; an unfinished formula (`tax AND`) says what is missing and
-  keeps the last search. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
+  keeps the last search. **Dates** work as in group formulas (§6): type `created:30d` or `modified:>1y`, or pick
+  one with the **calendar** icon next to the box (the same menu as the panel's; it replaces the box's dates); each is
+  a chip with a × (*created in the last 30 days*), and the icon turns to the accent colour. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
   clears the box. The search is not remembered across restarts.
 - Under the box, **used [10] to [100] times  See all**: the same numbers as the panel's All tab (Section 5), so the root holds
   only the tags used that many times (the line under it reads *12 of 180 tags*). Type other numbers (an empty second
@@ -311,7 +320,8 @@ limit: 20
 ```
 ```
 
-- Every line that is not an option or a `//` comment is part of the formula; two lines side by side mean AND.
+- Every line that is not an option or a `//` comment is part of the formula; two lines side by side mean AND. Date
+  terms (Section 6) work too: a line `modified:7d` lists only what changed in the last 7 days.
 - Options, each on its own line: `sort: name` (default, as the file explorer), `modified` or `created` (newest
   first); `limit: 1` to `500` (default 50: the block then says how many more there are).
 - The block shows the formula as chips (click one: the panel searches that tag), how many items match, then the items

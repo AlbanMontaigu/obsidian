@@ -10,7 +10,7 @@ import { plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { type FormulaContext, GroupModal } from "./dialogs.ts";
-import { GROUP_MIME, clickable, dropZone, renderExpr } from "./ui.ts";
+import { GROUP_MIME, clickable, dateChip, dropZone, renderExpr } from "./ui.ts";
 
 /** What the groups need from the panel: its search, its chips and menus, and saving. */
 export interface GroupsHost {
@@ -292,7 +292,8 @@ export class PanelGroups {
 
     if (collapsed) return;
     const body = box.createDiv({ cls: "tag-everything-group-tags" });
-    if (!group.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
+    const expr = gr.groupFormula(group);
+    if (!group.tags.length && !expr) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
     const groupChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
       const c = counts.get(tag) ?? 0;
       const on = host.selected().includes(tag);
@@ -334,8 +335,18 @@ export class PanelGroups {
       const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit name and formula.` });
       err.setAttr("aria-label", group.formula ?? "");
     }
-    const expr = gr.groupFormula(group);
-    if (expr) renderExpr(body, expr, groupChip);
+    // A date term (created:30d): its × takes it out of the group's formula.
+    const groupDate = (parent: HTMLElement, term: fx.DateExpr, negated: boolean): HTMLElement => {
+      const chip = dateChip(parent, term, negated);
+      const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": "Remove from the group" } });
+      setIcon(x, "x");
+      x.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        void this.saveGroups(gr.removeDateFromGroup(this.groups, group.id, term));
+      });
+      return chip;
+    };
+    if (expr) renderExpr(body, expr, groupChip, groupDate);
     else for (const tag of group.tags) groupChip(body, tag, false);
   }
 }

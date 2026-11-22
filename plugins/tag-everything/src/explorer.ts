@@ -1,13 +1,15 @@
 import { HoverParent, HoverPopover, ItemView, Menu, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
 import { compareItems, joinFormula, tagNode, treeSearch } from "./explore.ts";
 import { FormulaTagSuggest } from "./dialogs.ts";
-import { type Expr, evaluate, formatFormula, formulaTags, prune, requiredTags, resolveTags, tryParseFormula } from "./formula.ts";
+import { type DateExpr, type Expr, formatFormula, formulaTags, prune, requiredTags, resolveTags, topDates, tryParseFormula, withTopDates } from "./formula.ts";
+import { type DateFilters, hasDates } from "./dates.ts";
+import { dateMenu } from "./dialogs.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS, countRangeOf, setCountRange } from "./view.ts";
 import { inCountRange } from "./cloud.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
-import { type CountRangeControl, clickable, countRangeControl, onEnter, paintTag, renderExpr } from "./ui.ts";
+import { type CountRangeControl, clickable, countRangeControl, dateChip, onEnter, paintTag, renderExpr } from "./ui.ts";
 import { InboxPane } from "./inbox-pane.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
@@ -73,6 +75,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private pageEl!: HTMLElement;
   private chipsEl!: HTMLElement;
   private inputEl!: HTMLInputElement;
+  /** The calendar icon of the search bar: marked while the formula has dates. */
+  private datesEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
   /** Under the search box: the tag count range, shared with the panel's All tab (src/ui.ts `countRangeControl`). */
@@ -140,7 +144,9 @@ export class TagExplorerView extends ItemView implements HoverParent {
       if (evt.defaultPrevented || evt.isComposing) return; // an open suggestion list takes Escape first
       if (evt.key === "Backspace" && !search.value && this.chips) {
         evt.preventDefault();
-        this.removeChip(formulaTags(this.chips).pop()!);
+        const last = formulaTags(this.chips).pop();
+        if (last) this.removeChip(last);
+        else this.setDates({}); // only dates left
       } else if (evt.key === "Escape" && (search.value || this.chips)) {
         evt.preventDefault();
         evt.stopPropagation();
@@ -148,6 +154,14 @@ export class TagExplorerView extends ItemView implements HoverParent {
         search.value = this.query = "";
         this.render();
       }
+    });
+    // Date terms (created:30d) can be typed; the calendar picks them from the panel's menu.
+    const dates = (this.datesEl = bar.createDiv({ cls: "clickable-icon tag-everything-dates-button", attr: { "aria-label": "Dates: created or modified, recently or long ago" } }));
+    setIcon(dates, "calendar");
+    clickable(dates, () => {
+      this.commit();
+      const r = dates.getBoundingClientRect();
+      dateMenu(topDates(this.chips), (f) => this.setDates(f)).showAtPosition({ x: r.left, y: r.bottom });
     });
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
@@ -229,9 +243,16 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.render();
   }
 
-  /** A chip's ×: the tag leaves the formula (its NOT with it, src/formula.ts `prune`). */
-  private removeChip(tag: string): void {
-    this.chips = this.chips && prune(this.chips, (t) => t !== tag);
+  /** The date terms ANDed to the chips (the calendar's menu): replaced by `f` (public for the smoke test). */
+  setDates(f: DateFilters): void {
+    this.chips = withTopDates(this.chips, f);
+    this.parsed = null;
+    this.render();
+  }
+
+  /** A chip's ×: the tag, or the date term, leaves the formula (its NOT with it, src/formula.ts `prune`). */
+  private removeChip(term: string | DateExpr): void {
+    this.chips = this.chips && (typeof term === "string" ? prune(this.chips, (t) => t !== term) : prune(this.chips, () => true, (d) => d !== term));
     this.parsed = null;
     this.render();
     this.inputEl.focus();
@@ -280,7 +301,9 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const search = treeSearch(joinFormula(this.chips, this.query), [...index.counts().keys()], this.parsed ?? this.chips);
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
-    const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
+    const now = Date.now();
+    const paths = expr ? index.paths().filter((p) => index.matches(expr, p, now)) : index.paths();
+    this.datesEl.toggleClass("is-active", hasDates(topDates(this.chips)));
     // The count range keeps the root to the tags that matter, as in the panel's All tab; not while a formula filters
     // the tree (its counts are within what it finds), and an open tag stays.
     const range = countRangeOf(this.plugin.settings);
@@ -310,15 +333,27 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.chipsEl.empty();
     this.inputEl.placeholder = this.chips ? "" : "Search: tag1 OR tag2…";
     if (!this.chips) return;
-    renderExpr(this.chipsEl, this.chips, (parent, tag, negated) => {
-      const chip = parent.createDiv({ cls: "tag-everything-chip is-small is-selected" + (negated ? " is-negated" : "") + (counts.has(tag) ? "" : " is-missing") });
-      chip.dataset.tag = tag;
-      paintTag(chip, index.colorFor(tag));
-      chip.createSpan({ text: tag });
-      const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": `Remove ${tag} from the search` } });
+    const remove = (chip: HTMLElement, term: string | DateExpr, label: string): void => {
+      const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": `Remove ${label} from the search` } });
       setIcon(x, "x");
-      clickable(x, () => this.removeChip(tag));
-    });
+      clickable(x, () => this.removeChip(term));
+    };
+    renderExpr(
+      this.chipsEl,
+      this.chips,
+      (parent, tag, negated) => {
+        const chip = parent.createDiv({ cls: "tag-everything-chip is-small is-selected" + (negated ? " is-negated" : "") + (counts.has(tag) ? "" : " is-missing") });
+        chip.dataset.tag = tag;
+        paintTag(chip, index.colorFor(tag));
+        chip.createSpan({ text: tag });
+        remove(chip, tag, tag);
+      },
+      (parent, term, negated) => {
+        const chip = dateChip(parent, term, negated);
+        remove(chip, term, "this date");
+        return chip;
+      },
+    );
   }
 
   /** The tab strip: Tags, then Inbox with the number of files waiting. */

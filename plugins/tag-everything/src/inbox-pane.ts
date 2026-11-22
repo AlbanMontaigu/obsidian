@@ -2,7 +2,7 @@ import { ButtonComponent, Menu, TFile, setIcon } from "obsidian";
 import { MAX_SUGGEST_ITEMS } from "./suggest.ts";
 import { ageText, inboxPaths } from "./inbox.ts";
 import { type DateFilters, filtersText, hasDates } from "./dates.ts";
-import { dateMenu } from "./menu.ts";
+import { dateMenu } from "./dialogs.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { GUIDE_FILE } from "./guide.ts";
 import { plural } from "./messages.ts";

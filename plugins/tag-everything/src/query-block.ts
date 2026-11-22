@@ -64,7 +64,8 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
       return;
     }
     const known = [...index.counts().keys()];
-    const found = matchQuery(query.expr, index.paths(), (p, t) => index.hasTag(p, t), known);
+    const now = Date.now();
+    const found = matchQuery(query.expr, index.paths(), (p, t) => index.hasTag(p, t), known, (p, f, r) => index.dated(p, f, r, now));
     const unknown = new Set(found.unknown);
     const formulaEl = head.createDiv({ cls: "tag-everything-formula" });
     renderExpr(formulaEl, found.expr, (parent, tag, negated) => {

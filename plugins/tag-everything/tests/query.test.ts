@@ -53,3 +53,20 @@ test("compareQueryItems: by name (folders first, numbers by value) or newest fir
   assert.equal(names("modified"), "file10,file2,Dir");
   assert.equal(names("created"), "file2,file10,Dir");
 });
+
+test("matchQuery: date terms asked through dated, per path", () => {
+  const paths = ["new.pdf", "old.pdf", "Folder"];
+  const ages: Record<string, number> = { "new.pdf": 2, "old.pdf": 400 };
+  const dated = (p: string, _f: string, r: { within: boolean; days: number }): boolean => p in ages && (r.within ? ages[p] <= r.days : ages[p] > r.days);
+  const run = (f: string): string[] => matchQuery(parseQuery(f).expr!, paths, () => true, [], dated).paths;
+  assert.deepEqual(run("modified:7d"), ["new.pdf"]);
+  assert.deepEqual(run("created:>1y"), ["old.pdf"]);
+  assert.deepEqual(run("NOT created:7d"), ["old.pdf", "Folder"]);
+});
+
+test("parseQuery: a date term line is part of the formula, not an option", () => {
+  const q = parseQuery("tax\nmodified:7d\nsort: modified");
+  assert.equal(formatFormula(q.expr!), "tax AND modified:7d");
+  assert.deepEqual(q.warnings, []);
+  assert.equal(q.sort, "modified");
+});

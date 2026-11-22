@@ -3,15 +3,25 @@
 // Syntax: tags, AND / OR / NOT (also ET / OU / NON, & / | / !, case-insensitive) and parentheses. Two terms side
 // by side mean AND. Precedence: NOT, then AND, then OR. A tag containing a parenthesis or spelled like an
 // operator is written in double quotes ("or", "a(b)"); a leading # is ignored; !tag = NOT tag.
+// Date terms (src/dates.ts): `created:30d` = created in the last 30 days, `modified:>1y` = modified more than a year
+// ago; units d, w (7 days), m (30 days), y (365 days), default d; also `créé:` / `modifié:`. A folder meets none.
+
+import { DATE_FIELDS, type DateField, type DateFilters, type DateRange } from "./dates.ts";
+
+export type DateExpr = { k: "date"; field: DateField; range: DateRange };
 
 export type Expr =
   | { k: "tag"; tag: string }
+  | DateExpr
   | { k: "and"; items: Expr[] }
   | { k: "or"; items: Expr[] }
   | { k: "not"; item: Expr };
 
 type Op = "and" | "or" | "not";
-type Token = { t: "(" | ")" } | { t: Op } | { t: "tag"; v: string };
+type Token = { t: "(" | ")" } | { t: Op } | { t: "tag"; v: string } | { t: "date"; e: DateExpr };
+
+const DATE_WORDS: Record<string, DateField> = { created: "created", créé: "created", cree: "created", modified: "modified", modifié: "modified", modifie: "modified" };
+const UNIT_DAYS: Record<string, number> = { d: 1, w: 7, m: 30, y: 365 };
 
 const OPS: Record<string, Op> = {
   and: "and",
@@ -33,6 +43,64 @@ export function tagExpr(tag: string): Expr {
 
 export function notExpr(e: Expr): Expr {
   return { k: "not", item: e };
+}
+
+export function dateExpr(field: DateField, range: DateRange): DateExpr {
+  return { k: "date", field, range };
+}
+
+/** The date criteria as terms, created first. */
+export function dateExprs(f: DateFilters): DateExpr[] {
+  return DATE_FIELDS.flatMap((k) => (f[k] ? [dateExpr(k, f[k])] : []));
+}
+
+/** `created:30d`, `modified:>1y`: the canonical text of a date term (a whole number of years written in y). */
+export function dateTermText(e: DateExpr): string {
+  const { within, days } = e.range;
+  return `${e.field}:${within ? "" : ">"}${days % 365 === 0 ? `${days / 365}y` : `${days}d`}`;
+}
+
+/** `created`, `modifié`...: a word that starts a date term before its colon. */
+export function isDateWord(word: string): boolean {
+  return !!DATE_WORDS[word.toLowerCase()];
+}
+
+/** A word that starts with a date field and a colon: a date term (throws when its value is not one); else null. */
+function parseDateWord(word: string): DateExpr | null {
+  const colon = word.indexOf(":");
+  const field = colon > 0 ? DATE_WORDS[word.slice(0, colon).toLowerCase()] : undefined;
+  if (!field) return null;
+  const m = /^(>|<)?(\d+)([dwmy])?$/i.exec(word.slice(colon + 1));
+  const name = word.slice(0, colon);
+  if (!m || Number(m[2]) < 1) throw new Error(`Write a date as ${name}:30d (in the last 30 days) or ${name}:>1y (more than a year ago)`);
+  return dateExpr(field, { within: m[1] !== ">", days: Number(m[2]) * UNIT_DAYS[(m[3] ?? "d").toLowerCase()] });
+}
+
+/** Does the formula hold a date term? */
+export function hasDateTerms(e: Expr): boolean {
+  switch (e.k) {
+    case "date":
+      return true;
+    case "tag":
+      return false;
+    case "not":
+      return hasDateTerms(e.item);
+    default:
+      return e.items.some(hasDateTerms);
+  }
+}
+
+/** The date terms ANDed at the top of the formula (those the explorer's Dates menu edits). */
+export function topDates(e: Expr | null): DateFilters {
+  const out: DateFilters = {};
+  for (const x of !e ? [] : e.k === "and" ? e.items : [e]) if (x.k === "date") out[x.field] = x.range;
+  return out;
+}
+
+/** The formula with its top date terms replaced by `f` (src/dates.ts); null when nothing is left. */
+export function withTopDates(e: Expr | null, f: DateFilters): Expr | null {
+  const rest = !e ? [] : e.k === "and" ? e.items : [e];
+  return andOf([...rest.filter((x) => x.k !== "date"), ...dateExprs(f)]);
 }
 
 /** AND of the parts, flattened; null when there is none, the part itself when there is one. */
@@ -81,7 +149,9 @@ function tokenize(text: string): Token[] {
         word = word.slice(1);
       }
       const op = OPS[word.toLowerCase()];
+      const date = op ? null : parseDateWord(word);
       if (op) out.push({ t: op });
+      else if (date) out.push({ t: "date", e: date });
       else if (word.replace(/^#/, "")) out.push({ t: "tag", v: word.replace(/^#/, "") });
       i = j;
     }
@@ -112,7 +182,7 @@ export function parseFormula(text: string): Expr {
       if (t === "and") {
         pos++;
         items.push(parseUnary("AND"));
-      } else if (t === "tag" || t === "(" || t === "not") {
+      } else if (t === "tag" || t === "date" || t === "(" || t === "not") {
         items.push(parseUnary()); // side by side = AND
       } else break;
     }
@@ -127,6 +197,10 @@ export function parseFormula(text: string): Expr {
     if (tok?.t === "tag") {
       pos++;
       return tagExpr(tok.v);
+    }
+    if (tok?.t === "date") {
+      pos++;
+      return tok.e;
     }
     if (tok?.t === "(") {
       pos++;
@@ -156,7 +230,9 @@ export function tryParseFormula(text: string): { expr: Expr } | { error: string 
 }
 
 function quoteTag(tag: string): string {
-  return /[\s()"]/.test(tag) || OPS[tag.toLowerCase()] || tag.startsWith("#") ? `"${tag}"` : tag;
+  const colon = tag.indexOf(":");
+  const dateLike = colon > 0 && !!DATE_WORDS[tag.slice(0, colon).toLowerCase()];
+  return /[\s()"]/.test(tag) || OPS[tag.toLowerCase()] || tag.startsWith("#") || dateLike ? `"${tag}"` : tag;
 }
 
 /** Canonical text: AND / OR / NOT in capitals, parentheses only where needed. Parses back to the same tree. */
@@ -165,6 +241,8 @@ export function formatFormula(e: Expr): string {
     switch (x.k) {
       case "tag":
         return quoteTag(x.tag);
+      case "date":
+        return dateTermText(x);
       case "not":
         return "NOT " + fmt(x.item, "not");
       case "and": {
@@ -186,7 +264,7 @@ export function formulaTags(e: Expr): string[] {
   const walk = (x: Expr): void => {
     if (x.k === "tag") out.add(x.tag);
     else if (x.k === "not") walk(x.item);
-    else x.items.forEach(walk);
+    else if (x.k !== "date") x.items.forEach(walk);
   };
   walk(e);
   return [...out];
@@ -198,6 +276,7 @@ export function requiredTags(e: Expr): string[] {
     case "tag":
       return [e.tag];
     case "not":
+    case "date":
       return [];
     case "and":
       return [...new Set(e.items.flatMap(requiredTags))];
@@ -208,35 +287,43 @@ export function requiredTags(e: Expr): string[] {
   }
 }
 
-export function evaluate(e: Expr, has: (tag: string) => boolean): boolean {
+/**
+ * Does an item match? `has` tells its tags, `dated` whether its dates meet a date term (default: never, as for a
+ * folder; asked only for the date terms, so a caller can look the file up lazily).
+ */
+export function evaluate(e: Expr, has: (tag: string) => boolean, dated: (field: DateField, range: DateRange) => boolean = () => false): boolean {
   switch (e.k) {
     case "tag":
       return has(e.tag);
+    case "date":
+      return dated(e.field, e.range);
     case "not":
-      return !evaluate(e.item, has);
+      return !evaluate(e.item, has, dated);
     case "and":
-      return e.items.every((i) => evaluate(i, has));
+      return e.items.every((i) => evaluate(i, has, dated));
     case "or":
-      return e.items.some((i) => evaluate(i, has));
+      return e.items.some((i) => evaluate(i, has, dated));
   }
 }
 
 /**
  * The formula without the tags `keep` rejects, as if they had never been written: a switched-off tag drops out of
- * its AND or OR, and `NOT tag` goes with it. Null when nothing is left.
+ * its AND or OR, and `NOT tag` goes with it. Date terms stay, unless `keepDate` rejects them. Null when nothing is left.
  */
-export function prune(e: Expr, keep: (tag: string) => boolean): Expr | null {
+export function prune(e: Expr, keep: (tag: string) => boolean, keepDate: (d: DateExpr) => boolean = () => true): Expr | null {
   switch (e.k) {
     case "tag":
       return keep(e.tag) ? e : null;
+    case "date":
+      return keepDate(e) ? e : null;
     case "not": {
-      const item = prune(e.item, keep);
+      const item = prune(e.item, keep, keepDate);
       return item ? { k: "not", item } : null;
     }
     case "and":
-      return andOf(e.items.map((i) => prune(i, keep)));
+      return andOf(e.items.map((i) => prune(i, keep, keepDate)));
     case "or":
-      return orOf(e.items.map((i) => prune(i, keep)));
+      return orOf(e.items.map((i) => prune(i, keep, keepDate)));
   }
 }
 
@@ -245,6 +332,8 @@ export function toggleNot(e: Expr, tag: string): Expr {
   switch (e.k) {
     case "tag":
       return e.tag === tag ? notExpr(e) : e;
+    case "date":
+      return e;
     case "not":
       return e.item.k === "tag" && e.item.tag === tag ? e.item : notExpr(toggleNot(e.item, tag));
     default:
@@ -261,6 +350,8 @@ export function resolveTags(e: Expr, known: readonly string[]): Expr {
     switch (x.k) {
       case "tag":
         return exact.has(x.tag) ? x : tagExpr(lower.get(x.tag.toLowerCase()) ?? x.tag);
+      case "date":
+        return x;
       case "not":
         return { k: "not", item: map(x.item) };
       default:
@@ -281,6 +372,8 @@ export function replaceTagsInExpr(e: Expr, mapping: ReadonlyMap<string, readonly
       const repl = mapping.get(e.tag);
       return repl ? andOf(repl.map(tagExpr)) : e;
     }
+    case "date":
+      return e;
     case "not": {
       const item = replaceTagsInExpr(e.item, mapping);
       return item ? { k: "not", item } : null;

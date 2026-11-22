@@ -8,7 +8,8 @@
 //   limit: 20
 //   ```
 
-import { type Expr, evaluate, formulaTags, resolveTags, tryParseFormula } from "./formula.ts";
+import { type Expr, evaluate, formulaTags, isDateWord, resolveTags, tryParseFormula } from "./formula.ts";
+import type { DateField, DateRange } from "./dates.ts";
 import { compareItems } from "./explore.ts";
 
 /** The code block language: what follows the three backticks. */
@@ -43,7 +44,8 @@ export function parseQuery(source: string): Query {
     const line = raw.trim();
     if (!line || line.startsWith("//")) continue;
     const opt = /^([a-z]+)\s*:\s*(.*)$/i.exec(line);
-    if (!opt) {
+    if (!opt || isDateWord(opt[1])) {
+      // a date term (`modified:7d`) is part of the formula, not an option
       formula.push(line);
       continue;
     }
@@ -74,18 +76,19 @@ export function parseQuery(source: string): Query {
 /**
  * The paths matching `expr`, its tags first spelled as in the vault (`known`). Unlike the panel's searches, a tag no
  * item carries is kept: a saved query means what it says, so `a AND gone` finds nothing (and `NOT gone` everything);
- * `unknown` names those tags so the block can say so.
+ * `unknown` names those tags so the block can say so. `dated` answers the date terms (`created:30d`).
  */
 export function matchQuery(
   expr: Expr,
   paths: Iterable<string>,
   has: (path: string, tag: string) => boolean,
   known: readonly string[],
+  dated: (path: string, field: DateField, range: DateRange) => boolean = () => false,
 ): { expr: Expr; paths: string[]; unknown: string[] } {
   const resolved = resolveTags(expr, known);
   const knownSet = new Set(known);
   const out: string[] = [];
-  for (const p of paths) if (evaluate(resolved, (t) => has(p, t))) out.push(p);
+  for (const p of paths) if (evaluate(resolved, (t) => has(p, t), (f, r) => dated(p, f, r))) out.push(p);
   return { expr: resolved, paths: out, unknown: formulaTags(resolved).filter((t) => !knownSet.has(t)) };
 }
 

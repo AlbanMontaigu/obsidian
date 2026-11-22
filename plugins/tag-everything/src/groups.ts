@@ -3,7 +3,8 @@
 // A group without a formula searches for all its tags (AND); with one, its tags are exactly the formula's tags.
 
 import { type TagMapping, mapTagList } from "./format.ts";
-import { type Expr, andOf, formatFormula, formulaTags, prune, replaceTagsInExpr, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
+import { type DateExpr, type Expr, andOf, formatFormula, formulaTags, prune, replaceTagsInExpr, tagExpr, toggleNot, tryParseFormula } from "./formula.ts";
+import { sameRange } from "./dates.ts";
 
 export interface TagGroup {
   /** Stable id ("g1", "g2"...), never reused while the group exists. */
@@ -160,6 +161,15 @@ export function toggleTagNot(groups: readonly TagGroup[], id: string, tag: strin
     if (!g.tags.includes(tag) || formulaError(g)) return g;
     const expr = groupExpr(g);
     return expr ? withFormula(g, toggleNot(expr, tag)) : g;
+  });
+}
+
+/** Takes a date term (same field and range) out of the group's formula; the rest is unchanged. */
+export function removeDateFromGroup(groups: readonly TagGroup[], id: string, term: DateExpr): TagGroup[] {
+  return groups.map((g) => {
+    if (g.id !== id) return g;
+    const expr = groupFormula(g);
+    return expr ? withFormula(g, prune(expr, () => true, (d) => !(d.field === term.field && sameRange(d.range, term.range)))) : g;
   });
 }
 

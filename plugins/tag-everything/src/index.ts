@@ -1,6 +1,8 @@
 import { App, CachedMetadata, Events, TAbstractFile, TFile, TFolder, debounce } from "obsidian";
 import * as ts from "./format.ts";
 import { autoColor } from "./colors.ts";
+import { type Expr, evaluate } from "./formula.ts";
+import { type DateField, type DateRange, inRange } from "./dates.ts";
 
 export interface Entry {
   /** Tags read from the file name. Always empty for folders: folder names are never read for tags. */
@@ -130,6 +132,17 @@ export class TagIndex extends Events {
   /** The tags an edit can change (name, frontmatter, sidecar): `tagsOf` without the extension tag. Do not mutate. */
   ownTagsOf(path: string): readonly string[] {
     return (this.entries.get(path) ?? EMPTY).own;
+  }
+
+  /** Do the file's dates (`stat`) meet the range (src/dates.ts)? A folder, or a path no longer in the vault: no. */
+  dated(path: string, field: DateField, range: DateRange, now = Date.now()): boolean {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    return f instanceof TFile && inRange(field === "created" ? f.stat.ctime : f.stat.mtime, range, now);
+  }
+
+  /** Does the item match the formula: its tags, and its file's dates for the date terms (looked up only for those). */
+  matches(expr: Expr, path: string, now = Date.now()): boolean {
+    return evaluate(expr, (t) => this.hasTag(path, t), (field, range) => this.dated(path, field, range, now));
   }
 
   hasTag(path: string, tag: string): boolean {

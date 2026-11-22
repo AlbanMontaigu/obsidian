@@ -40,8 +40,8 @@ entry of the area you change; add one when you leave a limit behind (users' side
   tags are suggested from what the folder holds. Claude Code's `--safe-mode` / `--tools` flags are from 2.1.x: an
   older CLI refuses them (the dialog shows its error).
 - Query blocks: only indexed items are found (every file with extension tags on, tagged items only with them off).
-  A block doesn't follow a renamed tag (it names the tag no item carries). No date conditions yet (the owner's todo:
-  modified / created within N days); `sort: modified` only orders.
+  A block doesn't follow a renamed tag (it names the tag no item carries). Date terms (`modified:7d`) filter, `sort:
+  modified` orders.
 - Review: look-alikes are a heuristic (stem = folded, final s / x dropped; one typo between 5+ letter words without
   digits): `livre` / `libre` are offered unticked. Synonyms send at most 1 000 tags (most used first). The synonym
   prompt was checked for real on 2026-11-21 (haiku: 3 s, $0.001 for 8 tags, translations and synonyms grouped,
@@ -56,11 +56,12 @@ entry of the area you change; add one when you leave a limit behind (users' side
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a
   tag carried only by excluded items leaves the panel's search (it is not put back on inclusion).
-- Date criteria (panel search, inbox; src/dates.ts): presets only (1, 7, 30, 90, 365 days; older than 30, 90, 365
-  days), no custom number. "Created" is `stat.ctime`: a copy or a sync can make an old document new. A folder has no
-  date, so any criterion leaves folders out. They are not part of a formula: *Formula…* and groups keep the tags only,
-  the explorer's formula box and query blocks have none. The inbox's criteria are not remembered across restarts (the
-  panel's are, with its search).
+- Date criteria (src/dates.ts; date terms of src/formula.ts): the menus offer presets only (1, 7, 30, 90, 365 days;
+  older than 30, 90, 365 days); any number can be typed in a formula (`created:45d`). "Created" is `stat.ctime`: a
+  copy or a sync can make an old document new. A folder has no date, so a date term never matches one (`NOT
+  created:30d` does). Relative to now: a group's or a block's results change with time, and a query block only
+  redraws on a vault or tag change, not when a day passes. The explorer's calendar edits only the dates ANDed at the
+  top of its box (others are typed). The inbox's criteria are not remembered across restarts (the panel's are, with
+  its search).
 - Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
-  its frontmatter (renames the note, so opt-in); date conditions in query blocks and the explorer's formula box (as
-  `created:30d` terms of the formula, so groups could keep them); a rename / merge that also rewrites query blocks.
+  its frontmatter (renames the note, so opt-in); a rename / merge that also rewrites query blocks.

@@ -1,7 +1,8 @@
 // Small DOM helpers shared by the panel, the dialogs and the explorer badges. No `obsidian` import: the element
 // methods used here (`setAttr`, `setCssProps`, `createSpan`...) are Obsidian's global DOM extensions.
 
-import type { Expr } from "./formula.ts";
+import type { DateExpr, Expr } from "./formula.ts";
+import { criterionText } from "./dates.ts";
 import { type CountRange, parseBound } from "./cloud.ts";
 
 /** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
@@ -92,20 +93,36 @@ export function onEnter(input: HTMLInputElement, fn: () => void): void {
 /** Draws one tag of a formula; `negated` when it is written `NOT tag`. */
 export type TagChipFn = (parent: HTMLElement, tag: string, negated: boolean) => void;
 
-/** Draws a formula: chips (from `chip`, told when the tag is negated) between AND / OR / NOT and the parentheses it needs. */
-export function renderExpr(parent: HTMLElement, e: Expr, chip: TagChipFn, outer: Expr["k"] | null = null): void {
+/** Draws one date term of a formula (src/formula.ts `DateExpr`); `negated` when it is written `NOT created:30d`. */
+export type DateChipFn = (parent: HTMLElement, term: DateExpr, negated: boolean) => HTMLElement;
+
+/** A date term as a chip: `created in the last 30 days`, with `.tag-everything-date-chip`. */
+export function dateChip(parent: HTMLElement, term: DateExpr, negated: boolean): HTMLElement {
+  const el = parent.createDiv({ cls: "tag-everything-chip is-small is-selected tag-everything-date-chip" + (negated ? " is-negated" : "") });
+  el.dataset.date = term.field;
+  el.createSpan({ text: criterionText(term.field, term.range) });
+  return el;
+}
+
+/**
+ * Draws a formula: chips (from `chip`, told when the tag is negated; date terms from `date`) between AND / OR / NOT
+ * and the parentheses it needs.
+ */
+export function renderExpr(parent: HTMLElement, e: Expr, chip: TagChipFn, date: DateChipFn = dateChip, outer: Expr["k"] | null = null): void {
   const op = (text: string, cls = ""): void => void parent.createSpan({ cls: "tag-everything-op " + cls, text });
   if (e.k === "tag") return chip(parent, e.tag, false);
+  if (e.k === "date") return void date(parent, e, false);
   if (e.k === "not") {
     op("NOT");
     if (e.item.k === "tag") return chip(parent, e.item.tag, true);
-    return renderExpr(parent, e.item, chip, "not");
+    if (e.item.k === "date") return void date(parent, e.item, true);
+    return renderExpr(parent, e.item, chip, date, "not");
   }
   const parens = (e.k === "or" && (outer === "and" || outer === "not")) || (e.k === "and" && outer === "not");
   if (parens) op("(", "is-paren");
   e.items.forEach((item, i) => {
     if (i) op(e.k === "and" ? "AND" : "OR");
-    renderExpr(parent, item, chip, e.k);
+    renderExpr(parent, item, chip, date, e.k);
   });
   if (parens) op(")", "is-paren");
 }
