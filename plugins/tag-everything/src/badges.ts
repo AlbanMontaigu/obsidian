@@ -1,10 +1,11 @@
-import { TAbstractFile } from "obsidian";
+import { TAbstractFile, TFolder, setIcon } from "obsidian";
 import type TagEverythingPlugin from "./main.ts";
 import { paintTag } from "./ui.ts";
+import { PLUGIN_NAME } from "./messages.ts";
 
 /**
- * Explorer badges: the extension chip before a name, a pill with the number of tags after it (hover: the list).
- * In the core file explorer. There is no public API for this: it uses the explorer view's
+ * Explorer badges: the extension chip before a name, a pill with the number of tags after it (hover: the list), and
+ * an eye-off icon on what is excluded from TagEverything (src/exclude.ts). In the core file explorer. There is no public API for this: it uses the explorer view's
  * `fileItems` map (path -> item with `selfEl`), as most explorer-decorating plugins do. If Obsidian
  * changes that, badges silently stop appearing and nothing else is affected.
  */
@@ -25,6 +26,10 @@ const LIST_CLS = "tag-everything-badge-list";
 const EXT_CLS = "tag-everything-ext";
 /** On a row with an extension chip: hides Obsidian's own extension label after the name (styles.css). */
 const HAS_EXT_CLS = "tag-everything-has-ext";
+/** The eye-off icon after the name of an excluded item. */
+const EXCLUDED_CLS = "tag-everything-excluded";
+/** On the row of an excluded item: faded (styles.css). */
+const IS_EXCLUDED_CLS = "tag-everything-is-excluded";
 /** Time to move the mouse from the pill to its list before the list closes. */
 const HIDE_DELAY_MS = 200;
 
@@ -32,6 +37,8 @@ const HIDE_DELAY_MS = 200;
 interface RowBadges {
   ext: string | null;
   tags: string[];
+  /** Excluded from TagEverything: why, for the icon's tooltip; such a row shows nothing else. */
+  excluded?: string;
 }
 
 export class ExplorerBadges {
@@ -49,7 +56,8 @@ export class ExplorerBadges {
   private undecorate(host: HTMLElement): void {
     host.querySelector(`:scope > .${COUNT_CLS}`)?.remove();
     host.querySelector(`:scope > .${EXT_CLS}`)?.remove();
-    host.removeClass(HAS_EXT_CLS);
+    host.querySelector(`:scope > .${EXCLUDED_CLS}`)?.remove();
+    host.removeClass(HAS_EXT_CLS, IS_EXCLUDED_CLS);
     this.decorated.delete(host);
   }
 
@@ -62,11 +70,20 @@ export class ExplorerBadges {
   refresh(): void {
     try {
       const { settings, index } = this.plugin;
-      if (!settings.showBadges) return this.clear();
+      const excludes = settings.excluded.length > 0 || settings.excludeRules.length > 0;
+      if (!settings.showBadges && !excludes) return this.clear();
       const wanted = new Map<HTMLElement, RowBadges>();
       for (const view of this.explorers()) {
         const items = view.fileItems;
         if (!items) continue;
+        // The excluded icon shows even with the badges off: it says why the item is left out everywhere.
+        if (excludes) {
+          for (const [path, item] of Object.entries(items)) {
+            const why = item.selfEl && this.plugin.exclusion(path, item.file instanceof TFolder);
+            if (why) wanted.set(item.selfEl!, { ext: null, tags: [], excluded: why.by === "path" ? (why.path === path ? "" : `folder ${why.path}`) : "a rule" });
+          }
+        }
+        if (!settings.showBadges) continue;
         for (const path of index.paths()) {
           const host = items[path]?.selfEl;
           if (!host) continue;
@@ -79,7 +96,8 @@ export class ExplorerBadges {
       for (const host of [...this.decorated.keys()]) if (!wanted.has(host) || !host.isConnected) this.undecorate(host);
       for (const [host, row] of wanted) {
         const signature = this.signature(row);
-        if (this.decorated.get(host) === signature && host.querySelector(`:scope > .${row.ext ? EXT_CLS : COUNT_CLS}`)) continue;
+        const first = row.excluded !== undefined ? EXCLUDED_CLS : row.ext ? EXT_CLS : COUNT_CLS;
+        if (this.decorated.get(host) === signature && host.querySelector(`:scope > .${first}`)) continue;
         this.undecorate(host);
         this.decorate(host, row, signature);
       }
@@ -89,7 +107,8 @@ export class ExplorerBadges {
   }
 
   /** Everything the badges of a row depend on: tags and their colours. */
-  private signature({ ext, tags }: RowBadges): string {
+  private signature({ ext, tags, excluded }: RowBadges): string {
+    if (excluded !== undefined) return `\u0002${excluded}`;
     const { index } = this.plugin;
     const all = ext ? [ext, ...tags] : tags;
     return (ext ?? "") + "\u0000" + all.map((t) => t + "\u0001" + (index.colorFor(t) ?? "")).join("\u0000");
@@ -107,7 +126,12 @@ export class ExplorerBadges {
     return chip;
   }
 
-  private decorate(host: HTMLElement, { ext, tags }: RowBadges, signature: string): void {
+  private decorate(host: HTMLElement, { ext, tags, excluded }: RowBadges, signature: string): void {
+    if (excluded !== undefined) {
+      const label = `Excluded from ${PLUGIN_NAME}${excluded ? ` (by ${excluded})` : ""}: its tags are ignored. Right-click → ${PLUGIN_NAME} to include it again.`;
+      setIcon(host.createSpan({ cls: EXCLUDED_CLS, attr: { "aria-label": label } }), "eye-off");
+      host.addClass(IS_EXCLUDED_CLS);
+    }
     if (ext) {
       host.prepend(this.chip(host, ext, EXT_CLS));
       host.addClass(HAS_EXT_CLS);

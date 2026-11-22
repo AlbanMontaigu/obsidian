@@ -18,3 +18,11 @@ Propose a way with claude to optimise tags by detecting potential duplicate or v
 # Tag sliders (min max)
 
 Propose a way to filter by number of occurence of the tag in an easy way (slider ?) Goal is to allow to be focussed on what matter the most. Like by default < 100 and > 10 (can be parametrized in settings)
+
+# Tag consistency engine
+
+In a folder when a group of files have always the same things take that into account also to identify what might be wrong or exceptional.
+
+# Option like reindex, auto retag should be shomehow in a sub tab of the tag pannel (more accessible)
+
+Or in a right click in the explorer to have targeted operation

@@ -33,7 +33,7 @@ const fileMenu = fakeMenu();
 app.workspace.trigger("file-menu", fileMenu, file("report.md"), "file-explorer");
 const single = fileMenu.sub("TagEverything");
 check("file-menu: one TagEverything submenu, nothing else", fileMenu.titles().filter((t) => /tag|guide/i.test(t)).join() === "TagEverything", fileMenu.titles().join(" | "));
-check("file-menu: Edit tags and Claude Code suggestions in the submenu, no guide for a file", single?.titles().join() === "Edit tags,Suggest tags with Claude Code", single?.titles().join(" | "));
+check("file-menu: Edit tags, Claude Code suggestions and Exclude in the submenu, no guide for a file", single?.titles().join() === "Edit tags,Suggest tags with Claude Code,Exclude from the tag engine", single?.titles().join(" | "));
 // The submenu is an internal API (MenuItem.setSubmenu): in the real explorer menu, the plugin's entry must be the
 // "TagEverything" submenu, not the flat fallback ("TagEverything: Edit tags").
 const explorerItem = app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.["report.md"]?.selfEl;
@@ -45,7 +45,7 @@ document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubble
 document.querySelectorAll(".menu").forEach((m) => m.remove());
 const multiMenu = fakeMenu();
 app.workspace.trigger("files-menu", multiMenu, [file("report.md"), file("Docs")], "file-explorer");
-check("files-menu has bulk edit and suggestions in the submenu", multiMenu.sub("TagEverything")?.titles().join() === "Edit tags of 2 items,Suggest tags with Claude Code", multiMenu.titles().join(" | "));
+check("files-menu has bulk edit, suggestions and exclude in the submenu", multiMenu.sub("TagEverything")?.titles().join() === "Edit tags of 2 items,Suggest tags with Claude Code,Exclude 2 items from the tag engine", multiMenu.titles().join(" | "));
 single.click("Edit tags");
 await sleep(300);
 check("menu item opens the editor", !!document.querySelector(".tag-everything-modal"));
@@ -530,7 +530,31 @@ const keyChip = cloudChip("client");
 keyChip.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 await sleep(200);
 check("panel: tags work from the keyboard", keyChip.tabIndex === 0 && view.getState().selected?.join() === "client");
+// Selection tab: a search moves to it (search + results only); All shows only groups and tags, counted in the selection.
+const shown = (cls) => getComputedStyle(panel().querySelector(cls)).display !== "none";
+const selTab = () => panel().querySelector(".tag-everything-tab-selection");
+const allTab = () => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === "All");
+check(
+  "selection tab: a selected tag switches to it, results only",
+  selTab()?.classList.contains("is-active") && selTab().textContent === "Selection1" && !allTab().classList.contains("is-active") &&
+    shown(".tag-everything-view-results") && shown(".tag-everything-view-selected") && !shown(".tag-everything-view-tags") && !shown(".tag-everything-view-groups") &&
+    view.getState().selection === true,
+  selTab()?.outerHTML,
+);
+allTab().click();
+await sleep(100);
+check(
+  "selection tab: All shows only the groups and tags, counted in the selection",
+  allTab().classList.contains("is-active") && !selTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && shown(".tag-everything-view-groups") &&
+    !shown(".tag-everything-view-results") && !shown(".tag-everything-view-selected") && /selection \(1 item\)/.test(panel().querySelector(".tag-everything-view-scope")?.textContent) &&
+    view.getState().selection === false,
+);
+selTab().click();
+await sleep(100);
+check("selection tab: clicking it shows the search again", selTab().classList.contains("is-active") && shown(".tag-everything-view-results"));
 panel().querySelector(".tag-everything-view-clear").click();
+await sleep(100);
+check("selection tab: gone once the search is cleared, back on All", !selTab() && allTab().classList.contains("is-active") && shown(".tag-everything-view-tags") && !panel().querySelector(".tag-everything-view-scope"));
 await sleep(100);
 const searchLabel = () => groupEl("Formula").querySelector(".tag-everything-group-search-label")?.textContent;
 check("groups: the search button is labelled", searchLabel() === "Search", searchLabel());
@@ -657,7 +681,7 @@ check("command: Check tag names registered", !!app.commands.commands["tag-everyt
 const folderMenu = fakeMenu();
 app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
 const guideMenu = folderMenu.sub("TagEverything");
-check("guide: folder submenu has Edit tags, suggestions and the guide", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Write AI assistant guide", guideMenu?.titles().join(" | "));
+check("guide: folder submenu has Edit tags, suggestions, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
 guideMenu.click("Write AI assistant guide");
 await waitFor(() => !!file("Projects/CLAUDE.md"));
 const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
@@ -953,6 +977,68 @@ await plugin.saveSettings();
 inbox?.leaf.detach();
 await vault.delete(file("Inbox"), true);
 document.querySelectorAll(".notice").forEach((n) => n.remove());
+
+// ---- exclusions: a folder by right-click, a file by a rule; ignored everywhere, tags kept on disk, eye-off icon
+{
+  const under = (prefix) => plugin.index.paths().filter((p) => p === prefix || p.startsWith(prefix + "/"));
+  const before = under("Projects");
+  const alphaTags = plugin.index.ownTagsOf("Projects/Alpha").join();
+  const exMenu = fakeMenu();
+  app.workspace.trigger("file-menu", exMenu, file("Projects"), "file-explorer");
+  exMenu.sub("TagEverything").click("Exclude from the tag engine");
+  await waitFor(() => !under("Projects").length);
+  check("exclude: a folder by right-click leaves the index, everything under it too", before.length > 1 && !under("Projects").length && plugin.settings.excluded.join() === "Projects", `${before.join()} -> ${under("Projects").join()}`);
+  check("exclude: saved in data.json", (await plugin.loadData())?.excluded?.join() === "Projects");
+  check("exclude: its tags stay on disk (folder sidecar untouched)", /"tags"/.test(await adapter.read("Projects/Alpha/.ts/tsm.json").catch(() => "")) && alphaTags.length > 0);
+  // the eye-off icon on the folder's row in the file explorer, even with the badges off
+  plugin.settings.showBadges = false;
+  plugin.badges.refresh();
+  const projRow = app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.["Projects"]?.selfEl;
+  const eye = projRow?.querySelector(":scope > .tag-everything-excluded");
+  check("exclude: eye-off icon on the excluded row, faded, even with the badges off", !!eye?.querySelector("svg") && projRow.classList.contains("tag-everything-is-excluded") && /Excluded from TagEverything/.test(eye.getAttribute("aria-label")), projRow?.outerHTML.slice(0, 300));
+  plugin.settings.showBadges = true;
+  // an excluded item: no tagging, only the way back in; a file inside: back through its folder
+  const inMenu = fakeMenu();
+  app.workspace.trigger("file-menu", inMenu, file("Projects/Alpha"), "file-explorer");
+  check("exclude: an item inside offers only to include its folder again", inMenu.sub("TagEverything")?.titles().join() === 'Include "Projects" in the tag engine again', inMenu.sub("TagEverything")?.titles().join(" | "));
+  expectError(/it is excluded from the tag engine/);
+  await plugin.applyTags([file("Projects/Alpha")], { added: ["sneaky"], removed: [] });
+  await sleep(200);
+  check("exclude: writes refused while excluded", !(await adapter.read("Projects/Alpha/.ts/tsm.json")).includes("sneaky"));
+  document.querySelectorAll(".notice").forEach((n) => n.remove());
+  const outMenu = fakeMenu();
+  app.workspace.trigger("file-menu", outMenu, file("Projects"), "file-explorer");
+  outMenu.sub("TagEverything").click("Include in the tag engine again");
+  await waitFor(() => under("Projects").length === before.length);
+  check("exclude: included again, its tags are read back", under("Projects").join() === before.join() && plugin.index.ownTagsOf("Projects/Alpha").join() === alphaTags && !plugin.settings.excluded.length, under("Projects").join());
+  plugin.badges.refresh();
+  check("exclude: the icon goes with it", !projRow?.querySelector(":scope > .tag-everything-excluded") && !projRow?.classList.contains("tag-everything-is-excluded"));
+  // an exclusion rule, through its dialog (no tags field), listed in the settings
+  const rm = settingTab.getSettingDefinitions().find((d) => d.heading === "Exclusion rules");
+  rm?.addItem?.action();
+  await sleep(300);
+  const ruleEl = document.querySelector(".tag-everything-rule-modal");
+  const ruleInputs = ruleEl?.querySelectorAll("input");
+  ruleInputs[2].value = "pdf";
+  ruleInputs[2].dispatchEvent(new Event("input"));
+  const pdfs = vault.getFiles().filter((f) => f.extension === "pdf").length;
+  check(
+    "exclude rule: dialog titled, tags field hidden, preview counts the files",
+    ruleEl?.querySelector(".modal-title")?.textContent === "TagEverything: new exclusion rule" && getComputedStyle(ruleInputs[3].closest(".setting-item")).display === "none" && ruleEl.querySelector(".tag-everything-rule-preview")?.textContent === `pdf. Excludes ${pdfs} file${pdfs === 1 ? "" : "s"} of the vault.`,
+    ruleEl?.querySelector(".tag-everything-rule-preview")?.textContent,
+  );
+  ruleEl.querySelector(".mod-cta").click();
+  await waitFor(() => !plugin.index.paths().some((p) => p.endsWith(".pdf")));
+  check("exclude rule: saved, the matching files leave the index", plugin.settings.excludeRules.length === 1 && pdfs > 0 && !plugin.index.paths().some((p) => p.endsWith(".pdf")), JSON.stringify(plugin.settings.excludeRules));
+  check("exclude rule: listed in the settings", settingTab.getSettingDefinitions().find((d) => d.heading === "Exclusion rules")?.items?.[0]?.name === "pdf");
+  const pdfMenu = fakeMenu();
+  app.workspace.trigger("file-menu", pdfMenu, vault.getFiles().find((f) => f.extension === "pdf"), "file-explorer");
+  check("exclude rule: a covered file's menu points to the rule", pdfMenu.sub("TagEverything")?.titles().join() === 'Excluded by the rule "pdf": edit it', pdfMenu.sub("TagEverything")?.titles().join(" | "));
+  settingTab.getSettingDefinitions().find((d) => d.heading === "Exclusion rules").onDelete(0);
+  await waitFor(() => plugin.index.paths().some((p) => p.endsWith(".pdf")));
+  check("exclude rule: deleted, the files come back", !plugin.settings.excludeRules.length && plugin.index.paths().some((p) => p.endsWith(".pdf")));
+  document.querySelectorAll(".notice").forEach((n) => n.remove());
+}
 
 // ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
 plugin.settings.extensionTags = true;

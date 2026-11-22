@@ -1,6 +1,7 @@
-import { App, ButtonComponent, Modal, Notice, Setting, TAbstractFile, TFolder } from "obsidian";
+import { App, ButtonComponent, Modal, Notice, Setting, TAbstractFile, TFile, TFolder, Vault } from "obsidian";
 import { PLUGIN_NAME, claudeError, claudeTook, plural } from "./messages.ts";
-import { type Suggestion, type SuggestInput, cleanSuggestions, parseClaudeOutput, relativeTo, suggestPrompt } from "./suggest.ts";
+import { type Suggestion, type SuggestInput, MAX_SUGGEST_ITEMS, cleanSuggestions, commonFolder, parseClaudeOutput, relativeTo, suggestPrompt } from "./suggest.ts";
+import { GUIDE_FILE } from "./guide.ts";
 import { clickable, paintTag } from "./ui.ts";
 import type TagEverythingPlugin from "./main.ts";
 
@@ -10,6 +11,44 @@ export interface SuggestRequest {
   items: TAbstractFile[];
   /** Items left out because there were too many. */
   skipped: number;
+}
+
+/**
+ * Opens the Claude Code suggestions for a selection. A folder alone: the folder and the files under it (untagged
+ * ones first, at most MAX_SUGGEST_ITEMS), Claude Code working in it. A file, or several items: those, Claude Code
+ * working in their closest common folder. Items excluded from TagEverything are left out.
+ */
+export function openSuggestions(plugin: TagEverythingPlugin, selection: TAbstractFile[]): TagSuggestModal | null {
+  const { app, index } = plugin;
+  const { vault } = app;
+  let folder: TFolder;
+  let items: TAbstractFile[];
+  if (selection.length === 1 && selection[0] instanceof TFolder) {
+    folder = selection[0];
+    const files: TFile[] = [];
+    Vault.recurseChildren(folder, (f) => {
+      if (f instanceof TFile && f.name !== GUIDE_FILE && !plugin.isExcluded(f)) files.push(f);
+    });
+    const tagged = (f: TFile): number => Number(index.ownTagsOf(f.path).length > 0);
+    files.sort((a, b) => tagged(a) - tagged(b) || a.path.localeCompare(b.path));
+    items = [...(folder.isRoot() || plugin.isExcluded(folder) ? [] : [folder]), ...files];
+  } else {
+    items = selection.filter((i) => plugin.taggable(i));
+    const path = commonFolder(items.map((i) => i.path));
+    const common = path ? vault.getAbstractFileByPath(path) : vault.getRoot();
+    folder = common instanceof TFolder ? common : vault.getRoot();
+  }
+  if (!items.length) {
+    new Notice(`${PLUGIN_NAME}: nothing to tag here.`);
+    return null;
+  }
+  const modal = new TagSuggestModal(app, plugin, {
+    folder,
+    items: items.slice(0, MAX_SUGGEST_ITEMS),
+    skipped: Math.max(0, items.length - MAX_SUGGEST_ITEMS),
+  });
+  modal.open();
+  return modal;
 }
 
 interface Row {

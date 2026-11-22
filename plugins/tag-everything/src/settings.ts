@@ -2,7 +2,7 @@ import { App, PluginSettingTab, SettingDefinitionItem, TFile } from "obsidian";
 import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
-import { deleteRule, describeRule } from "./inbox.ts";
+import { deleteRule, describeConditions, describeRule } from "./inbox.ts";
 import { RuleModal } from "./rule-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
 
@@ -15,8 +15,8 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
 }
 
 /** Settings edited elsewhere (panel, inbox, rule dialog), never by a control of this tab. */
-const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed"];
-type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed">;
+const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed", "excluded", "excludeRules"];
+type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed" | "excluded" | "excludeRules">;
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
@@ -176,6 +176,25 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         })),
       },
       {
+        type: "list",
+        heading: "Excluded from the tag engine",
+        emptyState: "Nothing excluded. Right-click a file or folder → TagEverything → Exclude from the tag engine: it is ignored everywhere, its tags stay in place.",
+        onDelete: (i: number) => void this.includeAgain(i),
+        items: this.plugin.settings.excluded.map((path) => ({ name: path, aliases: ["exclude", "ignore"] })),
+      },
+      {
+        type: "list",
+        heading: "Exclusion rules",
+        emptyState: "No exclusion rule. The files a rule matches (folder, words of the name, extension) are ignored everywhere.",
+        addItem: { name: "Add an exclusion rule", action: () => new RuleModal(this.app, this.plugin, {}, () => this.update(), "exclude").open() },
+        onDelete: (i: number) => void this.removeExcludeRule(i),
+        items: this.plugin.settings.excludeRules.map((rule) => ({
+          name: describeConditions(rule),
+          aliases: ["exclude", "ignore", "rule"],
+          action: () => new RuleModal(this.app, this.plugin, rule, () => this.update(), "exclude").open(),
+        })),
+      },
+      {
         type: "group",
         heading: "Tag maintenance",
         items: [
@@ -221,6 +240,21 @@ export class TagEverythingSettingTab extends PluginSettingTab {
     if (!rule) return;
     this.plugin.settings.rules = deleteRule(this.plugin.settings.rules, rule.id);
     await this.save();
+    this.update();
+  }
+
+  private async includeAgain(i: number): Promise<void> {
+    const path = this.plugin.settings.excluded[i];
+    if (path === undefined) return;
+    await this.plugin.setExcluded([path], false);
+    this.update();
+  }
+
+  private async removeExcludeRule(i: number): Promise<void> {
+    const rule = this.plugin.settings.excludeRules[i];
+    if (!rule) return;
+    this.plugin.settings.excludeRules = deleteRule(this.plugin.settings.excludeRules, rule.id);
+    await this.plugin.exclusionsChanged();
     this.update();
   }
 

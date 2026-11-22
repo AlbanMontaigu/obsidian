@@ -9,7 +9,7 @@ Tag any file or folder of a vault from the file explorer (right-click → *TagEv
 tags in the frontmatter `tags` property (Obsidian-native, setting `noteTagsInFrontmatter`, on by default). Other
 files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSON files; mostly compatible with
 TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
-tags (AND), with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
+tags (AND) in its Selection tab, with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
 and groups bookmarked in them; badges show tags in the explorer. The **TagEverything explorer** (left sidebar) is a
 tree of tags: every tag at the root, inside a tag the tags telling its files apart (on more than one, not on all),
 then its files (a file alone under a tag shows directly, not one level deeper), even files the core explorer hides. Every file
@@ -24,7 +24,9 @@ matching a formula. **Rename or merge a tag** everywhere (tag menu, command) and
 locally, synonyms by Claude Code from the tag list alone with no tool, tags used once) rewrite the vault through the
 same engine as *Check tag names*. The **inbox** lists the untagged files that arrived lately with the tags the
 **auto-tag rules** (folder / words of the name / extension → tags) would add; a setting applies them to new files as
-they are created, another focuses it on one folder; its files also show under an *Inbox* node atop the explorer.
+they are created, another focuses it on one folder; its files also show under an *Inbox* node atop the explorer. Files and folders can be
+**excluded from the tag engine** (right-click, or exclusion rules with the auto-tag conditions): ignored everywhere,
+their tags kept on disk, an eye-off icon in the file explorer.
 
 ## Where to change what
 
@@ -42,6 +44,7 @@ they are created, another focuses it on one folder; its files also show under an
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see *Known limits*) |
 | Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-view.ts` (`inboxFiles`, also the explorer's Inbox node), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -70,6 +73,8 @@ and `docs/user-guide.md` when users see it.
    prompt or the schema), the prompt on stdin.
 8. Auto-tagging only adds tags (`addTagsEach`, the usual write path): a rule never removes or renames a tag, and
    runs on a new file only when the user turned `autoApplyRules` on (off by default).
+9. An excluded item (src/exclude.ts) is never in the index and never written (`applyOne` throws); excluding or
+   including touches only `data.json`, never the item's tags. An excluded path follows its item's renames.
 
 ## Tests
 
@@ -86,6 +91,9 @@ and `docs/user-guide.md` when users see it.
 - `tests/taxonomy.test.ts`: look-alikes (case, accents, plural; typos only on 5+ letters without digits), rare tags,
   `mergeMapping` (into kept, chains, conflicts, cycles), `cleanSynonyms` (spelling, unknown dropped, into put to the
   rule, a tag in one group), the synonym prompt.
+- `tests/exclude.test.ts`: excluded paths (exact, the item and below, the folder of an excluded file not excluded),
+  paths before rules, rules on files and folders (folder-only rules, itself and below), `setExcluded` (a folder
+  replaces the paths under it), `renameExcluded`, loading damaged data (ids `x<n>`).
 - `tests/inbox.test.ts`: rule matching (folder segment, words without the name's tags, accents, extensions, no
   condition = nothing), `rulesTags`, `normalizeRules`, save / delete / describe, the inbox list, focused on a folder, `ageText`.
 - `tests/explore.test.ts`: tree nodes (root = every tag and no item; inside a tag, a tag on several items is a branch,
@@ -102,7 +110,11 @@ and `docs/user-guide.md` when users see it.
   adds the rest and the file leaves; dismiss saved; the *Inbox folder* row: focused on `inbox/` (case, slashes) lists only its file and says where, the
   explorer's Inbox node first with its count, opens on the file, `getState().inbox`; a missing folder said, the
   empty node hidden; the settings list; with `autoApplyRules` a created PDF is renamed
-  with its rule tags). Extension tags are checked on by default, then
+  with its rule tags); exclusions (the folder menu's *Exclude from the tag engine* drops `Projects` and everything under
+  it from the index, `data.json`, its sidecar untouched, eye-off icon and faded row even with the badges off, an item
+  inside offers only *Include "Projects"*, a write refused, included again its tags read back and the icon gone; an
+  exclusion rule through its dialog (title, tags field hidden, preview count), the PDF leaves the index, listed in the
+  settings, its menu points to the rule, deleted it comes back). Extension tags are checked on by default, then
   turned off for the exact tag lists of the engine sections, and get their own section before the screenshot (first
   tag, counted per file not per folder, not an own tag, `data.json`, not in the editor, explorer chip **before** the
   name of a revealed PDF row with Obsidian's label hidden, panel result rows with the extension chip in place of the
@@ -115,7 +127,8 @@ and `docs/user-guide.md` when users see it.
   real settings dialog, the badges toggle disables / enables the badge option and is saved to `data.json`), tag groups (create through the
   dialog, drag with a synthetic `DataTransfer`, fold, `data.json`, group search, switch a tag off / on; formula through the real menu and dialog: error, preview,
   rendering, search, switch-off pruning, NOT, drop = AND, × prunes; the ⊘ NOT button on group chips, with and without a formula; excluding a cloud tag through its right-click menu, saved state, **+** turning it into a `NOT` formula), panel usability (filter + Enter, keyboard,
-  saved state, labelled group search button "Search" / "Stop", group menu starting with it, draggable results, hover source), bookmark tabs (+ creates and shows one,
+  saved state, the Selection tab: a selected tag switches to it with search and results only, All shows only groups
+  and tags counted in the selection, gone once cleared, labelled group search button "Search" / "Stop", group menu starting with it, draggable results, hover source), bookmark tabs (+ creates and shows one,
   bookmark by dropping a tag and a group on the tab and through the tag menu, All unchanged, a tab shows only its bookmarks, `data.json` and panel state, a group
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a
   compound's fix in the box (Enter accepts, Save waits), leaves a liaison word out, `applyTags` refuses, settings
@@ -206,8 +219,12 @@ Deliberate exceptions, each for a reason:
   new). Dismissed paths are kept in `data.json` and don't follow a rename. The inbox lists notes too (any untagged
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
-- `main.ts` is ~600 lines (over the ~500 guideline): the next feature there should first move the Claude Code
-  runner (`nodeModules`, `runClaude`, `suggestTags`) to its own module.
+- `main.ts` is ~640 lines (over the ~500 guideline) even with the Claude Code runner moved out (0.26.0): the next
+  feature there should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
+- Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
+  row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
+  excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a
+  tag carried only by excluded items leaves the panel's search (it is not put back on inclusion).
 - Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
   its frontmatter (renames the note, so opt-in); date conditions in query blocks and the panel; a rename / merge
   that also rewrites query blocks.

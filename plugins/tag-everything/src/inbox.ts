@@ -37,8 +37,11 @@ export function inFolder(path: string, folder: string): boolean {
   return !f || foldTag(path).startsWith(`${f}/`);
 }
 
+/** The conditions of a rule, shared by auto-tag rules and exclusion rules (src/exclude.ts). */
+export type RuleConditions = Pick<AutoTagRule, "folder" | "words" | "extensions">;
+
 /** True when the rule has at least one condition: a rule without any would tag every file of the vault. */
-export function hasCondition(rule: Pick<AutoTagRule, "folder" | "words" | "extensions">): boolean {
+export function hasCondition(rule: RuleConditions): boolean {
   return !!(cleanFolder(rule.folder) || wordList(rule.words).length || wordList(rule.extensions).length);
 }
 
@@ -63,7 +66,7 @@ export function normalizeRules(raw: unknown): AutoTagRule[] {
 }
 
 /** Does the rule apply to the file at `path`? Its name is read without its tags and extension. */
-export function ruleMatches(rule: AutoTagRule, path: string): boolean {
+export function ruleMatches(rule: RuleConditions, path: string): boolean {
   if (!hasCondition(rule)) return false;
   if (!inFolder(path, rule.folder)) return false;
   const name = path.slice(path.lastIndexOf("/") + 1);
@@ -87,24 +90,32 @@ export function rulesTags(rules: readonly AutoTagRule[], path: string, has: read
   return dedupe(rules.filter((r) => ruleMatches(r, path)).flatMap((r) => r.tags)).filter((t) => !own.has(t.toLowerCase()));
 }
 
-/** The rule in one line: `In Banque · name has facture or invoice · pdf → banque facture`. */
-export function describeRule(rule: AutoTagRule): string {
+/** The conditions in one line: `In Banque · name has facture or invoice · pdf`. */
+export function describeConditions(rule: RuleConditions): string {
   const parts: string[] = [];
   if (cleanFolder(rule.folder)) parts.push(`In ${cleanFolder(rule.folder)}`);
   const words = wordList(rule.words);
   if (words.length) parts.push(`name has ${words.join(" or ")}`);
   const exts = wordList(rule.extensions);
   if (exts.length) parts.push(exts.join(" or "));
-  return `${parts.join(" · ") || "No condition"} → ${rule.tags.join(" ")}`;
+  return parts.join(" · ") || "No condition";
 }
 
-/** A new rule, or `rule` with its fields replaced, in `rules`; immutable, like groups.ts. */
-export function saveRule(rules: readonly AutoTagRule[], rule: Omit<AutoTagRule, "id"> & { id?: string }): AutoTagRule[] {
-  if (rule.id && rules.some((r) => r.id === rule.id)) return rules.map((r) => (r.id === rule.id ? { ...rule, id: r.id } : r));
-  return [...rules, { ...rule, id: nextId(rules, "r") }];
+/** The rule in one line: `In Banque · name has facture or invoice · pdf → banque facture`. */
+export function describeRule(rule: AutoTagRule): string {
+  return `${describeConditions(rule)} → ${rule.tags.join(" ")}`;
 }
 
-export function deleteRule(rules: readonly AutoTagRule[], id: string): AutoTagRule[] {
+/**
+ * A new rule, or `rule` with its fields replaced, in `rules`; immutable, like groups.ts. Also for exclusion rules
+ * (src/exclude.ts), whose ids start with `x` (`prefix`).
+ */
+export function saveRule<R extends { id: string }>(rules: readonly R[], rule: Omit<R, "id"> & { id?: string }, prefix = "r"): R[] {
+  if (rule.id && rules.some((r) => r.id === rule.id)) return rules.map((r) => (r.id === rule.id ? ({ ...rule, id: r.id } as R) : r));
+  return [...rules, { ...rule, id: nextId(rules, prefix) } as R];
+}
+
+export function deleteRule<R extends { id: string }>(rules: readonly R[], id: string): R[] {
   return rules.filter((r) => r.id !== id);
 }
 

@@ -6,6 +6,7 @@ import { type TagGroup, cleanTagList, normalizeGroups } from "./groups.ts";
 import { type BookmarkTab, normalizeTabs } from "./tabs.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { type AutoTagRule, cleanFolder, normalizeRules } from "./inbox.ts";
+import { type ExcludeRule, normalizeExcludeRules, normalizeExcludedPaths } from "./exclude.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -40,6 +41,10 @@ export interface TagEverythingSettings {
   inboxFolder: string;
   /** Paths the user dismissed from the inbox (no tag needed). */
   inboxDismissed: string[];
+  /** Files and folders excluded from TagEverything by hand (src/exclude.ts); a folder takes what is under it. */
+  excluded: string[];
+  /** Exclusion rules (src/exclude.ts): the items they cover are excluded from TagEverything. */
+  excludeRules: ExcludeRule[];
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
@@ -64,6 +69,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   inboxDays: 30,
   inboxFolder: "",
   inboxDismissed: [],
+  excluded: [],
+  excludeRules: [],
   groups: [],
   tabs: [],
 };
@@ -97,6 +104,8 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     inboxDays: typeof r.inboxDays === "number" && Number.isInteger(r.inboxDays) && r.inboxDays >= 1 && r.inboxDays <= 365 ? r.inboxDays : d.inboxDays,
     inboxFolder: typeof r.inboxFolder === "string" ? cleanFolder(r.inboxFolder) : d.inboxFolder,
     inboxDismissed: cleanTagList(r.inboxDismissed),
+    excluded: normalizeExcludedPaths(r.excluded),
+    excludeRules: normalizeExcludeRules(r.excludeRules),
     groups,
     tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
   };

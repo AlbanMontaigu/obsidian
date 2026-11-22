@@ -83,8 +83,13 @@ Run it again to see what is left.
 
 Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 
-- Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size).
-- **Click tags** to list the files and folders carrying all of them (AND).
+- Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size). The tab **All**
+  (and each bookmark tab, Section 7) shows only the groups and the tags, using the panel's full height.
+- **Click tags** to list the files and folders carrying all of them (AND). The panel then switches to the
+  **Selection** tab (at the right end of the tab strip, with the number of items found): the search at the top
+  (click a tag there to take it out, **Clear** to stop), the results below. Go back to **All** to narrow the search
+  with another tag: while a search runs, the counts there are within it (the line above the tags says so). Typing in
+  the filter also goes back to the tags. Selection disappears once the search is empty.
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
@@ -94,7 +99,7 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
   link it, right-click for the usual file menu. A file's extension tag stands in for its icon, before its name, and
   its other tags show below; folders (and files, with extension tags off) keep their icon.
 - Everything works from the keyboard (Tab, then Enter or Space). The panel remembers its search, filter and tab
-  across restarts.
+  (Selection included) across restarts.
 - The ↻ button re-reads all tags (after editing them outside Obsidian).
 
 ```mermaid
@@ -141,7 +146,8 @@ Under the filter box: a tab **All** (every group and tag), then your own named t
   in All).
 - A tab shows only what is bookmarked in it. A group created with **+** while a tab is shown is bookmarked there.
 - Right-click a tab to rename or delete it (deleting a tab deletes nothing else).
-- The search is the same whatever the tab; the panel reopens on the tab you left. Tabs are saved with the groups.
+- The search is the same whatever the tab, and its results are in the Selection tab (Section 5); the panel reopens on
+  the tab you left. Tabs are saved with the groups.
 
 ## 8. Colours and explorer badges
 
@@ -345,6 +351,23 @@ scan, a copy) gets its rule tags at once, 2 seconds after the last of a burst of
 the inbox; one notice says what was tagged. Tags go where new tags go (Section 1): a PDF is renamed
 (`Facture EDF[energie].pdf`) with the default settings.
 
+### Exclude files and folders from the tag engine
+
+Right-click a file or folder → **TagEverything → Exclude from the tag engine** (or a selection: *Exclude N items*).
+TagEverything then ignores it everywhere: no badge, not in the panel, the explorer, query blocks or tag counts, not in
+the inbox, never auto-tagged, suggested for or written to. Its tags stay on disk as they are (name, frontmatter,
+sidecar) and come back as soon as it is included again. A folder takes everything under it.
+
+- In the file explorer, an excluded item shows an **eye-off** icon after its name and is faded (even with the badges
+  off); hover the icon to see why (the item itself, a folder above it, or a rule).
+- Its right-click menu then offers only the way back: **Include in the tag engine again**, *Include "folder" …* when a
+  folder above it is excluded, or *Excluded by the rule "…": edit it*. Edit tags on it says it is excluded.
+- An excluded item renamed or moved in Obsidian stays excluded.
+- **Exclusion rules** (*Settings → Exclusion rules*, **+**): the conditions of the auto-tag rules (folder, words of
+  the name, extensions) without tags; the dialog says how many files of the vault the rule excludes. A rule with only
+  a folder also excludes that folder and every folder inside it.
+- *Settings → Excluded from the tag engine* lists what you excluded by hand; the bin includes it again.
+
 ## 14. Commands and settings
 
 | Command | What it does |
@@ -376,6 +399,8 @@ the inbox; one notice says what was tagged. Tags go where new tags go (Section 1
 | Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
 | Inbox | | *Open the inbox*; *Days in the inbox* (30); *Inbox folder* (empty: the whole vault); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
 | Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
+| Excluded from the tag engine | none | Section 13: the files and folders excluded by right-click; the bin includes one again |
+| Exclusion rules | none | Section 13: click to edit, **+** to add, the bin to delete |
 | Tag maintenance | | Buttons: *Review tags* (Section 12), *Check and fix tag names*, *Re-read all tags* |
 
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands

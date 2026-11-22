@@ -21,7 +21,7 @@ export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
   const { index, settings, app } = plugin;
   const candidates = app.vault
     .getFiles()
-    .filter((f) => f.name !== GUIDE_FILE)
+    .filter((f) => f.name !== GUIDE_FILE && !plugin.isExcluded(f))
     .map((f) => ({ path: f.path, ctime: f.stat.ctime, tagged: index.ownTagsOf(f.path).length > 0 }));
   return inboxPaths(candidates, Date.now(), settings.inboxDays, new Set(settings.inboxDismissed), settings.inboxFolder)
     .map((p) => app.vault.getAbstractFileByPath(p))

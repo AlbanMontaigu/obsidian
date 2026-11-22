@@ -42,7 +42,7 @@ test("normalizeRules: damaged entries, rules without tag or condition dropped; i
 });
 
 test("saveRule / deleteRule / describeRule", () => {
-  let rules = saveRule([], { folder: "Banque", words: "facture invoice", extensions: "pdf", tags: ["banque", "facture"] });
+  let rules = saveRule([] as AutoTagRule[], { folder: "Banque", words: "facture invoice", extensions: "pdf", tags: ["banque", "facture"] });
   rules = saveRule(rules, { ...rules[0], tags: ["finance"] });
   assert.equal(rules.length, 1);
   assert.equal(describeRule(rules[0]), "In Banque · name has facture or invoice · pdf → finance");

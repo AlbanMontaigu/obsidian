@@ -27,12 +27,16 @@ interface PanelState {
   filter: string;
   /** Bookmark tab shown; null = All. */
   tab: string | null;
+  /** The Selection tab (search and results) is shown instead of the tags of `tab`. */
+  selection: boolean;
 }
 
 /**
  * Sidebar panel: tag groups, then every tag with its count; select tags (AND) to list the files and folders
  * carrying them, or exclude tags (NOT). Selecting a group selects its tags; each can then be switched off and on again.
  * Bookmark tabs (src/tabs.ts) narrow the groups and tags shown to those bookmarked in the tab; the search is shared.
+ * The search and its results have their own tab, Selection, shown while there is a search: the tag tabs hold only
+ * groups and tags, at full height.
  */
 export class TagEverythingView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;
@@ -44,6 +48,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private filter = "";
   /** Bookmark tab shown; null = All. */
   private tab: string | null = null;
+  /** Selection tab shown (only while there is a search, see `hasSearch`). */
+  private selection = false;
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
   private tagsEl!: HTMLElement;
@@ -90,7 +96,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     search.value = this.filter;
     search.addEventListener("input", () => {
       this.filter = search.value.trim().toLowerCase();
-      this.renderTags();
+      if (this.selection) {
+        this.selection = false; // filtering is about tags: back to the tag tab
+        this.render();
+      } else this.renderTags();
       this.app.workspace.requestSaveLayout();
     });
     search.addEventListener("keydown", (evt) => {
@@ -132,7 +141,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   getState(): Record<string, unknown> {
-    const state: PanelState = { selected: this.selected, excluded: this.excluded, activeGroup: this.activeGroup, filter: this.filter, tab: this.tab };
+    const state: PanelState = {
+      selected: this.selected,
+      excluded: this.excluded,
+      activeGroup: this.activeGroup,
+      filter: this.filter,
+      tab: this.tab,
+      selection: this.selection,
+    };
     return { ...super.getState(), ...state };
   }
 
@@ -143,6 +159,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
     if (typeof s.tab === "string" || s.tab === null) this.tab = s.tab;
+    if (typeof s.selection === "boolean") this.selection = s.selection;
     if (this.searchEl) this.searchEl.value = this.filter;
     this.render();
     await super.setState(state, result);
@@ -152,6 +169,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   selectOnly(tag: string): void {
     this.resetSearch();
     this.selected = [tag];
+    this.selection = true;
     this.stateChanged();
   }
 
@@ -165,6 +183,11 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.selected = fn(before.selected);
     this.excluded = fn(before.excluded).filter((t) => !this.selected.includes(t));
     this.stateChanged();
+  }
+
+  /** There is a search (a tag selected or excluded, or a group search, even with all its tags switched off). */
+  private hasSearch(): boolean {
+    return !!this.activeGroup || this.selected.length > 0 || this.excluded.length > 0;
   }
 
   /** Empties the search: no tag selected or excluded, no active group. */
@@ -230,6 +253,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Shows a bookmark tab, or All with null (public for the smoke test). */
   showTab(id: string | null): void {
     this.tab = id;
+    this.selection = false;
     this.stateChanged();
   }
 
@@ -240,6 +264,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     for (const t of tags) tabs = tb.setBookmark(tabs, added.id, "tags", t, true);
     for (const g of groups) tabs = tb.setBookmark(tabs, added.id, "groups", g, true);
     this.tab = added.id;
+    this.selection = false;
     await this.save({ tabs });
     return added.id;
   }
@@ -301,6 +326,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const counts = this.plugin.index.counts();
       this.activeGroup = group.id;
       this.selected = group.tags.filter((t) => counts.has(t));
+      this.selection = true;
     }
     this.stateChanged();
   }
@@ -456,6 +482,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.excluded = this.excluded.filter((t) => t !== tag);
     if (mode === "on") this.selected.push(tag);
     if (mode === "not") this.excluded.push(tag);
+    if (mode) this.selection = true; // a tag added to the search: show what it finds
     this.stateChanged();
   }
 
@@ -492,10 +519,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
     if (this.tab && !this.currentTab) this.tab = null;
-    this.renderTabs();
+    if (!this.hasSearch()) this.selection = false;
+    // Either a tag tab (groups, tags) or the Selection tab (search, results): never both.
+    for (const el of [this.groupsEl, this.tagsEl]) el.toggle(!this.selection);
+    for (const el of [this.selectedEl, this.statusEl, this.resultsEl]) el.toggle(this.selection);
+    const matches = this.searchMatches(); // used by the tabs, tags and results: computed once
+    this.renderTabs(matches);
     this.renderSelected();
     this.renderGroups();
-    const matches = this.searchMatches(); // used by both: computed once
     this.renderTags(matches);
     this.renderResults(matches);
   }
@@ -517,13 +548,17 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return el;
   }
 
-  /** "All", then the bookmark tabs; a tag or group dropped on a tab is bookmarked there. */
-  private renderTabs(): void {
+  /**
+   * "All", then the bookmark tabs (a tag or group dropped on one is bookmarked there), and, while there is a search,
+   * Selection with the number of items it finds (`matches`).
+   */
+  private renderTabs(matches: string[] | null): void {
     const el = this.tabsEl;
     el.empty();
     const tabEl = (id: string | null, name: string, label: string): HTMLElement => {
-      const t = el.createDiv({ cls: "tag-everything-tab", text: name, attr: { role: "tab", "aria-label": label, "aria-selected": String(this.tab === id) } });
-      t.toggleClass("is-active", this.tab === id);
+      const active = !this.selection && this.tab === id;
+      const t = el.createDiv({ cls: "tag-everything-tab", text: name, attr: { role: "tab", "aria-label": label, "aria-selected": String(active) } });
+      t.toggleClass("is-active", active);
       clickable(t, () => this.showTab(id));
       return t;
     };
@@ -549,6 +584,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
       (tag) => this.newTab([tag]),
       (group) => this.newTab([], [group]),
     );
+    if (!this.hasSearch()) return;
+    const n = matches?.length ?? 0;
+    const sel = el.createDiv({
+      cls: "tag-everything-tab tag-everything-tab-selection",
+      text: "Selection",
+      attr: { role: "tab", "aria-label": `The search and the ${plural(n, "item")} it finds`, "aria-selected": String(this.selection) },
+    });
+    sel.toggleClass("is-active", this.selection);
+    sel.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
+    clickable(sel, () => {
+      this.selection = true;
+      this.stateChanged();
+    });
   }
 
   private renderSelected(): void {
@@ -748,6 +796,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
               : "No other tag.",
       });
       return;
+    }
+    // With a search the counts are within what it finds: say so, the search itself being in the Selection tab.
+    if (matches) {
+      this.tagsEl.createDiv({
+        cls: "tag-everything-view-scope",
+        text: `Counted in the selection (${plural(matches.length, "item")}): click a tag to narrow it.`,
+      });
     }
     // Size by use, relative to the tags shown (so it adapts to the filter and the selection).
     const weights = cloudWeights(rows);

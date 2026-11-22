@@ -1,4 +1,4 @@
-import { Editor, FileSystemAdapter, Menu, Notice, Plugin, addIcon, TAbstractFile, TFile, TFolder, Vault, View, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
+import { Editor, Menu, Notice, Plugin, addIcon, TAbstractFile, TFile, TFolder, View, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
 import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
@@ -13,15 +13,17 @@ import { TagFixModal } from "./fix-modal.ts";
 import { replaceTagsInGroups } from "./groups.ts";
 import { replaceTagsInTabs } from "./tabs.ts";
 import { GUIDE_FILE, claudeGuide, guidePath, hasGuide } from "./guide.ts";
-import { type Spawn, runFirstFound } from "./claude.ts";
-import { type ClaudeTask, MAX_SUGGEST_ITEMS, claudeArgs, claudeCommands, commonFolder } from "./suggest.ts";
-import { TagSuggestModal } from "./suggest-modal.ts";
+import type { ClaudeTask } from "./suggest.ts";
+import { runClaudeIn } from "./claude-runner.ts";
+import { TagSuggestModal, openSuggestions } from "./suggest-modal.ts";
 import { type MenuEntry, addPluginMenu } from "./menu.ts";
 import { QUERY_LANGUAGE } from "./query.ts";
 import { QUERY_HOVER_SOURCE, TagQueryBlock } from "./query-block.ts";
 import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
 import { INBOX_VIEW_TYPE, TagInboxView } from "./inbox-view.ts";
-import { rulesTags } from "./inbox.ts";
+import { describeConditions, rulesTags } from "./inbox.ts";
+import { type Exclusion, exclusionOf, renameExcluded, setExcluded } from "./exclude.ts";
+import { RuleModal } from "./rule-modal.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
@@ -32,20 +34,6 @@ const editPlanner = (added: readonly string[], removed: readonly string[]): Plan
   const all = ts.dedupe([...state.nameTags, ...(state.frontTags ?? []), ...state.sideTags]);
   return ts.planTags(state, ts.mergeEdit(all, added, removed), target);
 };
-
-/** Claude Code may read for a long time (many files, PDFs); past this, it is stopped. */
-const CLAUDE_TIMEOUT_MS = 10 * 60_000;
-
-/** Node modules of the desktop app, reached through Electron's `require` (not bundled: esbuild targets the browser). */
-function nodeModules(): { spawn: Spawn; homedir: () => string } {
-  const req = (window as unknown as { require: (id: string) => unknown }).require;
-  const { spawn } = req("child_process") as { spawn: Spawn };
-  const { homedir } = req("os") as { homedir: () => string };
-  return { spawn, homedir };
-}
-
-/** Every file and folder can be tagged, except the vault root. */
-const taggable = (f: TAbstractFile): boolean => !(f instanceof TFolder && f.isRoot());
 
 export default class TagEverythingPlugin extends Plugin {
   settings: TagEverythingSettings = { ...DEFAULT_SETTINGS };
@@ -61,11 +49,14 @@ export default class TagEverythingPlugin extends Plugin {
   private arrivals = new Set<string>();
   /** A download or a sync creates files in bursts, and a file may still be written: wait for things to settle. */
   private tagArrivalsSoon = debounce(() => void this.tagArrivals(), 2000, true);
+  /** `exclusionOf` per item ("d:" folder / "f:" file + path): it only depends on the settings, cleared when they change. */
+  private exclusionCache = new Map<string, Exclusion | null>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.index = new TagIndex(this.app, this.settings.extensionTags);
     this.index.autoColors = this.settings.autoColors;
+    this.index.excluded = (path, isFolder) => !!this.exclusion(path, isFolder);
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
 
@@ -130,25 +121,35 @@ export default class TagEverythingPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile, source: string) => {
+        const excluded = this.exclusion(file.path, file instanceof TFolder);
+        // An excluded item: only the way back in.
+        if (excluded) return addPluginMenu(menu, [this.includeEntry(file, excluded)]);
         const entries: MenuEntry[] = [];
         // From the plugin's own views (explorer, panel results): the item in its real place.
-        if ((source === EXPLORER_VIEW_TYPE || source === VIEW_TYPE) && taggable(file)) {
+        if ((source === EXPLORER_VIEW_TYPE || source === VIEW_TYPE) && this.taggable(file)) {
           entries.push({ title: "Show in the file explorer", icon: "folder-search", run: () => revealInExplorer(this.app, file) });
         }
-        if (taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
+        if (this.taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
         entries.push({ title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags([file]) });
         if (file instanceof TFolder) entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void this.writeGuide(file) });
+        if (this.taggable(file)) entries.push({ title: "Exclude from the tag engine", icon: "eye-off", run: () => void this.setExcluded([file.path], true) });
         addPluginMenu(menu, entries);
       }),
     );
     this.registerEvent(
       this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => {
-        const items = files.filter(taggable);
-        if (!items.length) return;
-        addPluginMenu(menu, [
-          { title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) },
-          { title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags(items) },
-        ]);
+        const items = files.filter((f) => this.taggable(f));
+        const own = files.filter((f) => this.settings.excluded.includes(f.path)).map((f) => f.path);
+        const entries: MenuEntry[] = [];
+        if (items.length) {
+          entries.push(
+            { title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) },
+            { title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags(items) },
+            { title: `Exclude ${plural(items.length, "item")} from the tag engine`, icon: "eye-off", run: () => void this.setExcluded(items.map((i) => i.path), true) },
+          );
+        }
+        if (own.length) entries.push({ title: `Include ${plural(own.length, "item")} in the tag engine again`, icon: "eye", run: () => void this.setExcluded(own, false) });
+        addPluginMenu(menu, entries);
       }),
     );
 
@@ -193,13 +194,72 @@ export default class TagEverythingPlugin extends Plugin {
     this.index.trigger("changed"); // panel and badges redraw with the new colours
   }
 
+  /**
+   * Why the item is excluded from TagEverything (src/exclude.ts), or null. Asked for every item the index or the
+   * badges look at: cached, the answer only depends on the path and the settings.
+   */
+  exclusion(path: string, isFolder: boolean): Exclusion | null {
+    const { excluded, excludeRules } = this.settings;
+    if (!excluded.length && !excludeRules.length) return null;
+    const key = (isFolder ? "d:" : "f:") + path;
+    let hit = this.exclusionCache.get(key);
+    if (hit === undefined) this.exclusionCache.set(key, (hit = exclusionOf(path, isFolder, excluded, excludeRules)));
+    return hit;
+  }
+
+  isExcluded(item: TAbstractFile): boolean {
+    return !!this.exclusion(item.path, item instanceof TFolder);
+  }
+
+  /** Can the item get tags? Every file and folder except the vault root and what is excluded from TagEverything. */
+  taggable(item: TAbstractFile): boolean {
+    return !(item instanceof TFolder && item.isRoot()) && !this.isExcluded(item);
+  }
+
+  /** Excludes (`on`) or includes again these paths, then saves and re-reads the index; one notice. */
+  async setExcluded(paths: readonly string[], on: boolean): Promise<void> {
+    let excluded = this.settings.excluded;
+    for (const path of paths) excluded = setExcluded(excluded, path, on);
+    this.settings.excluded = excluded;
+    await this.exclusionsChanged();
+    const what = paths.length === 1 ? paths[0] : plural(paths.length, "item");
+    new Notice(on ? `${PLUGIN_NAME}: ${what} excluded from the tag engine; its tags stay in place.` : `${PLUGIN_NAME}: ${what} included in the tag engine again.`);
+  }
+
+  /** After the excluded paths or the exclusion rules changed: saved, then the index re-read (it drops or takes back items). */
+  async exclusionsChanged(): Promise<void> {
+    this.exclusionCache.clear();
+    try {
+      await this.saveSettings();
+    } catch (err) {
+      console.error("[tag-everything] saving the exclusions failed", err);
+      new Notice(`${PLUGIN_NAME}: the exclusions could not be saved.`);
+    }
+    // An item included again has tags to read back (its sidecar too): a rebuild, which also leaves the excluded out.
+    await this.index.rebuild();
+  }
+
+  /** The menu entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */
+  private includeEntry(item: TAbstractFile, why: Exclusion): MenuEntry {
+    if (why.by === "rule") {
+      const { rule } = why;
+      return {
+        title: `Excluded by the rule "${describeConditions(rule)}": edit it`,
+        icon: "eye-off",
+        run: () => new RuleModal(this.app, this, rule, undefined, "exclude").open(),
+      };
+    }
+    const title = why.path === item.path ? "Include in the tag engine again" : `Include "${why.path}" in the tag engine again`;
+    return { title, icon: "eye", run: () => void this.setExcluded([why.path], false) };
+  }
+
   /** The tags the auto-tag rules add to the file, without those it has. */
   ruleTagsOf(file: TFile): string[] {
     return rulesTags(this.settings.rules, file.path, this.index.ownTagsOf(file.path));
   }
 
   private onArrival(item: TAbstractFile): void {
-    if (!this.settings.autoApplyRules || !this.settings.rules.length || !(item instanceof TFile) || item.name === GUIDE_FILE) return;
+    if (!this.settings.autoApplyRules || !this.settings.rules.length || !(item instanceof TFile) || item.name === GUIDE_FILE || this.isExcluded(item)) return;
     this.arrivals.add(item.path);
     this.tagArrivalsSoon();
   }
@@ -211,7 +271,7 @@ export default class TagEverythingPlugin extends Plugin {
     const added = new Map<TFile, string[]>();
     for (const path of paths) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      const tags = file instanceof TFile ? this.ruleTagsOf(file) : [];
+      const tags = file instanceof TFile && !this.isExcluded(file) ? this.ruleTagsOf(file) : [];
       if (file instanceof TFile && tags.length) added.set(file, tags);
     }
     if (!added.size) return;
@@ -223,7 +283,20 @@ export default class TagEverythingPlugin extends Plugin {
 
   private async onRename(item: TAbstractFile, oldPath: string): Promise<void> {
     const own = this.ownRenames.has(item.path);
+    const folder = item instanceof TFolder;
+    const wasExcluded = !!this.exclusion(oldPath, folder);
+    // An excluded path follows its item (or a folder above it).
+    const excluded = renameExcluded(this.settings.excluded, oldPath, item.path);
+    if (excluded.some((p, i) => p !== this.settings.excluded[i])) {
+      this.settings.excluded = excluded;
+      this.exclusionCache.clear();
+      this.saveData(this.settings).catch((err) => console.error("[tag-everything] saving the moved exclusion failed", err));
+    }
     this.index.onRename(item, oldPath);
+    if (this.settings.excluded.length || this.settings.excludeRules.length) {
+      this.index.prune(); // moved into an excluded folder, or now matching an exclusion rule
+      if (wasExcluded && !this.isExcluded(item)) void this.index.rebuild(); // moved out: its tags are read back
+    }
     if (own || !(item instanceof TFile)) return; // a folder's .ts folder moves with it
     if (!this.settings.followRenames) {
       this.index.setSide(item.path, []);
@@ -404,7 +477,12 @@ export default class TagEverythingPlugin extends Plugin {
     (await this.openView())?.selectOnly(tag);
   }
 
-  editTags(items: TAbstractFile[]): void {
+  editTags(selection: TAbstractFile[]): void {
+    const items = selection.filter((i) => this.taggable(i));
+    if (!items.length) {
+      new Notice(`${PLUGIN_NAME}: excluded from the tag engine; include it again first (right-click).`);
+      return;
+    }
     new TagEditorModal(this.app, items, this.index, this.settings, (edit) => this.applyTags(items, edit), this.rule).open();
   }
 
@@ -433,55 +511,17 @@ export default class TagEverythingPlugin extends Plugin {
     return this.enqueue([...added.keys()], (state, target, item) => editPlanner(tagsOf(item), [])(state, target, item));
   }
 
-  /**
-   * Opens the Claude Code suggestions for a selection. A folder alone: the folder and the files under it (untagged
-   * ones first, at most MAX_SUGGEST_ITEMS), Claude Code working in it. A file, or several items: those, Claude Code
-   * working in their closest common folder.
-   */
+  /** Opens the Claude Code suggestions for a selection (src/suggest-modal.ts `openSuggestions`). */
   suggestTags(selection: TAbstractFile[]): TagSuggestModal | null {
-    const { vault } = this.app;
-    let folder: TFolder;
-    let items: TAbstractFile[];
-    if (selection.length === 1 && selection[0] instanceof TFolder) {
-      folder = selection[0];
-      const files: TFile[] = [];
-      Vault.recurseChildren(folder, (f) => {
-        if (f instanceof TFile && f.name !== GUIDE_FILE) files.push(f);
-      });
-      const tagged = (f: TFile): number => Number(this.index.ownTagsOf(f.path).length > 0);
-      files.sort((a, b) => tagged(a) - tagged(b) || a.path.localeCompare(b.path));
-      items = [...(folder.isRoot() ? [] : [folder]), ...files];
-    } else {
-      items = selection.filter(taggable);
-      const path = commonFolder(items.map((i) => i.path));
-      const common = path ? vault.getAbstractFileByPath(path) : vault.getRoot();
-      folder = common instanceof TFolder ? common : vault.getRoot();
-    }
-    if (!items.length) {
-      new Notice(`${PLUGIN_NAME}: nothing to tag here.`);
-      return null;
-    }
-    const modal = new TagSuggestModal(this.app, this, {
-      folder,
-      items: items.slice(0, MAX_SUGGEST_ITEMS),
-      skipped: Math.max(0, items.length - MAX_SUGGEST_ITEMS),
-    });
-    modal.open();
-    return modal;
+    return openSuggestions(this, selection);
   }
 
   /**
-   * Runs Claude Code in `folder` with `prompt` on stdin for `task` (default: tag suggestions) and resolves to what it
-   * printed (src/suggest.ts reads it). Replaced by a fake in the smoke test.
+   * Runs Claude Code in `folder` with `prompt` on stdin for `task` (src/claude-runner.ts). A public field: the smoke
+   * test replaces it with a fake.
    */
-  runClaude = (folder: TFolder, prompt: string, signal: AbortSignal, task?: ClaudeTask): Promise<string> => {
-    const adapter = this.app.vault.adapter;
-    if (!(adapter instanceof FileSystemAdapter)) return Promise.reject(new Error("the vault is not on this computer's disk"));
-    const cwd = folder.isRoot() ? adapter.getBasePath() : `${adapter.getBasePath()}/${folder.path}`;
-    const { spawn, homedir } = nodeModules();
-    const commands = claudeCommands(this.settings.claudeCommand, homedir(), navigator.platform.startsWith("Win"));
-    return runFirstFound(spawn, commands, claudeArgs(this.settings.claudeModel, task), { cwd, input: prompt, timeoutMs: CLAUDE_TIMEOUT_MS, signal });
-  };
+  runClaude = (folder: TFolder, prompt: string, signal: AbortSignal, task?: ClaudeTask): Promise<string> =>
+    runClaudeIn(this.app, this.settings, folder, prompt, signal, task);
 
   /** Runs one batch after the previous one; resolves to the number of items that failed. */
   private enqueue(items: TAbstractFile[], planner: Planner): Promise<number> {
@@ -528,6 +568,8 @@ export default class TagEverythingPlugin extends Plugin {
   private async applyOne(item: TAbstractFile, planner: Planner): Promise<boolean> {
     // The editor may have stayed open while the item was deleted (or replaced by another with the same path).
     if (this.app.vault.getAbstractFileByPath(item.path) !== item) throw new Error("it no longer exists");
+    // Its tags are not in the index: a write would work from a partial view. Never touched while excluded.
+    if (this.isExcluded(item)) throw new Error("it is excluded from the tag engine");
     // Sidecars are re-read here, not taken from the index: another app may have changed them since.
     const side = await this.store.readTags(item);
 

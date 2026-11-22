@@ -30,6 +30,8 @@ TagSpaces.
   synonyms found by Claude Code from the tag list alone (`banque`, `bancaire`), tags used once.
 - Empty the **inbox** of files without tags: **auto-tag rules** ("every PDF in Bank whose name has invoice gets bank
   invoice") offer the tags in one click, or tag new files as they arrive.
+- **Exclude** files and folders from the tag engine (right-click, or rules): ignored everywhere, their tags kept, an
+  eye-off icon in the file explorer.
 
 ## Install
 
@@ -82,7 +84,8 @@ src/main.ts        plugin wiring: menus, commands, rename handling, applying edi
 src/modal.ts       tag editor (chips + autocomplete)
 src/fix-modal.ts   Check tag names dialog
 src/suggest-modal.ts  the suggestions dialog: runs Claude Code, chips to leave tags out, adds the rest
-src/view.ts        TagEverything panel: cloud, search, groups, bookmark tabs, results
+src/claude-runner.ts  starts Claude Code in the app (Node through Electron)
+src/view.ts        TagEverything panel: groups and tags in tabs, the search and its results in Selection
 src/explorer.ts    TagEverything explorer: the tree of tags
 src/explore.ts     the explorer's tree nodes and row order (pure, tested)
 src/items.ts       a file row in every view: how it looks, open, preview, drag, file menu
@@ -92,7 +95,8 @@ src/taxonomy.ts    tag review: look-alikes, synonym prompt and answer, merge map
 src/curator.ts     rename / merge a tag, tag picker, review dialog
 src/inbox.ts       auto-tag rules and the inbox list (pure, tested)
 src/inbox-view.ts  the inbox view
-src/rule-modal.ts  the auto-tag rule dialog
+src/rule-modal.ts  the auto-tag and exclusion rule dialog
+src/exclude.ts     excluded paths and exclusion rules (pure, tested)
 src/menu.ts        the TagEverything context submenu
 src/dialogs.ts     name and formula dialogs, tag and folder completion
 src/settings.ts    settings tab

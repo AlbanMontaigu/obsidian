@@ -149,6 +149,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* excluded from TagEverything (src/exclude.ts): an eye-off icon after the name, the row faded */
+.tag-everything-excluded {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.tag-everything-excluded svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tag-everything-is-excluded {
+  opacity: 0.6;
+}
+
+/* a field of a dialog that does not apply (the tags of an exclusion rule) */
+.tag-everything-hidden {
+  display: none;
+}
+
 .tag-everything-badge-list {
   position: fixed;
   top: var(--tag-everything-list-top, 0);
@@ -214,11 +237,19 @@
   padding: 0.15em 0.6em;
 }
 
+/* A tag tab holds only the groups and the tags: the tags take the rest of the height. */
 .tag-everything-view-tags {
-  max-height: 40%;
+  flex: 1;
+  min-height: 0;
+  align-content: flex-start;
   overflow-y: auto;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-view-scope {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
 }
 
 .tag-everything-view-clear {
@@ -596,6 +627,14 @@
 .tag-everything-tab-add.is-drop-target {
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
   color: var(--text-accent);
+}
+
+/* Selection (search and results), at the end of the strip, only while there is a search */
+.tag-everything-tab-selection {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .tag-everything-tab-add svg {

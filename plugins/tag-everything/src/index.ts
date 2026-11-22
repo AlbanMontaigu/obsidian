@@ -101,6 +101,11 @@ export class TagIndex extends Events {
   ready = false;
   /** Mirrors the `autoColors` setting (set by the plugin). */
   autoColors = true;
+  /**
+   * Items excluded from TagEverything (set by the plugin, src/exclude.ts): never kept in the index. After the
+   * exclusions change, `prune()` drops the newly excluded; items included again need a `rebuild()`.
+   */
+  excluded: (path: string, isFolder: boolean) => boolean = () => false;
   /** Mirrors the `extensionTags` setting: change it with `setExtensionTags`. */
   private extensionTags: boolean;
   private notify = debounce(() => this.trigger("changed"), 50, true);
@@ -175,8 +180,19 @@ export class TagIndex extends Events {
   }
 
   private put(path: string, e: Entry): void {
-    if (isEmpty(e)) this.entries.delete(path);
+    if (isEmpty(e) || this.excluded(path, this.app.vault.getAbstractFileByPath(path) instanceof TFolder)) this.entries.delete(path);
     else this.entries.set(path, stored(e));
+  }
+
+  /** Drops the items excluded since they were indexed (after an exclusion or a move into an excluded folder). */
+  prune(): void {
+    let dropped = false;
+    for (const path of [...this.entries.keys()]) {
+      if (!this.excluded(path, this.app.vault.getAbstractFileByPath(path) instanceof TFolder)) continue;
+      this.entries.delete(path);
+      dropped = true;
+    }
+    if (dropped) this.changed();
   }
 
   setSide(path: string, side: readonly string[]): void {
@@ -309,7 +325,7 @@ export class TagIndex extends Events {
         side: sides.get(item.path) ?? [], // a sidecar whose file is gone (orphan) is ignored
         ext: this.extOf(item),
       };
-      if (!isEmpty(e)) entries.set(item.path, stored(e));
+      if (!isEmpty(e) && !this.excluded(item.path, !isFile)) entries.set(item.path, stored(e));
     }
 
     this.entries = entries;
