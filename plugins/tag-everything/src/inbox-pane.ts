@@ -170,6 +170,7 @@ export class InboxPane {
     };
     if (this.pending(file).length) button("check", "Add the rule tags", () => void this.applyRules([file]));
     button("tags", "Edit tags…", () => plugin.editTags([file]));
+    button("sparkles", "Suggest tags with Claude Code…", () => void plugin.suggestTags([file]));
     button("wand-sparkles", "New rule from this file…", () => new RuleModal(this.plugin.app, plugin, { folder: file.parent?.isRoot() ? "" : file.parent?.path, extensions: file.extension }).open());
     button("x", "Dismiss: no tag needed", () => void this.dismiss(file));
     wireItemRow(this.host, row, file);

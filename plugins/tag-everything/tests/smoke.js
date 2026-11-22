@@ -1117,6 +1117,12 @@ check(
 );
 check("inbox: opens, lists the new untagged files, newest first", !!ibRow("Inbox/Facture EDF.pdf") && !!ibRow("Inbox/photo.jpg") && inbox.files().slice(0, 2).every((f) => f.path.startsWith("Inbox/")), inbox?.files().slice(0, 4).map((f) => f.path).join());
 check("inbox: no rule yet: says what rules do", /Auto-tag rules tag files for you/.test(ibEl?.textContent ?? ""));
+const realSuggestTags = plugin.suggestTags;
+let ibSuggested = null;
+plugin.suggestTags = (items) => ((ibSuggested = items.map((f) => f.path)), null); // the dialog itself is checked under suggest:
+ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="sparkles"]')?.click();
+plugin.suggestTags = realSuggestTags;
+check("inbox: a row's sparkles suggests tags for that file", ibSuggested?.join() === "Inbox/Facture EDF.pdf", JSON.stringify(ibSuggested));
 ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="wand-sparkles"]')?.click();
 await sleep(200);
 const ruleEl = document.querySelector(".tag-everything-rule-modal");

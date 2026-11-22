@@ -371,7 +371,7 @@ inbox as soon as it has a tag.
 
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
   the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
-  icon opens the tag editor, the wand creates a rule from this file (its folder and extension filled in), **×**
+  icon opens the tag editor, the sparkles ask Claude Code for tags for this file (Section 9), the wand creates a rule from this file (its folder and extension filled in), **×**
   dismisses it (no tag needed; *Settings → Show dismissed files again* brings them back).
 - At the top: **Apply rules to N files** adds every row's rule tags at once; **Suggest tags** asks Claude Code for
   tags for the newest 50 (Section 9); **New rule** creates a rule.
