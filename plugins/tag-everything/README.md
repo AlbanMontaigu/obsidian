@@ -85,7 +85,7 @@ src/modal.ts       tag editor (chips + autocomplete)
 src/fix-modal.ts   Check tag names dialog
 src/suggest-modal.ts  the suggestions dialog: runs Claude Code, chips to leave tags out, adds the rest
 src/claude-runner.ts  starts Claude Code in the app (Node through Electron)
-src/view.ts        TagEverything panel: groups and tags in tabs, the search and its results in Selection
+src/view.ts        TagEverything panel: groups and tags in tabs, the search and its results in Selection, Inbox, Tools
 src/explorer.ts    TagEverything explorer: the tree of tags
 src/explore.ts     the explorer's tree nodes and row order (pure, tested)
 src/items.ts       a file row in every view: how it looks, open, preview, drag, file menu
@@ -94,7 +94,8 @@ src/query-block.ts query blocks rendered in notes, live
 src/taxonomy.ts    tag review: look-alikes, synonym prompt and answer, merge map (pure, tested)
 src/curator.ts     rename / merge a tag, tag picker, review dialog
 src/inbox.ts       auto-tag rules and the inbox list (pure, tested)
-src/inbox-view.ts  the inbox view
+src/inbox-pane.ts  the Inbox tab of the panel
+src/tools-pane.ts  the Tools tab of the panel (vault-wide actions)
 src/rule-modal.ts  the auto-tag and exclusion rule dialog
 src/exclude.ts     excluded paths and exclusion rules (pure, tested)
 src/menu.ts        the TagEverything context submenu

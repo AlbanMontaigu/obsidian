@@ -683,12 +683,56 @@
   color: var(--text-accent);
 }
 
-/* Selection (search and results), at the end of the strip, only while there is a search */
-.tag-everything-tab-selection {
+/* At the end of the strip: Selection (search and results, only while there is a search), Inbox, Tools */
+.tag-everything-tabs-end {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tag-everything-tabs-end > .tag-everything-tab {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.tag-everything-tab-icon {
+  display: inline-flex;
+}
+
+.tag-everything-tab-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* Inbox and Tools: the rest of the height, scrolled. */
+.tag-everything-view-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+/* Tools tab (src/tools-pane.ts): settings-like rows, narrow enough for a sidebar */
+.tag-everything-tools .setting-item {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.tag-everything-tools .setting-item:first-child {
+  border-top: none;
+}
+
+.tag-everything-tools .setting-item-info {
+  flex-basis: 100%;
+  margin-inline-end: 0;
+}
+
+.tag-everything-tools .setting-item-control {
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .tag-everything-tab-add svg {
@@ -1048,7 +1092,7 @@
   color: var(--text-muted);
 }
 
-/* ---- Inbox (src/inbox-view.ts): untagged files that arrived lately, with the tags the rules would add */
+/* ---- Inbox tab of the panel (src/inbox-pane.ts): untagged files that arrived lately, with the tags the rules would add */
 .tag-everything-inbox {
   display: flex;
   flex-direction: column;

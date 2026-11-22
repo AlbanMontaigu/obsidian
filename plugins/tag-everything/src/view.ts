@@ -1,4 +1,4 @@
-import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, ViewStateResult, WorkspaceLeaf, setIcon } from "obsidian";
+import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, ViewStateResult, WorkspaceLeaf, debounce, setIcon } from "obsidian";
 import { cloudWeights, narrowingTags } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
@@ -9,6 +9,8 @@ import type { TagEverythingSettings } from "./config.ts";
 import { type FormulaContext, GroupModal, NameModal } from "./dialogs.ts";
 import { clickable, isNode, paintTag, renderExpr } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
+import { InboxPane, inboxFiles } from "./inbox-pane.ts";
+import { renderTools } from "./tools-pane.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
 /** Most items listed at once (panel results, a level of the TagEverything explorer). */
@@ -17,6 +19,13 @@ export const MAX_RESULTS = 500;
 const TAG_MIME = "application/x-tag-everything-tag";
 const GROUP_MIME = "application/x-tag-everything-group";
 
+
+/**
+ * A tab of the panel that is not a tag tab: Selection (the search and its results), Inbox (files without tags,
+ * src/inbox-pane.ts), Tools (vault-wide actions, src/tools-pane.ts).
+ */
+export type PanelPage = "selection" | "inbox" | "tools";
+const PAGES: readonly string[] = ["selection", "inbox", "tools"];
 
 /** What the panel remembers across restarts (workspace.json). */
 interface PanelState {
@@ -27,7 +36,9 @@ interface PanelState {
   filter: string;
   /** Bookmark tab shown; null = All. */
   tab: string | null;
-  /** The Selection tab (search and results) is shown instead of the tags of `tab`. */
+  /** The page shown instead of the tags of `tab`; null = the tags. */
+  page: PanelPage | null;
+  /** `page === "selection"`, also read back from the state of 0.27 and before (no `page`). */
   selection: boolean;
 }
 
@@ -48,8 +59,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private filter = "";
   /** Bookmark tab shown; null = All. */
   private tab: string | null = null;
-  /** Selection tab shown (only while there is a search, see `hasSearch`). */
-  private selection = false;
+  /** The page shown instead of the tag tab (Selection only while there is a search, see `hasSearch`). */
+  private page: PanelPage | null = null;
+  /** The Inbox tab's content (public for the smoke test). */
+  readonly inbox: InboxPane;
+  /** Inbox and Tools: their content, and the inbox count on its tab, follow the vault. */
+  private requestRender = debounce(() => this.render(), 300, true);
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
   private tagsEl!: HTMLElement;
@@ -59,12 +74,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private resultsEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private searchEl!: HTMLInputElement;
+  private pageEl!: HTMLElement;
 
   constructor(
     leaf: WorkspaceLeaf,
     private plugin: TagEverythingPlugin,
   ) {
     super(leaf);
+    this.inbox = new InboxPane(plugin, this.rowHost());
   }
 
   getViewType(): string {
@@ -98,8 +115,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     search.value = this.filter;
     search.addEventListener("input", () => {
       this.filter = search.value.trim().toLowerCase();
-      if (this.selection) {
-        this.selection = false; // filtering is about tags: back to the tag tab
+      if (this.page) {
+        this.page = null; // filtering is about tags: back to the tag tab
         this.render();
       } else this.renderTags();
       this.app.workspace.requestSaveLayout();
@@ -134,12 +151,19 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
     this.statusEl = root.createDiv({ cls: "tag-everything-view-status" });
     this.resultsEl = root.createDiv({ cls: "tag-everything-view-results" });
+    this.pageEl = root.createDiv({ cls: "tag-everything-view-page" });
 
     this.registerEvent(this.plugin.index.on("changed", () => this.render()));
+    // A file created, deleted or renamed may join or leave the inbox without changing the index (no tag).
+    const later = (): void => void this.requestRender();
+    this.registerEvent(this.app.vault.on("create", later));
+    this.registerEvent(this.app.vault.on("delete", later));
+    this.registerEvent(this.app.vault.on("rename", later));
     this.render();
   }
 
   async onClose(): Promise<void> {
+    this.requestRender.cancel();
     this.contentEl.empty();
   }
 
@@ -150,7 +174,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
       activeGroup: this.activeGroup,
       filter: this.filter,
       tab: this.tab,
-      selection: this.selection,
+      page: this.page,
+      selection: this.page === "selection",
     };
     return { ...super.getState(), ...state };
   }
@@ -162,7 +187,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (typeof s.activeGroup === "string" || s.activeGroup === null) this.activeGroup = s.activeGroup;
     if (typeof s.filter === "string") this.filter = s.filter;
     if (typeof s.tab === "string" || s.tab === null) this.tab = s.tab;
-    if (typeof s.selection === "boolean") this.selection = s.selection;
+    if (typeof s.page === "string" && PAGES.includes(s.page)) this.page = s.page as PanelPage;
+    else if (s.page === null || typeof s.selection === "boolean") this.page = s.selection === true ? "selection" : null;
     if (this.searchEl) this.searchEl.value = this.filter;
     this.render();
     await super.setState(state, result);
@@ -172,7 +198,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   selectOnly(tag: string): void {
     this.resetSearch();
     this.selected = [tag];
-    this.selection = true;
+    this.page = "selection";
     this.stateChanged();
   }
 
@@ -260,7 +286,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
   /** Shows a bookmark tab, or All with null (public for the smoke test). */
   showTab(id: string | null): void {
     this.tab = id;
-    this.selection = false;
+    this.page = null;
+    this.stateChanged();
+  }
+
+  /** Shows the Inbox or Tools tab, or Selection while there is a search (public for main.ts and the smoke test). */
+  showPage(page: PanelPage): void {
+    this.page = page;
     this.stateChanged();
   }
 
@@ -271,7 +303,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     for (const t of tags) tabs = tb.setBookmark(tabs, added.id, "tags", t, true);
     for (const g of groups) tabs = tb.setBookmark(tabs, added.id, "groups", g, true);
     this.tab = added.id;
-    this.selection = false;
+    this.page = null;
     await this.save({ tabs });
     return added.id;
   }
@@ -333,7 +365,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const counts = this.plugin.index.counts();
       this.activeGroup = group.id;
       this.selected = group.tags.filter((t) => counts.has(t));
-      this.selection = true;
+      this.page = "selection";
     }
     this.stateChanged();
   }
@@ -494,7 +526,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.excluded = this.excluded.filter((t) => t !== tag);
     if (mode === "on") this.selected.push(tag);
     if (mode === "not") this.excluded.push(tag);
-    if (mode) this.selection = true; // a tag added to the search: show what it finds
+    if (mode) this.page = "selection"; // a tag added to the search: show what it finds
     this.stateChanged();
   }
 
@@ -531,10 +563,13 @@ export class TagEverythingView extends ItemView implements HoverParent {
     }
     if (this.activeGroup && !this.groups.some((g) => g.id === this.activeGroup)) this.activeGroup = null;
     if (this.tab && !this.currentTab) this.tab = null;
-    if (!this.hasSearch()) this.selection = false;
-    // Either a tag tab (groups, tags) or the Selection tab (search, results): never both.
-    for (const el of [this.groupsEl, this.tagsEl]) el.toggle(!this.selection);
-    for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(this.selection);
+    if (this.page === "selection" && !this.hasSearch()) this.page = null;
+    // One tab at a time: a tag tab (groups, tags), Selection (search, results), or a page (Inbox, Tools).
+    const selection = this.page === "selection";
+    for (const el of [this.groupsEl, this.tagsEl]) el.toggle(!this.page);
+    for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(selection);
+    this.pageEl.toggle(this.page === "inbox" || this.page === "tools");
+    this.requestRender.cancel();
     const matches = this.searchMatches(); // used by the tabs, narrowing tags and results: computed once
     this.renderTabs(matches);
     this.renderSelected();
@@ -542,6 +577,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.renderGroups();
     this.renderTags();
     this.renderResults(matches);
+    if (this.page === "inbox") this.inbox.render(this.pageEl);
+    else if (this.page === "tools") renderTools(this.pageEl, this.plugin);
+    else this.pageEl.empty();
   }
 
   private chip(parent: HTMLElement, tag: string, extra = ""): HTMLElement {
@@ -569,7 +607,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const el = this.tabsEl;
     el.empty();
     const tabEl = (id: string | null, name: string, label: string): HTMLElement => {
-      const active = !this.selection && this.tab === id;
+      const active = !this.page && this.tab === id;
       const t = el.createDiv({ cls: "tag-everything-tab", text: name, attr: { role: "tab", "aria-label": label, "aria-selected": String(active) } });
       t.toggleClass("is-active", active);
       clickable(t, () => this.showTab(id));
@@ -597,19 +635,25 @@ export class TagEverythingView extends ItemView implements HoverParent {
       (tag) => this.newTab([tag]),
       (group) => this.newTab([], [group]),
     );
-    if (!this.hasSearch()) return;
-    const n = matches?.length ?? 0;
-    const sel = el.createDiv({
-      cls: "tag-everything-tab tag-everything-tab-selection",
-      text: "Selection",
-      attr: { role: "tab", "aria-label": `The search and the ${plural(n, "item")} it finds`, "aria-selected": String(this.selection) },
-    });
-    sel.toggleClass("is-active", this.selection);
-    sel.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
-    clickable(sel, () => {
-      this.selection = true;
-      this.stateChanged();
-    });
+    // At the end of the strip: Selection (only while there is a search), Inbox, Tools.
+    const end = el.createDiv({ cls: "tag-everything-tabs-end" });
+    const pageTab = (page: PanelPage, label: string, text: string, icon?: string): HTMLElement => {
+      const active = this.page === page;
+      const t = end.createDiv({ cls: `tag-everything-tab tag-everything-tab-${page}`, attr: { role: "tab", "aria-label": label, "aria-selected": String(active) } });
+      if (icon) setIcon(t.createSpan({ cls: "tag-everything-tab-icon" }), icon);
+      if (text) t.createSpan({ text });
+      t.toggleClass("is-active", active);
+      clickable(t, () => this.showPage(page));
+      return t;
+    };
+    if (this.hasSearch()) {
+      const n = matches?.length ?? 0;
+      pageTab("selection", `The search and the ${plural(n, "item")} it finds`, "Selection").createSpan({ cls: "tag-everything-chip-count", text: String(n) });
+    }
+    const waiting = inboxFiles(this.plugin).length;
+    const inbox = pageTab("inbox", `Inbox: ${plural(waiting, "file")} without tags that arrived lately`, "", "inbox");
+    if (waiting) inbox.createSpan({ cls: "tag-everything-chip-count", text: String(waiting) });
+    pageTab("tools", "Tools: re-read tags, apply auto-tag rules, check names, review, rename", "", "wrench");
   }
 
   private renderSelected(): void {

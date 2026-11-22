@@ -1,11 +1,10 @@
-import { Editor, Menu, Notice, Plugin, addIcon, TAbstractFile, TFile, TFolder, View, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
+import { Editor, Menu, Notice, Plugin, addIcon, TAbstractFile, TFile, TFolder, View, WorkspaceLeaf, debounce, getFrontMatterInfo, parseYaml } from "obsidian";
 import * as ts from "./format.ts";
 import { TagIndex, cachedFrontTags } from "./index.ts";
 import { MetaStore } from "./store.ts";
 import { TagEditorModal, TagEdit, describe } from "./modal.ts";
 import { TagEverythingView, VIEW_TYPE } from "./view.ts";
 import { EXPLORER_ICON, EXPLORER_ICON_SVG, EXPLORER_VIEW_TYPE, TagExplorerView } from "./explorer.ts";
-import { revealInExplorer } from "./items.ts";
 import { ExplorerBadges } from "./badges.ts";
 import { PLUGIN_NAME, failureMessage, plural, progressMessage } from "./messages.ts";
 import { type NamingRule, makeRule, replacePlan, ruleMessage } from "./naming.ts";
@@ -16,14 +15,12 @@ import { GUIDE_FILE, claudeGuide, guidePath, hasGuide } from "./guide.ts";
 import type { ClaudeTask } from "./suggest.ts";
 import { runClaudeIn } from "./claude-runner.ts";
 import { TagSuggestModal, openSuggestions } from "./suggest-modal.ts";
-import { type MenuEntry, addPluginMenu } from "./menu.ts";
+import { addPluginMenu, fileMenuEntries, filesMenuEntries } from "./menu.ts";
 import { QUERY_LANGUAGE } from "./query.ts";
 import { QUERY_HOVER_SOURCE, TagQueryBlock } from "./query-block.ts";
 import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
-import { INBOX_VIEW_TYPE, TagInboxView } from "./inbox-view.ts";
-import { describeConditions, rulesTags } from "./inbox.ts";
+import { rulesTags } from "./inbox.ts";
 import { type Exclusion, exclusionOf, renameExcluded, setExcluded } from "./exclude.ts";
-import { RuleModal } from "./rule-modal.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
@@ -66,20 +63,18 @@ export default class TagEverythingPlugin extends Plugin {
     // Ctrl/Cmd + hover on a row of the panel or the explorer shows Obsidian's page preview.
     this.registerHoverLinkSource(VIEW_TYPE, { display: PLUGIN_NAME, defaultMod: true });
     this.registerHoverLinkSource(EXPLORER_VIEW_TYPE, { display: `${PLUGIN_NAME} explorer`, defaultMod: true });
-    this.registerView(INBOX_VIEW_TYPE, (leaf) => new TagInboxView(leaf, this));
-    this.registerHoverLinkSource(INBOX_VIEW_TYPE, { display: `${PLUGIN_NAME} inbox`, defaultMod: true });
     // `tag-everything` code blocks in notes: a live list of the items matching a tag formula
     this.registerMarkdownCodeBlockProcessor(QUERY_LANGUAGE, (source, el, ctx) => ctx.addChild(new TagQueryBlock(el, this, source)));
     this.registerHoverLinkSource(QUERY_HOVER_SOURCE, { display: `${PLUGIN_NAME} query blocks`, defaultMod: true });
     this.addSettingTab(new TagEverythingSettingTab(this.app, this));
     this.addRibbonIcon("tags", `${PLUGIN_NAME}: open the tags panel`, () => void this.openView());
     this.addRibbonIcon(EXPLORER_ICON, `${PLUGIN_NAME}: open the tag explorer`, () => void this.openExplorer());
-    this.addRibbonIcon("inbox", `${PLUGIN_NAME}: open the inbox of files without tags`, () => void this.openInbox());
 
     // Obsidian shows commands as "TagEverything: <name>", so the names don't repeat it.
     this.addCommand({ id: "open-panel", name: "Open the tags panel", callback: () => void this.openView() });
     this.addCommand({ id: "open-explorer", name: "Open the tag explorer (a tree of tags)", callback: () => void this.openExplorer() });
     this.addCommand({ id: "open-inbox", name: "Open the inbox (files without tags)", callback: () => void this.openInbox() });
+    this.addCommand({ id: "open-tools", name: "Open the tag tools (re-read, rules, check, review)", callback: () => void this.openTools() });
     this.addCommand({ id: "rename-tag", name: "Rename or merge a tag", callback: () => new TagPickerModal(this.app, this).open() });
     this.addCommand({ id: "review-tags", name: "Review tags (look-alikes, synonyms, used once)", callback: () => void this.reviewTags() });
     this.addCommand({ id: "insert-query", name: "Insert a tag query block", editorCallback: (editor) => this.insertQuery(editor) });
@@ -120,38 +115,11 @@ export default class TagEverythingPlugin extends Plugin {
     });
 
     this.registerEvent(
-      this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile, source: string) => {
-        const excluded = this.exclusion(file.path, file instanceof TFolder);
-        // An excluded item: only the way back in.
-        if (excluded) return addPluginMenu(menu, [this.includeEntry(file, excluded)]);
-        const entries: MenuEntry[] = [];
-        // From the plugin's own views (explorer, panel results): the item in its real place.
-        if ((source === EXPLORER_VIEW_TYPE || source === VIEW_TYPE) && this.taggable(file)) {
-          entries.push({ title: "Show in the file explorer", icon: "folder-search", run: () => revealInExplorer(this.app, file) });
-        }
-        if (this.taggable(file)) entries.push({ title: "Edit tags", icon: "tags", run: () => this.editTags([file]) });
-        entries.push({ title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags([file]) });
-        if (file instanceof TFolder) entries.push({ title: "Write AI assistant guide", icon: "bot", run: () => void this.writeGuide(file) });
-        if (this.taggable(file)) entries.push({ title: "Exclude from the tag engine", icon: "eye-off", run: () => void this.setExcluded([file.path], true) });
-        addPluginMenu(menu, entries);
-      }),
+      this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile, source: string) =>
+        addPluginMenu(menu, fileMenuEntries(this, file, source === EXPLORER_VIEW_TYPE || source === VIEW_TYPE)),
+      ),
     );
-    this.registerEvent(
-      this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => {
-        const items = files.filter((f) => this.taggable(f));
-        const own = files.filter((f) => this.settings.excluded.includes(f.path)).map((f) => f.path);
-        const entries: MenuEntry[] = [];
-        if (items.length) {
-          entries.push(
-            { title: `Edit tags of ${items.length} items`, icon: "tags", run: () => this.editTags(items) },
-            { title: "Suggest tags with Claude Code", icon: "sparkles", run: () => this.suggestTags(items) },
-            { title: `Exclude ${plural(items.length, "item")} from the tag engine`, icon: "eye-off", run: () => void this.setExcluded(items.map((i) => i.path), true) },
-          );
-        }
-        if (own.length) entries.push({ title: `Include ${plural(own.length, "item")} in the tag engine again`, icon: "eye", run: () => void this.setExcluded(own, false) });
-        addPluginMenu(menu, entries);
-      }),
-    );
+    this.registerEvent(this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => addPluginMenu(menu, filesMenuEntries(this, files))));
 
     this.register(() => this.tagArrivalsSoon.cancel());
     const refreshBadges = debounce(() => this.badges.refresh(), 150, true);
@@ -173,7 +141,23 @@ export default class TagEverythingPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("delete", (f) => this.index.onDelete(f)));
       this.registerEvent(this.app.vault.on("rename", (f, oldPath) => void this.onRename(f, oldPath)));
       void this.index.rebuild();
+      this.closeOldInbox();
     });
+  }
+
+  /** Closes the inbox's own sidebar view of 0.27 and before, saved in the workspace: the inbox is a panel tab now. */
+  closeOldInbox(): void {
+    const old: WorkspaceLeaf[] = [];
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.getViewState().type === "tag-everything-inbox") old.push(leaf);
+    });
+    for (const leaf of old) {
+      try {
+        leaf.detach();
+      } catch (err) {
+        console.warn("[tag-everything] closing the old inbox view failed", err);
+      }
+    }
   }
 
   async loadSettings(): Promise<void> {
@@ -239,23 +223,39 @@ export default class TagEverythingPlugin extends Plugin {
     await this.index.rebuild();
   }
 
-  /** The menu entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */
-  private includeEntry(item: TAbstractFile, why: Exclusion): MenuEntry {
-    if (why.by === "rule") {
-      const { rule } = why;
-      return {
-        title: `Excluded by the rule "${describeConditions(rule)}": edit it`,
-        icon: "eye-off",
-        run: () => new RuleModal(this.app, this, rule, undefined, "exclude").open(),
-      };
-    }
-    const title = why.path === item.path ? "Include in the tag engine again" : `Include "${why.path}" in the tag engine again`;
-    return { title, icon: "eye", run: () => void this.setExcluded([why.path], false) };
-  }
-
   /** The tags the auto-tag rules add to the file, without those it has. */
   ruleTagsOf(file: TFile): string[] {
     return rulesTags(this.settings.rules, file.path, this.index.ownTagsOf(file.path));
+  }
+
+  /**
+   * The files the auto-tag rules would tag, with the tags they would add: the items, a folder standing for every file
+   * below it; excluded files and AI assistant guides left out.
+   */
+  ruleTargets(items: readonly TAbstractFile[]): Map<TFile, string[]> {
+    const out = new Map<TFile, string[]>();
+    if (!this.settings.rules.length) return out;
+    const visit = (item: TAbstractFile): void => {
+      if (item instanceof TFolder) return item.children.forEach(visit);
+      if (!(item instanceof TFile) || out.has(item) || item.name === GUIDE_FILE || this.isExcluded(item)) return;
+      const tags = this.ruleTagsOf(item);
+      if (tags.length) out.set(item, tags);
+    };
+    items.forEach(visit);
+    return out;
+  }
+
+  /** Adds the auto-tag rules' tags to the items (a folder: the files below it); says what it did. */
+  async applyRulesTo(items: readonly TAbstractFile[]): Promise<void> {
+    const targets = this.ruleTargets(items);
+    if (!targets.size) {
+      new Notice(`${PLUGIN_NAME}: no auto-tag rule adds a tag there.`);
+      return;
+    }
+    const failed = await this.addTagsEach(targets);
+    // A batch of several items has its own summary notice (applyNow).
+    const [[file, tags]] = targets;
+    if (!failed && targets.size === 1) new Notice(`${PLUGIN_NAME}: ${file.name} tagged ${tags.join(" ")} (auto-tag rule).`);
   }
 
   private onArrival(item: TAbstractFile): void {
@@ -268,17 +268,8 @@ export default class TagEverythingPlugin extends Plugin {
   async tagArrivals(): Promise<void> {
     const paths = [...this.arrivals];
     this.arrivals.clear();
-    const added = new Map<TFile, string[]>();
-    for (const path of paths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      const tags = file instanceof TFile && !this.isExcluded(file) ? this.ruleTagsOf(file) : [];
-      if (file instanceof TFile && tags.length) added.set(file, tags);
-    }
-    if (!added.size) return;
-    const failed = await this.addTagsEach(added);
-    // A batch of several items has its own summary notice (applyNow).
-    const [[file, tags]] = added;
-    if (!failed && added.size === 1) new Notice(`${PLUGIN_NAME}: ${file.name} tagged ${tags.join(" ")} (auto-tag rule).`);
+    const files = paths.map((p) => this.app.vault.getAbstractFileByPath(p)).filter((f): f is TFile => f instanceof TFile);
+    if (this.ruleTargets(files).size) await this.applyRulesTo(files); // nothing to say when no rule matches
   }
 
   private async onRename(item: TAbstractFile, oldPath: string): Promise<void> {
@@ -435,10 +426,29 @@ export default class TagEverythingPlugin extends Plugin {
     editor.setCursor({ line: from.line + (before ? 2 : 1), ch: formula.length });
   }
 
-  /** Shows the inbox of files without tags (right sidebar), opening it if needed. */
-  async openInbox(): Promise<TagInboxView | null> {
-    const view = await this.revealView(INBOX_VIEW_TYPE, "right", "the inbox");
-    return view instanceof TagInboxView ? view : null;
+  /** Shows the tags panel on its Inbox tab (files without tags), opening the panel if needed. */
+  async openInbox(): Promise<TagEverythingView | null> {
+    const view = await this.openView();
+    view?.showPage("inbox");
+    return view;
+  }
+
+  /** Shows the tags panel on its Tools tab (vault-wide actions), opening the panel if needed. */
+  async openTools(): Promise<TagEverythingView | null> {
+    const view = await this.openView();
+    view?.showPage("tools");
+    return view;
+  }
+
+  /** Focuses the inbox on a folder ("" = the whole vault), then shows it. */
+  async focusInbox(folder: string): Promise<void> {
+    this.settings.inboxFolder = normalizeSettings({ ...this.settings, inboxFolder: folder }).inboxFolder;
+    try {
+      await this.saveSettings();
+    } catch (err) {
+      console.error("[tag-everything] saving the inbox folder failed", err);
+    }
+    await this.openInbox();
   }
 
   /** Shows the tags panel (right sidebar), opening it if needed. */

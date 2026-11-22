@@ -22,9 +22,12 @@ new tag one lower-case plain word, no liaison word; the command *Check tag names
 that break it, where they are. **Query blocks**: a `tag-everything` code block in a note lists, live, the items
 matching a formula. **Rename or merge a tag** everywhere (tag menu, command) and **Review tags** (look-alikes found
 locally, synonyms by Claude Code from the tag list alone with no tool, tags used once) rewrite the vault through the
-same engine as *Check tag names*. The **inbox** lists the untagged files that arrived lately with the tags the
+same engine as *Check tag names*. The **inbox** (a tab of the panel) lists the untagged files that arrived lately with the tags the
 **auto-tag rules** (folder / words of the name / extension → tags) would add; a setting applies them to new files as
-they are created, another focuses it on one folder; its files also show under an *Inbox* node atop the explorer. Files and folders can be
+they are created, another (or a folder's menu) focuses it on one folder; its files also show under an *Inbox* node atop the explorer.
+The rules also run on demand: a file / folder / selection menu, or the panel's **Tools** tab for the vault, which
+holds every vault-wide action (re-read, apply rules, check names, review, rename). UI surfaces follow the root rule:
+explorers, the *TagEverything* context submenu, the panel (tags, Selection, Inbox, Tools) and the settings (options). Files and folders can be
 **excluded from the tag engine** (right-click, or exclusion rules with the auto-tag conditions): ignored everywhere,
 their tags kept on disk, an eye-off icon in the file explorer.
 
@@ -43,7 +46,8 @@ their tags kept on disk, an eye-off icon in the file explorer.
 | What a file row shows and does (open, preview, drag, file menu): panel, explorer, query blocks, inbox | `items.ts` (`renderItemRow`, `wireItemRow`) | |
 | Query blocks (syntax, options, matching, rendering) | `query.ts` (pure), `query-block.ts` | user guide §11 |
 | Rename / merge a tag, tag review (look-alikes, synonyms, rare tags) | `taxonomy.ts` (pure), `curator.ts`; writes through `replaceTags` | user guide §12; synonyms prompt or flags changed: one real run (see *Known limits*) |
-| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-view.ts` (`inboxFiles`, also the explorer's Inbox node), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, also the explorer's Inbox node and the tab count), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
+| A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
 | Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
@@ -106,10 +110,12 @@ and `docs/user-guide.md` when users see it.
   insert command wraps the selection), rename / merge (title, a rule-breaking name refused, *Merge* said, applied to a
   note's frontmatter), review (look-alike group ticked, typo unticked, rare tags; Claude Code faked: no tool, the tag
   list in the prompt, its group unticked with cost; *Change 4 tags* renames names and rewrites frontmatter), inbox
-  (new untagged files first; a rule from a row's wand, prefilled, live preview, saved; rule chips, one left out, ✓
+  (a tab of the panel, active, its count on the tab, no inbox view or ribbon icon; new untagged files first; a rule from a row's wand, prefilled, live preview, saved; rule chips, one left out, ✓
   adds the rest and the file leaves; dismiss saved; the *Inbox folder* row: focused on `inbox/` (case, slashes) lists only its file and says where, the
   explorer's Inbox node first with its count, opens on the file, `getState().inbox`; a missing folder said, the
-  empty node hidden; the settings list; with `autoApplyRules` a created PDF is renamed
+  empty node hidden; the folder menu's *Apply auto-tag rules (2 files)* and *Inbox of this folder* (focus, tab shown), *Whole vault* undoes it;
+  the Tools tab: its five actions, *Apply to 2 files* tags them and is then disabled, re-read notice, check dialog;
+  a 0.27 inbox sidebar leaf closed by `closeOldInbox`; the settings list; with `autoApplyRules` a created PDF is renamed
   with its rule tags); exclusions (the folder menu's *Exclude from the tag engine* drops `Projects` and everything under
   it from the index, `data.json`, its sidecar untouched, eye-off icon and faded row even with the badges off, an item
   inside offers only *Include "Projects"*, a write refused, included again its tags read back and the icon gone; an
@@ -139,7 +145,7 @@ and `docs/user-guide.md` when users see it.
   (`Tax-Receipt` in a PDF name, `plan_de_charge` / `de` in a frontmatter, the nested `proj/alpha` in a note's
   frontmatter) plus the fixture's `B27 INC IMAC` are listed with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
-  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the two *Tag maintenance* settings rows (re-read notice, check dialog: both in the settings **window**); the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
+  group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the settings' *Tag maintenance* holds no action, only *Tag tools*, which opens the panel's Tools tab; the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
   left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the formula box (`KP` suggests kpi and
   leaves the tree whole, picking it makes a chip and keeps the items carrying kpi, Enter opens its path, `AND` after it
   warns and keeps the search, `OR shared` + Enter joins the chips, a chip's × removes it, `shared et non final` (NOT
@@ -152,8 +158,8 @@ and `docs/user-guide.md` when users see it.
   bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
-- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs, group / name / tag / check /
-  rename / review / suggest / rule dialogs, inbox, explorer, each settings section in the settings window) to
+- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs including Tools and Inbox, group / name / tag / check /
+  rename / review / suggest / rule dialogs, explorer, each settings section in the settings window) to
   `dist/tag-everything-*.png`: `npm run smoke -- tag-everything --script gallery`, then look at them after any UI
   change. Every dialog carries `.tag-everything-dialog` (styles.css *Dialogs*: muted intro, section headings, padded
   list boxes, a footer above a line with its note left and buttons right); settings actions are rows with a labelled
@@ -208,7 +214,9 @@ Deliberate exceptions, each for a reason:
   Windows only). The liaison word list is a guess: the owner can edit it in the settings.
 - Deleting a file in Obsidian leaves its `.ts` sidecar (orphan, ignored by the scan); a file created later with the
   same name would pick its tags up at the next rebuild. Not deleted on purpose (never delete metadata unasked).
-- The panel re-renders on every index change even when hidden (cheap: counts are cached and the search runs once per render).
+- The panel re-renders on every index change even when hidden (cheap: counts are cached and the search runs once per render),
+  and on vault create / delete / rename (debounced 300 ms) for the inbox count on its tab, which scans every vault file
+  (`inboxFiles`) per render; the Tools tab runs the rules over every file when shown. Not measured on the owner's 9 500-file vault.
 - The AI assistant guide is a snapshot (tag lists, settings) and is never overwritten, so it goes stale: the owner
   deletes and rewrites it. A refresh that rewrites only a marked section of an existing `CLAUDE.md` would fix it, but
   touches a file the owner may have edited (not done: never overwrite).
@@ -228,8 +236,8 @@ Deliberate exceptions, each for a reason:
   new). Dismissed paths are kept in `data.json` and don't follow a rename. The inbox lists notes too (any untagged
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
-- `main.ts` is ~640 lines (over the ~500 guideline) even with the Claude Code runner moved out (0.26.0): the next
-  feature there should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
+- `main.ts` is ~650 lines (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
+  moved out; `view.ts` ~930. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
 - Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a

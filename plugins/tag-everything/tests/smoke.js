@@ -342,20 +342,13 @@ if (settingTab) {
   await sleep(300);
   check("settings: badge option disabled while badges are off", off === 2 && saved === false, `disabled=${off} saved=${saved}`);
   check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 1 && (await plugin.loadData())?.showBadges === true);
-  // Tag maintenance: the vault check and the re-read are buttons of the settings too. Settings have their own
-  // window in Obsidian 1.15: the notice and the dialog open there.
-  check("settings: tag maintenance rows indexed", names.includes("Check and fix tag names") && names.includes("Re-read all tags"), JSON.stringify(names));
-  const setDoc = el.ownerDocument;
-  const setNotice = () => [...setDoc.querySelectorAll(".notice")].some((n) => /tagged item/.test(n.textContent));
-  row("Re-read all tags")?.querySelector("button")?.click();
-  await waitFor(setNotice, 5000);
-  check("settings: Re-read all tags re-reads and says how many items", setNotice());
-  row("Check and fix tag names")?.querySelector("button")?.click();
-  await waitFor(() => !!setDoc.querySelector(".tag-everything-fix-modal"), 5000);
-  const fromSettings = setDoc.querySelector(".tag-everything-fix-modal");
-  check("settings: Check and fix tag names opens the check", !!fromSettings && /follow the rule|break the rule/.test(fromSettings.textContent), fromSettings?.textContent.slice(0, 120));
-  fromSettings?.querySelector(".modal-close-button, .modal-header-button")?.click();
-  await sleep(200);
+  // Tag maintenance: settings hold options only; one row leads to the panel's Tools tab, where the actions are.
+  check("settings: no maintenance action, one row leading to the Tools tab", names.includes("Tag tools") && !names.includes("Re-read all tags") && !names.includes("Check and fix tag names"), JSON.stringify(names));
+  row("Tag tools")?.querySelector("button")?.click();
+  await sleep(400);
+  const toolsFromSettings = app.workspace.getLeavesOfType("tag-everything-view")[0]?.view;
+  check("settings: Tag tools opens the panel on its Tools tab", toolsFromSettings?.getState().page === "tools" && !!toolsFromSettings.contentEl.querySelector('.tag-everything-tools [data-action="reindex"]'), JSON.stringify(toolsFromSettings?.getState()));
+  toolsFromSettings?.showTab(null);
   app.setting.close();
 } else check("settings: tab found", false);
 
@@ -752,7 +745,7 @@ check("command: Check tag names registered", !!app.commands.commands["tag-everyt
 const folderMenu = fakeMenu();
 app.workspace.trigger("file-menu", folderMenu, file("Projects"), "file-explorer");
 const guideMenu = folderMenu.sub("TagEverything");
-check("guide: folder submenu has Edit tags, suggestions, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
+check("guide: folder submenu has Edit tags, suggestions, its inbox, the guide and Exclude", guideMenu?.titles().join() === "Edit tags,Suggest tags with Claude Code,Inbox of this folder,Write AI assistant guide,Exclude from the tag engine", guideMenu?.titles().join(" | "));
 guideMenu.click("Write AI assistant guide");
 await waitFor(() => !!file("Projects/CLAUDE.md"));
 const guideText = file("Projects/CLAUDE.md") ? await vault.read(file("Projects/CLAUDE.md")) : "";
@@ -977,10 +970,19 @@ await vault.delete(file("Taxo"), true);
 await vault.createFolder("Inbox");
 await vault.create("Inbox/Facture EDF.pdf", "");
 await vault.create("Inbox/photo.jpg", "");
-const inbox = await plugin.openInbox();
-await sleep(300);
-const ibEl = inbox?.contentEl;
-const ibRow = (path) => ibEl?.querySelector(`.tag-everything-inbox-row[data-path="${path}"]`);
+// The inbox is a tab of the tags panel: no view, ribbon icon or sidebar tab of its own.
+const ibBefore = app.workspace.getLeavesOfType("tag-everything-view")[0]?.view.getState();
+const ibView = await plugin.openInbox();
+await sleep(400);
+const inbox = ibView?.inbox;
+const ibEl = ibView?.contentEl;
+const ibRow = (path) => ibEl?.querySelector(`.tag-everything-view-page .tag-everything-inbox-row[data-path="${path}"]`);
+const ibTab = () => ibEl?.querySelector(".tag-everything-tabs-end .tag-everything-tab-inbox");
+check(
+  "inbox: a tab of the panel, active, its count on it, no view of its own",
+  ibView?.getState().page === "inbox" && ibTab()?.classList.contains("is-active") && ibTab()?.querySelector(".tag-everything-chip-count")?.textContent === String(inbox.files().length) && !document.querySelector('.side-dock-ribbon-action[aria-label*="inbox"]') && !app.workspace.getLeavesOfType("tag-everything-inbox").length,
+  JSON.stringify(ibView?.getState()) + " " + ibTab()?.textContent,
+);
 check("inbox: opens, lists the new untagged files, newest first", !!ibRow("Inbox/Facture EDF.pdf") && !!ibRow("Inbox/photo.jpg") && inbox.files().slice(0, 2).every((f) => f.path.startsWith("Inbox/")), inbox?.files().slice(0, 4).map((f) => f.path).join());
 check("inbox: no rule yet: says what rules do", /Auto-tag rules tag files for you/.test(ibEl?.textContent ?? ""));
 ibRow("Inbox/Facture EDF.pdf")?.querySelector('[data-action="wand-sparkles"]')?.click();
@@ -1034,6 +1036,53 @@ await sleep(300);
 check("inbox: a focus folder not in the vault is said; the explorer hides an empty Inbox node", /No folder Nowhere in the vault/.test(ibEl.textContent) && !exIbNode(), ibEl.textContent.slice(0, 200));
 await settingTab.setControlValue("inboxFolder", "");
 exIb?.toggleInbox();
+// Targeted actions in the folder menu: its inbox, the rules on the files below it.
+await vault.create("Inbox/Facture Orange.pdf", "");
+await sleep(300);
+const ibMenu = fakeMenu();
+app.workspace.trigger("file-menu", ibMenu, file("Inbox"), "file-explorer");
+const ibSub = ibMenu.sub("TagEverything");
+// EDF still lacks facture (left out above), Orange lacks both; photo and scan are no PDF.
+check("menu: Apply auto-tag rules on a folder, with the files it would tag", ibSub?.titles().includes("Apply auto-tag rules (2 files)"), ibSub?.titles().join(" | "));
+ibSub?.click("Inbox of this folder");
+await sleep(500);
+check("menu: Inbox of this folder focuses the inbox there and shows it", plugin.settings.inboxFolder === "Inbox" && ibView.getState().page === "inbox" && /without tags in Inbox/.test(ibEl.textContent), plugin.settings.inboxFolder + " / " + ibView.getState().page);
+ibEl.querySelector(".tag-everything-inbox-actions button:last-child")?.click(); // "Whole vault"
+await sleep(400);
+check("inbox: Whole vault stops the focus", plugin.settings.inboxFolder === "", plugin.settings.inboxFolder);
+// The Tools tab: the vault-wide actions, the rules applied to every file they match.
+await plugin.openTools();
+await sleep(300);
+const toolBtn = (action) => ibEl.querySelector(`.tag-everything-tools button[data-action="${action}"]`);
+check(
+  "tools: a tab of the panel with re-read, apply rules, check, review, rename",
+  ibView.getState().page === "tools" && ["reindex", "apply-rules", "check-names", "review", "rename"].every((a) => !!toolBtn(a)) && !ibEl.querySelector(".tag-everything-tab-tools")?.textContent,
+  [...ibEl.querySelectorAll(".tag-everything-tools button")].map((b) => b.dataset.action).join(),
+);
+check("tools: Apply names the files the rules would tag", toolBtn("apply-rules")?.textContent === "Apply to 2 files" && !toolBtn("apply-rules").disabled, toolBtn("apply-rules")?.textContent);
+toolBtn("apply-rules")?.click();
+await waitFor(() => !!file("Inbox/Facture Orange[energie facture].pdf") && !!file("Inbox/Facture EDF[energie facture].pdf"), 5000);
+await sleep(400);
+check("tools: Apply adds the rule tags (only adds), then nothing is left to apply", !!file("Inbox/Facture Orange[energie facture].pdf") && !!file("Inbox/Facture EDF[energie facture].pdf") && toolBtn("apply-rules")?.disabled, toolBtn("apply-rules")?.textContent);
+toolBtn("reindex")?.click();
+await waitFor(() => [...document.querySelectorAll(".notice")].some((n) => /tagged item/.test(n.textContent)), 5000);
+check("tools: Re-read all tags says how many items", [...document.querySelectorAll(".notice")].some((n) => /tagged item/.test(n.textContent)));
+toolBtn("check-names")?.click();
+await waitFor(() => !!document.querySelector(".tag-everything-fix-modal"), 5000);
+check("tools: Check opens the tag name check", !!document.querySelector(".tag-everything-fix-modal"));
+document.querySelector(".tag-everything-fix-modal")?.querySelector(".modal-close-button, .modal-header-button")?.click();
+await sleep(200);
+check("command: open the tools registered", !!app.commands.commands["tag-everything:open-tools"]);
+// A workspace saved by 0.27 had the inbox in its own sidebar tab: closed at load.
+const oldInboxes = () => {
+  const found = [];
+  app.workspace.iterateAllLeaves((l) => l.getViewState().type === "tag-everything-inbox" && found.push(l));
+  return found;
+};
+await app.workspace.getRightLeaf(false)?.setViewState({ type: "tag-everything-inbox" });
+const oldBefore = oldInboxes().length;
+plugin.closeOldInbox();
+check("inbox: the old inbox sidebar tab of a saved workspace is closed", oldBefore === 1 && !oldInboxes().length, `before=${oldBefore} after=${oldInboxes().length}`);
 const ruleDefs = settingTab?.getSettingDefinitions().find((d) => d.heading === "Auto-tag rules");
 check("settings: the rules listed, with add and delete", ruleDefs?.type === "list" && ruleDefs.items?.[0]?.name === "In Inbox · name has facture · pdf → energie facture" && !!ruleDefs.addItem && !!ruleDefs.onDelete, ruleDefs?.items?.map((i) => i.name).join());
 plugin.settings.autoApplyRules = true;
@@ -1045,7 +1094,7 @@ plugin.settings.autoApplyRules = false;
 plugin.settings.rules = [];
 plugin.settings.inboxDismissed = [];
 await plugin.saveSettings();
-inbox?.leaf.detach();
+if (ibBefore) await ibView.setState(ibBefore, {}); // the panel as it was before the inbox
 await vault.delete(file("Inbox"), true);
 document.querySelectorAll(".notice").forEach((n) => n.remove());
 

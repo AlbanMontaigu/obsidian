@@ -66,7 +66,7 @@ The rule only applies to **new** tags. Existing ones stay until you run *Check t
 
 ## 4. Check tag names (fix the whole vault)
 
-Command *Check tag names (naming rule) and fix them*, or *Settings → Tag maintenance → Check and fix tag names*.
+Command *Check tag names (naming rule) and fix them*, or the panel's **Tools** tab → *Check and fix tag names* (Section 5).
 
 1. It re-reads every tag (also those edited outside Obsidian).
 2. It lists every tag that breaks the rule: how many items carry it, why, and a suggested fix (`B27` → `b27`,
@@ -106,6 +106,14 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - Everything works from the keyboard (Tab, then Enter or Space). The panel remembers its search, filter and tab
   (Selection included) across restarts.
 - The ↻ button re-reads all tags (after editing them outside Obsidian).
+- At the right end of the tab strip, two icon tabs: the **inbox** (files without tags, with their number: Section 13)
+  and the **Tools** (wrench): the actions on the whole vault, one row each with what it does:
+  - *Re-read all tags*;
+  - *Apply auto-tag rules*: the button says how many files of the vault the rules would tag (**Apply to N files**);
+    rules only add tags. **New rule…** creates one;
+  - *Check and fix tag names* (Section 4), *Review tags* and *Rename or merge a tag* (Section 12).
+
+  For chosen files or folders, the same actions are in the right-click menu (*TagEverything →*): see Section 13.
 
 ```mermaid
 flowchart LR
@@ -310,7 +318,7 @@ rule on, the new name must follow it.
 
 ### Review tags
 
-Command *Review tags (look-alikes, synonyms, used once)*, or *Settings → Tag maintenance → Review tags*. It re-reads
+Command *Review tags (look-alikes, synonyms, used once)*, or the panel's **Tools** tab → *Review tags*. It re-reads
 every tag, then lists:
 
 - **Look-alike tags**, found on your computer, free: the same word once case, accents and a plural s / x are ignored
@@ -331,15 +339,17 @@ refused (the dialog says which); chains are followed (`a` → `b` and `b` → `c
 ## 13. The inbox and auto-tag rules
 
 The inbox lists the files **without tags that arrived lately** (created in the vault in the last 30 days, setting
-*Days in the inbox*), newest first: open it with the ribbon `inbox` icon or the command *Open the inbox (files
-without tags)*. A file leaves the inbox as soon as it has a tag.
+*Days in the inbox*), newest first. It is a tab of the TagEverything panel: the `inbox` icon at the right end of its
+tab strip, with the number of files waiting; or the command *Open the inbox (files without tags)*. A file leaves the
+inbox as soon as it has a tag.
 
-- **Focus on one folder**: *Settings → Inbox → Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and
-  accents ignored; empty = the whole vault). The inbox then lists only the files there and says so at the top. Rules
-  and *Tag new files with the rules automatically* still work everywhere.
+- **Focus on one folder**: right-click the folder → *TagEverything → Inbox of this folder*, or *Settings → Inbox →
+  Inbox folder* (e.g. `Downloads/Scans`, subfolders included; case and accents ignored; empty = the whole vault). The
+  inbox then lists only the files there and says so at the top; its **Whole vault** button stops the focus. Rules and
+  *Tag new files with the rules automatically* still work everywhere.
 - **In the TagEverything explorer** (Section 10): the same files show under an **Inbox** node, first in the tree,
   with their count, while the search box is empty and the inbox is not empty. Click it to open it; right-click →
-  *Open the inbox* for the full view (rule tags, ✓, dismiss).
+  *Open the inbox* for the panel's Inbox tab (rule tags, ✓, dismiss).
 
 - Each row: the file (click to open, right-click for the file menu, as in the panel), its folder, when it arrived, and
   the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
@@ -353,6 +363,10 @@ gets these tags". Each condition is optional, but a rule needs at least one. Nam
 accents, and without the tags already in the name. The rule dialog says how many files of the vault it matches, and
 how many of them have no tag yet. Rules are listed in *Settings → Auto-tag rules*: click one to edit it, **+** adds
 one, the bin deletes one.
+
+**Apply the rules to existing files**: right-click a file, a folder (every file below it) or a selection →
+*TagEverything → Apply auto-tag rules (N files)*; the item shows only when a rule would add a tag there. For the whole
+vault: the panel's **Tools** tab → *Apply auto-tag rules*. Rules only add tags, never remove or rename one.
 
 Setting **Tag new files with the rules automatically** (off by default): a file created in the vault (a download, a
 scan, a copy) gets its rule tags at once, 2 seconds after the last of a burst of new files, without going through
@@ -385,12 +399,13 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Open the tag explorer (a tree of tags) | Section 10: shows the TagEverything explorer in the left sidebar |
 | Check tag names (naming rule) and fix them | Section 4 |
 | Re-read all tags (after editing them outside Obsidian) | Rebuilds the tag index and says how many items are tagged |
+| Open the tag tools (re-read, rules, check, review) | Section 5: the panel's Tools tab |
 | Write AI assistant guide in the vault root | Section 9 (folders: right-click → *TagEverything → Write AI assistant guide*) |
 | Suggest tags for the current file with Claude Code | Section 9 (folders, selections: right-click → *TagEverything → Suggest tags with Claude Code*) |
 | Insert a tag query block | Section 11 |
 | Rename or merge a tag | Section 12 (also right-click a tag in the panel or the explorer) |
 | Review tags (look-alikes, synonyms, used once) | Section 12 |
-| Open the inbox (files without tags) | Section 13 |
+| Open the inbox (files without tags) | Section 13: the panel's Inbox tab |
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -409,11 +424,13 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
 | Excluded from the tag engine | none | Section 13: the files and folders excluded by right-click; the bin includes one again |
 | Exclusion rules | none | Section 13: click to edit, **+** to add, the bin to delete |
-| Tag maintenance | | Buttons: *Review tags* (Section 12), *Check and fix tag names*, *Re-read all tags* |
+| Tag maintenance | | *Tag tools*: opens the panel's Tools tab, where the actions are (Section 5) |
 
 Everything the plugin adds says so: its context-menu items are under one **TagEverything** submenu, its commands
-read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer,
-inbox and dialogs are titled *TagEverything*.
+read *TagEverything: …* in the command palette, its notices start with *TagEverything:*, and its panel, explorer
+and dialogs are titled *TagEverything*. It lives in four places only: the explorers (Obsidian's, with its badges, and
+the TagEverything explorer), the right-click menu (actions on chosen items), the panel (tags, search, inbox, tools)
+and the settings (options).
 
 The settings also show up in Obsidian's settings search (e.g. type "badges" or "sidecar").
 
@@ -424,7 +441,7 @@ The settings also show up in Obsidian's settings search (e.g. type "badges" or "
   explorer (Section 10) and the panel show them, and tag them, either way; turn the setting on to see them in
   Obsidian's explorer too.
 - **Tags changed in another app don't show**: Obsidian does not watch `.ts` folders. Use *Re-read all tags* (panel ↻,
-  command or settings), or *Check tag names* (it re-reads first); it also happens at each start. Name and frontmatter
+  its Tools tab or the command), or *Check tag names* (it re-reads first); it also happens at each start. Name and frontmatter
   tags update live.
 - **No badges**: they use the explorer's internal markup (no public API); an Obsidian update may hide them. Everything
   else keeps working.

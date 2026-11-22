@@ -7,7 +7,7 @@ import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS } from "./view.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
 import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
-import { inboxFiles } from "./inbox-view.ts";
+import { inboxFiles } from "./inbox-pane.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -43,7 +43,7 @@ const keyOf = (trail: readonly string[]): string => trail.join("\u001f");
  * including those the core explorer hides (*Detect all file extensions* off). The file open in the editor is
  * highlighted wherever it shows. The box at the top takes a formula (the panel's syntax, tags completed as typed, a
  * picked tag becomes a chip with a ×): the tree then holds only the matching items. Above the tags, while no formula
- * is applied, an Inbox node holds the files of the inbox (untagged, arrived lately: src/inbox-view.ts `inboxFiles`).
+ * is applied, an Inbox node holds the files of the inbox (untagged, arrived lately: src/inbox-pane.ts `inboxFiles`).
  */
 export class TagExplorerView extends ItemView implements HoverParent {
   hoverPopover: HoverPopover | null = null;

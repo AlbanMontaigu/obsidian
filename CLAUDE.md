@@ -93,6 +93,14 @@ end, full run only for a minor/major version, on request or when long overdue; e
   tell the user with a `Notice`.
 - **Register everything** (`registerEvent`, `registerDomEvent`, `register(() => cleanup)`, `addCommand`) so disabling
   the plugin leaves nothing behind.
+- **Four UI surfaces, no more**: a plugin lives in (1) the **explorer** (Obsidian's file explorer: badges, icons; and
+  at most one explorer view of its own in the left sidebar), (2) the **context menu** (the actions on the items
+  right-clicked), (3) **one panel** in the right sidebar, whose tabs hold everything else the user browses or runs
+  (lists, inboxes, vault-wide tools), and (4) the **settings** (options only, no actions: at most a row that opens the
+  panel tab where they are). Group by type: a targeted action goes in the context menu, a vault-wide one in a panel
+  tab, an option in the settings. No extra sidebar view, ribbon icon or status-bar item for a new feature; a dialog
+  only as one step of an action started from one of the four (an editor, a confirmation, a review list). Commands
+  may mirror any of it.
 - **Say it is the plugin**: whatever a plugin adds to Obsidian's own UI names it. Its context-menu items go in one
   submenu named after the plugin (`tag-everything` `addPluginMenu`: *TagEverything → Edit tags*), notices start with
   `<Name>: `, views and dialogs carry the name in their title. Commands need nothing: Obsidian shows

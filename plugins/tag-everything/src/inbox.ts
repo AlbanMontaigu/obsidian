@@ -1,5 +1,5 @@
 // The inbox of untagged files and the auto-tag rules. Pure, no `obsidian` import (unit-tested); the view is
-// inbox-view.ts, the rule dialog rule-modal.ts.
+// inbox-pane.ts (a tab of the panel), the rule dialog rule-modal.ts.
 //
 // A rule: "a file in this folder, whose name contains one of these words, with one of these extensions, gets these
 // tags". Every condition left empty matches anything, but a rule needs at least one. Rules are offered in the inbox

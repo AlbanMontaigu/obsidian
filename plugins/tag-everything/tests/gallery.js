@@ -95,7 +95,10 @@ await sleep(400);
 await snap("dialog-suggest");
 await closeModals();
 
-// Inbox, then a rule from a row's wand.
+// The panel's Tools tab, then its Inbox tab and a rule from a row's wand.
+await plugin.openTools();
+await sleep(500);
+await snap("view-tools");
 await plugin.openInbox();
 await sleep(500);
 await snap("view-inbox");
@@ -109,7 +112,7 @@ await plugin.openExplorer();
 await sleep(500);
 await snap("view-explorer");
 
-// Settings: top, then the tag maintenance section and the rules.
+// Settings: top, then each section.
 app.setting.open();
 app.setting.openTabById("tag-everything");
 await sleep(500);

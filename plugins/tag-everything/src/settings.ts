@@ -208,28 +208,15 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         type: "group",
         heading: "Tag maintenance",
         items: [
+          // The actions are in the panel's Tools tab (root CLAUDE.md: settings hold options); this row leads there.
           buttonRow(
             {
-              name: "Review tags",
-              desc: "Look-alike tags (case, accents, plural, typos), synonyms found by Claude Code, tags used once: merge or remove them in one go.",
-              aliases: ["duplicates", "synonyms", "merge", "rename", "clean up"],
+              name: "Tag tools",
+              desc: "Re-read all tags, apply the auto-tag rules, check tag names, review and rename tags: in the Tools tab (wrench) of the tags panel.",
+              aliases: ["reindex", "rebuild", "re-read", "refresh", "review", "check", "naming rule", "fix tags", "merge", "rename", "apply rules"],
             },
-            "Review…",
-            () => void this.plugin.reviewTags(),
-          ),
-          buttonRow(
-            {
-              name: "Check and fix tag names",
-              desc: "Re-reads every tag, then lists those breaking the naming rule with a fix you can edit; nothing changes until you click Fix.",
-              aliases: ["normalise", "normalize", "naming rule", "fix tags"],
-            },
-            "Check…",
-            () => void this.plugin.checkTagNames(),
-          ),
-          buttonRow(
-            { name: "Re-read all tags", desc: "Rebuilds the tag index, e.g. after tags were edited outside Obsidian.", aliases: ["reindex", "rebuild", "refresh", "index"] },
-            "Re-read",
-            () => void this.plugin.reindex(),
+            "Open",
+            () => void this.plugin.openTools(),
           ),
         ],
       },

@@ -1,14 +1,12 @@
-import { ButtonComponent, HoverParent, HoverPopover, ItemView, TFile, WorkspaceLeaf, debounce, setIcon } from "obsidian";
+import { ButtonComponent, TFile, setIcon } from "obsidian";
 import { MAX_SUGGEST_ITEMS } from "./suggest.ts";
 import { ageText, inboxPaths } from "./inbox.ts";
-import { renderItemRow, wireItemRow } from "./items.ts";
+import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { GUIDE_FILE } from "./guide.ts";
-import { PLUGIN_NAME, plural } from "./messages.ts";
+import { plural } from "./messages.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { clickable, paintTag } from "./ui.ts";
 import type TagEverythingPlugin from "./main.ts";
-
-export const INBOX_VIEW_TYPE = "tag-everything-inbox";
 
 /** Rows drawn at most: an inbox is meant to be emptied, not scrolled. */
 const MAX_INBOX_ROWS = 200;
@@ -29,52 +27,21 @@ export function inboxFiles(plugin: TagEverythingPlugin): TFile[] {
 }
 
 /**
- * The inbox: files with no tag that arrived in the last days (setting `inboxDays`), in one folder if `inboxFolder` is
- * set, newest first. Each row shows the
- * tags the auto-tag rules would add (click one to leave it out) and four buttons: add them, edit tags, new rule from
- * this file, dismiss. At the top: apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox
- * as soon as it has a tag.
+ * The inbox, a tab of the tags panel (src/view.ts): files with no tag that arrived in the last days (setting
+ * `inboxDays`), in one folder if `inboxFolder` is set, newest first. Each row shows the tags the auto-tag rules would
+ * add (click one to leave it out) and four buttons: add them, edit tags, new rule from this file, dismiss. At the top:
+ * apply the rules to every file, ask Claude Code, add a rule. A file leaves the inbox as soon as it has a tag. The
+ * panel redraws it on every index or vault change.
  */
-export class TagInboxView extends ItemView implements HoverParent {
-  hoverPopover: HoverPopover | null = null;
+export class InboxPane {
   /** Rule tags the user left out, per path: not added. */
   private off = new Map<string, Set<string>>();
-  private requestRender = debounce(() => this.render(), 150, true);
+  private el: HTMLElement | null = null;
 
   constructor(
-    leaf: WorkspaceLeaf,
     private plugin: TagEverythingPlugin,
-  ) {
-    super(leaf);
-  }
-
-  getViewType(): string {
-    return INBOX_VIEW_TYPE;
-  }
-
-  getDisplayText(): string {
-    return `${PLUGIN_NAME} inbox`;
-  }
-
-  getIcon(): string {
-    return "inbox";
-  }
-
-  async onOpen(): Promise<void> {
-    this.contentEl.addClass("tag-everything-inbox");
-    const redraw = (): void => void this.requestRender();
-    const { vault } = this.app;
-    this.registerEvent(this.plugin.index.on("changed", redraw));
-    this.registerEvent(vault.on("create", redraw));
-    this.registerEvent(vault.on("delete", redraw));
-    this.registerEvent(vault.on("rename", redraw));
-    this.render();
-  }
-
-  async onClose(): Promise<void> {
-    this.requestRender.cancel();
-    this.contentEl.empty();
-  }
+    private host: RowHost,
+  ) {}
 
   /** The files of the inbox, newest first (public for the smoke test). */
   files(): TFile[] {
@@ -100,16 +67,18 @@ export class TagInboxView extends ItemView implements HoverParent {
   /** The file leaves the inbox without tags (kept in the settings; dismissed files that are gone are dropped). */
   async dismiss(file: TFile): Promise<void> {
     const { settings } = this.plugin;
-    const { vault } = this.app;
+    const { vault } = this.plugin.app;
     settings.inboxDismissed = [...settings.inboxDismissed.filter((p) => vault.getAbstractFileByPath(p)), file.path];
     await this.plugin.saveSettings();
   }
 
-  private render(): void {
-    this.requestRender.cancel();
-    const el = this.contentEl;
+  /** Draws the inbox into `el` (emptied first). */
+  render(host: HTMLElement | null = this.el): void {
+    if (!host) return;
+    this.el = host;
     const { plugin } = this;
-    el.empty();
+    host.empty();
+    const el = host.createDiv({ cls: "tag-everything-inbox" });
     const files = this.files();
     const days = plural(plugin.settings.inboxDays, "day");
     const folder = plugin.settings.inboxFolder;
@@ -126,7 +95,7 @@ export class TagInboxView extends ItemView implements HoverParent {
           : `Inbox zero: every file${where} from the last ${days} has tags.`,
     });
     // The folder matches without case or accents, so an exact lookup that misses may still list files: warn only if none.
-    if (folder && !files.length && !this.app.vault.getFolderByPath(folder)) {
+    if (folder && !files.length && !this.plugin.app.vault.getFolderByPath(folder)) {
       el.createDiv({ cls: "tag-everything-where", text: `No folder ${folder} in the vault: check the inbox folder in the settings.` });
     }
     const actions = bar.createDiv({ cls: "tag-everything-inbox-actions" });
@@ -147,7 +116,8 @@ export class TagInboxView extends ItemView implements HoverParent {
     if (files.length) {
       labelled("sparkles", "Suggest tags", `Suggest tags with Claude Code (the ${Math.min(files.length, MAX_SUGGEST_ITEMS)} newest)`, () => void plugin.suggestTags(files.slice(0, MAX_SUGGEST_ITEMS)));
     }
-    labelled("wand-sparkles", "New rule", "New auto-tag rule", () => new RuleModal(this.app, plugin).open());
+    labelled("wand-sparkles", "New rule", "New auto-tag rule", () => new RuleModal(this.plugin.app, plugin).open());
+    if (folder) labelled("folder-x", "Whole vault", `Stop focusing the inbox on ${folder}`, () => void plugin.focusInbox(""));
     if (!plugin.settings.rules.length) {
       el.createDiv({
         cls: "tag-everything-where",
@@ -199,8 +169,8 @@ export class TagInboxView extends ItemView implements HoverParent {
     };
     if (this.pending(file).length) button("check", "Add the rule tags", () => void this.applyRules([file]));
     button("tags", "Edit tags…", () => plugin.editTags([file]));
-    button("wand-sparkles", "New rule from this file…", () => new RuleModal(this.app, plugin, { folder: file.parent?.isRoot() ? "" : file.parent?.path, extensions: file.extension }).open());
+    button("wand-sparkles", "New rule from this file…", () => new RuleModal(this.plugin.app, plugin, { folder: file.parent?.isRoot() ? "" : file.parent?.path, extensions: file.extension }).open());
     button("x", "Dismiss: no tag needed", () => void this.dismiss(file));
-    wireItemRow({ app: this.app, source: INBOX_VIEW_TYPE, hoverParent: this, leaf: this.leaf }, row, file);
+    wireItemRow(this.host, row, file);
   }
 }
