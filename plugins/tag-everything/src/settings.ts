@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SettingDefinitionItem, TFile } from "obsidian";
+import { App, PluginSettingTab, SettingDefinitionItem, SettingDefinitionRender, TFile } from "obsidian";
 import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
@@ -20,6 +20,14 @@ type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rule
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
+}
+
+/**
+ * A row with a labelled button on the right, like the other rows' controls (a declarative `action` row shows its name
+ * as a link instead, which read as text rather than something to click).
+ */
+function buttonRow(row: { name: string; desc: string; aliases?: string[]; visible?: () => boolean }, label: string, run: () => void): SettingDefinitionRender {
+  return { ...row, render: (setting) => void setting.addButton((b) => b.setButtonText(label).onClick(run)) };
 }
 
 /**
@@ -132,12 +140,11 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         type: "group",
         heading: "Inbox",
         items: [
-          {
-            name: "Open the inbox",
-            desc: "The files without tags that arrived lately, with the tags your rules would add.",
-            aliases: ["untagged", "new files", "auto-tag"],
-            action: () => void this.plugin.openInbox(),
-          },
+          buttonRow(
+            { name: "Open the inbox", desc: "The files without tags that arrived lately, with the tags your rules would add.", aliases: ["untagged", "new files", "auto-tag"] },
+            "Open",
+            () => void this.plugin.openInbox(),
+          ),
           {
             name: "Days in the inbox",
             desc: "The inbox lists the files without tags created in the vault in the last this many days.",
@@ -155,12 +162,15 @@ export class TagEverythingSettingTab extends PluginSettingTab {
             aliases: ["auto-tag", "automatic"],
             control: { type: "toggle", key: "autoApplyRules" },
           },
-          {
-            name: "Show dismissed files again",
-            desc: "Files you dismissed from the inbox (no tag needed) come back while they have no tag.",
-            visible: () => this.plugin.settings.inboxDismissed.length > 0,
-            action: () => void this.undismiss(),
-          },
+          buttonRow(
+            {
+              name: "Show dismissed files again",
+              desc: "Files you dismissed from the inbox (no tag needed) come back while they have no tag.",
+              visible: () => this.plugin.settings.inboxDismissed.length > 0,
+            },
+            "Show again",
+            () => void this.undismiss(),
+          ),
         ],
       },
       {
@@ -198,24 +208,29 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         type: "group",
         heading: "Tag maintenance",
         items: [
-          {
-            name: "Review tags",
-            desc: "Look-alike tags (case, accents, plural, typos), synonyms found by Claude Code, tags used once: merge or remove them in one go.",
-            aliases: ["duplicates", "synonyms", "merge", "rename", "clean up"],
-            action: () => void this.plugin.reviewTags(),
-          },
-          {
-            name: "Check and fix tag names",
-            desc: "Re-reads every tag, then lists those breaking the naming rule with a fix you can edit; nothing changes until you click Fix.",
-            aliases: ["normalise", "normalize", "naming rule", "fix tags"],
-            action: () => void this.plugin.checkTagNames(),
-          },
-          {
-            name: "Re-read all tags",
-            desc: "Rebuilds the tag index, e.g. after tags were edited outside Obsidian.",
-            aliases: ["reindex", "rebuild", "refresh", "index"],
-            action: () => void this.plugin.reindex(),
-          },
+          buttonRow(
+            {
+              name: "Review tags",
+              desc: "Look-alike tags (case, accents, plural, typos), synonyms found by Claude Code, tags used once: merge or remove them in one go.",
+              aliases: ["duplicates", "synonyms", "merge", "rename", "clean up"],
+            },
+            "Review…",
+            () => void this.plugin.reviewTags(),
+          ),
+          buttonRow(
+            {
+              name: "Check and fix tag names",
+              desc: "Re-reads every tag, then lists those breaking the naming rule with a fix you can edit; nothing changes until you click Fix.",
+              aliases: ["normalise", "normalize", "naming rule", "fix tags"],
+            },
+            "Check…",
+            () => void this.plugin.checkTagNames(),
+          ),
+          buttonRow(
+            { name: "Re-read all tags", desc: "Rebuilds the tag index, e.g. after tags were edited outside Obsidian.", aliases: ["reindex", "rebuild", "refresh", "index"] },
+            "Re-read",
+            () => void this.plugin.reindex(),
+          ),
         ],
       },
     ];

@@ -35,7 +35,7 @@ export class RuleModal extends Modal {
 
   onOpen(): void {
     const { contentEl, draft, plugin } = this;
-    this.modalEl.addClass("tag-everything-rule-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-rule-modal");
     const exclude = this.kind === "exclude";
     this.setTitle(`${PLUGIN_NAME}: ${draft.id ? "edit" : "new"} ${exclude ? "exclusion" : "auto-tag"} rule`);
     contentEl.createDiv({

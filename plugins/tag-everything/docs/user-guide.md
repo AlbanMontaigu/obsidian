@@ -345,8 +345,8 @@ without tags)*. A file leaves the inbox as soon as it has a tag.
   the tags your **rules** would add (dashed; click one to leave it out). On the right: **✓** adds those tags, the tag
   icon opens the tag editor, the wand creates a rule from this file (its folder and extension filled in), **×**
   dismisses it (no tag needed; *Settings → Show dismissed files again* brings them back).
-- At the top: **Apply rules to N files** adds every row's rule tags at once; ✨ asks Claude Code for tags for the
-  newest 50 (Section 9); the wand creates a rule.
+- At the top: **Apply rules to N files** adds every row's rule tags at once; **Suggest tags** asks Claude Code for
+  tags for the newest 50 (Section 9); **New rule** creates a rule.
 
 **Auto-tag rules**: "a file in this folder, whose name contains one of these words, with one of these extensions,
 gets these tags". Each condition is optional, but a rule needs at least one. Names are compared without case or

@@ -37,7 +37,7 @@ export class NameModal extends Modal {
   }
 
   onOpen(): void {
-    this.modalEl.addClass("tag-everything-group-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-group-modal");
     this.setTitle(this.heading);
     const input = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: this.placeholder } });
     input.value = this.initial;
@@ -157,12 +157,12 @@ export class GroupModal extends Modal {
   }
 
   onOpen(): void {
-    this.modalEl.addClass("tag-everything-group-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-group-modal");
     this.setTitle(this.heading);
     const { tags, counts, countMatches } = this.ctx;
     const nameInput = this.contentEl.createEl("input", { type: "text", cls: "tag-everything-group-input", attr: { placeholder: "Group name", "aria-label": "Group name" } });
     nameInput.value = this.name;
-    this.contentEl.createDiv({ cls: "tag-everything-group-modal-label", text: "Searches for" });
+    this.contentEl.createEl("h4", { cls: "tag-everything-section", text: "Searches for" });
     this.contentEl.createDiv({
       cls: "tag-everything-where",
       text: "Type tags (they complete) and join them: AND = all of them, OR = any, NOT = without. Parentheses group terms, e.g. (b27 OR inc) AND NOT draft.",

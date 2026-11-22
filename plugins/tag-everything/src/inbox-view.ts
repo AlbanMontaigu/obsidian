@@ -136,20 +136,22 @@ export class TagInboxView extends ItemView implements HoverParent {
         .setCta()
         .onClick(() => void this.applyRules(withRules));
     }
+    // Icon and label: a bare icon said too little.
+    const labelled = (icon: string, text: string, tooltip: string, run: () => void): void => {
+      const b = new ButtonComponent(actions).setButtonText(text).setTooltip(tooltip).onClick(run);
+      b.buttonEl.addClass("tag-everything-icon-button");
+      const i = createSpan();
+      setIcon(i, icon);
+      b.buttonEl.prepend(i);
+    };
     if (files.length) {
-      new ButtonComponent(actions)
-        .setIcon("sparkles")
-        .setTooltip(`Suggest tags with Claude Code (the ${Math.min(files.length, MAX_SUGGEST_ITEMS)} newest)`)
-        .onClick(() => void plugin.suggestTags(files.slice(0, MAX_SUGGEST_ITEMS)));
+      labelled("sparkles", "Suggest tags", `Suggest tags with Claude Code (the ${Math.min(files.length, MAX_SUGGEST_ITEMS)} newest)`, () => void plugin.suggestTags(files.slice(0, MAX_SUGGEST_ITEMS)));
     }
-    new ButtonComponent(actions)
-      .setIcon("wand-sparkles")
-      .setTooltip("New auto-tag rule")
-      .onClick(() => new RuleModal(this.app, plugin).open());
+    labelled("wand-sparkles", "New rule", "New auto-tag rule", () => new RuleModal(this.app, plugin).open());
     if (!plugin.settings.rules.length) {
       el.createDiv({
         cls: "tag-everything-where",
-        text: "Auto-tag rules tag files for you, e.g. every PDF in Bank gets bank. Create one with the wand, or from a file below.",
+        text: "Auto-tag rules tag files for you, e.g. every PDF in Bank gets bank. Create one with New rule, or from a file below (its wand).",
       });
     }
 

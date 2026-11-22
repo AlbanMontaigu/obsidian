@@ -347,10 +347,10 @@ if (settingTab) {
   check("settings: tag maintenance rows indexed", names.includes("Check and fix tag names") && names.includes("Re-read all tags"), JSON.stringify(names));
   const setDoc = el.ownerDocument;
   const setNotice = () => [...setDoc.querySelectorAll(".notice")].some((n) => /tagged item/.test(n.textContent));
-  row("Re-read all tags")?.click();
+  row("Re-read all tags")?.querySelector("button")?.click();
   await waitFor(setNotice, 5000);
   check("settings: Re-read all tags re-reads and says how many items", setNotice());
-  row("Check and fix tag names")?.click();
+  row("Check and fix tag names")?.querySelector("button")?.click();
   await waitFor(() => !!setDoc.querySelector(".tag-everything-fix-modal"), 5000);
   const fromSettings = setDoc.querySelector(".tag-everything-fix-modal");
   check("settings: Check and fix tag names opens the check", !!fromSettings && /follow the rule|break the rule/.test(fromSettings.textContent), fromSettings?.textContent.slice(0, 120));

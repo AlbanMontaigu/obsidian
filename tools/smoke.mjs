@@ -1,4 +1,4 @@
-// npm run smoke -- <id> [--keep] [--no-build] [--port 9334] [--timeout 60]
+// npm run smoke -- <id> [--keep] [--no-build] [--port 9334] [--timeout 60] [--script <name>]
 //
 // Loads a plugin in a REAL Obsidian, isolated from your own: a throwaway profile (--user-data-dir) and a
 // throwaway vault in %TEMP%, both deleted afterwards. Your vaults, settings and running Obsidian are never
@@ -6,7 +6,8 @@
 //   1. build dist/<id>; create the temp vault from plugins/<id>/tests/fixtures/vault (or a single note);
 //   2. start Obsidian with --remote-debugging-port and drive it over the Chrome DevTools Protocol;
 //   3. turn off Restricted mode, enable the plugin, fail on load errors;
-//   4. run plugins/<id>/tests/smoke.js in the page, if present (see docs/testing.md);
+//   4. run plugins/<id>/tests/smoke.js in the page, if present (see docs/testing.md); --script gallery runs
+//      tests/gallery.js instead. In the script, `await snap("name")` saves dist/<id>-name.png at that point;
 //   5. screenshot to dist/<id>-smoke.png (the app as smoke.js left it: open a modal / view last to see it)
 //      and print every console error / warning / exception. Unexpected errors fail the run.
 // Exit code 0 = PASS. --keep leaves the temp folder (path printed) for inspection.
@@ -118,7 +119,7 @@ function killOurs() {
 // ---------------------------------------------------------------- run
 const id = JSON.stringify(plugin.manifest.id);
 const shot = join(DIST_DIR, `${plugin.name}-smoke.png`);
-const smokeScript = join(plugin.dir, "tests", "smoke.js");
+const smokeScript = join(plugin.dir, "tests", `${args.flags.script ?? "smoke"}.js`);
 let pass = false;
 console.log(`smoke ${plugin.name}: throwaway Obsidian (profile + vault in ${work})`);
 const child = spawn(OBSIDIAN_EXE, [`--user-data-dir=${userData}`, `--remote-debugging-port=${port}`], { stdio: "ignore", detached: false });
@@ -167,6 +168,30 @@ try {
   let expected = [];
   if (existsSync(smokeScript)) {
     const body = readFileSync(smokeScript, "utf8");
+    // snap(name) requests: CDP serves them while the script's evaluate is still pending.
+    let running = true;
+    const snaps = (async () => {
+      while (running) {
+        const raw = (await page.evaluate("window.__smokeSnap ?? null")).value;
+        if (raw) {
+          const want = JSON.parse(raw);
+          await sleep(300); // let the last render and transitions settle
+          let shooter = page;
+          if (want.where === "window") {
+            const all = await pageTargets();
+            const other = all.filter((t) => t.id !== target.id).at(-1); // a pop-out window: about:blank
+            shooter = other ? await connect(other) : page;
+          }
+          const img = await shooter.send("Page.captureScreenshot", { format: "png" });
+          if (shooter !== page) shooter.ws.close();
+          const file = `${plugin.name}-${want.name.replace(/[^\w-]+/g, "-")}.png`;
+          mkdirSync(DIST_DIR, { recursive: true });
+          if (img.result?.data) writeFileSync(join(DIST_DIR, file), Buffer.from(img.result.data, "base64"));
+          console.log(`  snap: dist/${file}`);
+          await page.evaluate("window.__smokeSnap = null");
+        } else await sleep(150);
+      }
+    })();
     const r = await page.evaluate(`(async () => {
       const plugin = app.plugins.plugins[${id}];
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -174,6 +199,9 @@ try {
       const expected = [];
       const check = (name, cond, detail) => { results.push({ name, ok: !!cond, detail: detail === undefined ? undefined : String(detail) }); };
       const expectError = (re) => { expected.push([re.source, re.flags]); };
+      // Screenshot now, as dist/<id>-<name>.png: the runner polls window.__smokeSnap and clears it once saved.
+      // snap(name, "window"): the other Obsidian window instead (the settings window, 1.15+).
+      const snap = async (name, where = "main") => { window.__smokeSnap = JSON.stringify({ name: String(name), where }); while (window.__smokeSnap) await sleep(100); };
       // Stand-in for obsidian's Menu (not reachable from page scripts): records what addItem() builds.
       // menu.titles() -> ["Edit tags", ...]; menu.click("Edit tags") runs that item's onClick.
       const fakeMenu = () => {
@@ -198,6 +226,8 @@ try {
       catch (e) { results.push({ name: "smoke.js threw", ok: false, detail: String(e && e.stack || e) }); }
       return { results, expected };
     })()`);
+    running = false;
+    await snaps;
     if (r.error) {
       smokeOk = false;
       console.log("  smoke.js could not run: " + r.error);

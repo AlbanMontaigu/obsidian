@@ -49,7 +49,7 @@ export class RenameTagModal extends Modal {
 
   onOpen(): void {
     const { contentEl, plugin, tag } = this;
-    this.modalEl.addClass("tag-everything-rename-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-rename-modal");
     this.setTitle(`${PLUGIN_NAME}: rename or merge a tag`);
     const counts = plugin.index.counts(undefined, true);
     const head = contentEl.createDiv({ cls: "tag-everything-rename-head" });
@@ -98,7 +98,8 @@ export class RenameTagModal extends Modal {
   private refresh(): void {
     const p = this.plan();
     this.hint.setText("error" in p ? p.error : p.text);
-    this.hint.toggleClass("tag-everything-error", "error" in p);
+    // Untouched (still the tag itself), the message is a hint, not an error.
+    this.hint.toggleClass("tag-everything-error", "error" in p && this.input.value.trim() !== this.tag);
     this.button?.setButtonText("error" in p ? "Rename" : p.label).setDisabled("error" in p);
   }
 
@@ -170,7 +171,7 @@ export class TagReviewModal extends Modal {
 
   onOpen(): void {
     const { contentEl, plugin } = this;
-    this.modalEl.addClass("tag-everything-fix-modal", "tag-everything-review-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-fix-modal", "tag-everything-review-modal");
     this.setTitle(`${PLUGIN_NAME}: review tags`);
     const counts = plugin.index.counts(undefined, true);
     contentEl.createDiv({
@@ -179,12 +180,12 @@ export class TagReviewModal extends Modal {
     });
 
     const clusters = similarTags(counts);
-    contentEl.createEl("h4", { text: "Look-alike tags" });
+    contentEl.createEl("h4", { cls: "tag-everything-section", text: "Look-alike tags" });
     const list = contentEl.createDiv({ cls: "tag-everything-fix-list" });
     if (!clusters.length) list.createDiv({ cls: "tag-everything-fix-summary", text: `No look-alike tags among ${plural(counts.size, "tag")}.` });
     for (const c of clusters) this.rows.push(this.renderRow(list, c.tags, c.into, c.reason, c.sure));
 
-    contentEl.createEl("h4", { text: "Synonyms" });
+    contentEl.createEl("h4", { cls: "tag-everything-section", text: "Synonyms" });
     this.synonymsEl = contentEl.createDiv({ cls: "tag-everything-fix-list" });
     this.synonymButton(counts, clusters);
 

@@ -68,7 +68,7 @@ export class TagEditorModal extends Modal {
 
   onOpen(): void {
     const { contentEl, items } = this;
-    this.modalEl.addClass("tag-everything-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-modal");
     this.setTitle(items.length === 1 ? `${PLUGIN_NAME}: ${items[0].name}` : `${PLUGIN_NAME}: ${items.length} items`);
 
     contentEl.createDiv({ cls: "tag-everything-where", text: this.whereText() });
@@ -134,7 +134,8 @@ export class TagEditorModal extends Modal {
     if (targets.has("filename")) parts.push("file tags go in the file name");
     if (targets.has("sidecar")) parts.push("file tags go in .ts sidecar files");
     if (targets.has("folder")) parts.push("folder tags go in the folder's .ts/tsm.json");
-    return parts.join(" · ");
+    const text = parts.join(" · ");
+    return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
   /** Nested tags (`a/b`) can only be typed when every item stores them in its frontmatter. */

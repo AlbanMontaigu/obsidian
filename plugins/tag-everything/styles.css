@@ -562,11 +562,6 @@
 }
 
 /* Group dialog: the name, then what the group searches for, with buttons inserting the operators. */
-.tag-everything-group-modal-label {
-  margin-top: 12px;
-  font-weight: var(--font-semibold);
-}
-
 .tag-everything-formula-ops {
   display: flex;
   gap: 4px;
@@ -718,7 +713,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: start;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -1005,20 +1000,17 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
+  margin-bottom: 8px;  font-size: var(--font-ui-small);
 }
 
 .tag-everything-rename-hint {
   margin: 8px 0;
   min-height: 1.5em;
+  font-size: var(--font-ui-small);
 }
 
 .tag-everything-review-modal .tag-everything-fix-list {
   max-height: 30vh;
-}
-
-.tag-everything-review-modal h4 {
-  margin: 12px 0 6px;
 }
 
 .tag-everything-review-modal .tag-everything-fix-from {
@@ -1038,10 +1030,6 @@
   margin-right: 4px;
 }
 
-.tag-everything-review-modal .tag-everything-suggest-status {
-  padding: 0 8px;
-}
-
 .tag-everything-review-modal .tag-everything-fix-problem {
   flex-basis: 100%;
 }
@@ -1052,8 +1040,6 @@
 
 .tag-everything-review-rare > summary {
   cursor: pointer;
-  font-weight: var(--font-semibold);
-  margin-bottom: 6px;
 }
 
 /* ---- Auto-tag rule dialog (src/rule-modal.ts) */
@@ -1118,4 +1104,71 @@
 
 .tag-everything-inbox-row .tag-everything-suggest-path {
   margin-right: 2px;
+}
+
+/* ---- Dialogs: one look for every dialog of the plugin (.tag-everything-dialog). A muted intro, the status line in
+   the normal colour, section headings, lists in a bordered box with padded rows, and a footer above a line: its note
+   on the left, its buttons on the right, 8px apart. */
+.tag-everything-dialog .tag-everything-where {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.tag-everything-dialog .tag-everything-fix-summary,
+.tag-everything-dialog .tag-everything-suggest-status {
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+/* An empty list or a status inside a list box: padded like a row, muted. */
+.tag-everything-dialog .tag-everything-fix-list > .tag-everything-fix-summary,
+.tag-everything-dialog .tag-everything-fix-list > .tag-everything-suggest-status {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--text-muted);
+}
+
+.tag-everything-dialog .tag-everything-section,
+.tag-everything-dialog details > summary {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  margin: 18px 0 8px;
+}
+
+/* A setting row inside a list box (Find synonyms): padded like the rows, the button clear of the text. */
+.modal.tag-everything-dialog .modal-content .tag-everything-fix-list > .setting-item {
+  padding: 10px 12px;
+  border: none;
+  gap: 16px;
+}
+
+.tag-everything-dialog .modal-content > .setting-item:last-child,
+.tag-everything-dialog .modal-button-container {
+  margin-top: 16px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.tag-everything-dialog .modal-content > .setting-item:last-child .setting-item-control,
+.tag-everything-dialog .modal-button-container {
+  gap: 8px;
+}
+
+.tag-everything-dialog .modal-content > .setting-item:last-child .setting-item-description {
+  padding-right: 16px;
+}
+
+/* A button with an icon and a label (inbox). */
+.tag-everything-icon-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-everything-icon-button svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
 }

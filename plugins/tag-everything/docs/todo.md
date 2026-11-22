@@ -15,7 +15,7 @@ On tag search engine, include a criteria of date of create (optional) and anothe
 
 Propose a way with claude to optimise tags by detecting potential duplicate or very similar and group them. By the way general rule, one tag one key works point. Ex sur les synonymes (genre bancaire et banque)
 
-# Tag sliders (min max)
+# Tag sliders (min max) in the all panel
 
 Propose a way to filter by number of occurence of the tag in an easy way (slider ?) Goal is to allow to be focussed on what matter the most. Like by default < 100 and > 10 (can be parametrized in settings)
 
@@ -23,6 +23,8 @@ Propose a way to filter by number of occurence of the tag in an easy way (slider
 
 In a folder when a group of files have always the same things take that into account also to identify what might be wrong or exceptional.
 
-# Option like reindex, auto retag should be shomehow in a sub tab of the tag pannel (more accessible)
+# Option like reindex, auto retag should be shomehow in a sub tab of the tag pannel (more accessible) same for inbox. 
 
 Or in a right click in the explorer to have targeted operation
+
+Basically we should have only explorer, contextual menu, right panel and admin settings. Put it as a rule. Not multiplying different pannels and so on group on each type.

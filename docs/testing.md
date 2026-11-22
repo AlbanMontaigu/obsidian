@@ -46,10 +46,19 @@ What it does, in order:
 4. Over the Chrome DevTools Protocol: waits for `app.workspace.layoutReady`, turns Restricted mode off and enables
    the plugin (`app.plugins.setEnable(true)`, `enablePluginAndSave(id)`), closes the "trust this vault" dialog
    (found by its class `.mod-trust-folder`, since the UI follows the OS language; also closed if it opens late).
-5. Runs `tests/smoke.js` inside the page, then screenshots to `dist/<id>-smoke.png`.
+5. Runs `tests/smoke.js` inside the page (`--script gallery` runs `tests/gallery.js` instead), then screenshots to
+   `dist/<id>-smoke.png`. `await snap("name")` in the script saves `dist/<id>-name.png` at that point;
+   `snap("name", "window")` shoots the other Obsidian window instead (the settings window, Obsidian 1.15+).
 6. Prints every check, every console warning/error and exception. **PASS** = plugin loaded, every `check()` true,
    no unexpected console error or exception.
 7. Kills only Obsidian processes started with its port, deletes the temp folder (`--keep` keeps it).
+
+### UI gallery (`tests/gallery.js`)
+
+A plugin with several dialogs and views can keep a `tests/gallery.js`: it opens each one and `snap()`s it, so a UI
+change is reviewed on images rather than guessed (`npm run smoke -- <id> --script gallery`, then Read the
+`dist/<id>-*.png`). It is not a test: one `check()` that every dialog closed is enough. Close dialogs between shots
+with Escape (dispatch a `keydown` on `document.activeElement`), or they stack.
 
 ### Writing `tests/smoke.js`
 
@@ -62,6 +71,7 @@ The file body runs inside an `async` function in the Obsidian window. In scope:
 | `check(name, condition, detail?)` | Records one result; `detail` is printed (handy for debugging values) |
 | `sleep(ms)` | Wait for debounced UI, renames, link updates (300 to 800 ms is usually enough) |
 | `expectError(regex)` | Declares a console error your test provokes on purpose so it does not fail the run |
+| `snap(name, where?)` | Screenshot now to `dist/<id>-<name>.png` (`where = "window"`: the settings window) |
 | `fakeMenu()` | Stand-in for `Menu`: pass it to `file-menu` / `files-menu` / `editor-menu` handlers, then `.titles()`, `.click(title)` and `.sub(title)` (the submenu an item opened with `setSubmenu`, itself a fake menu) |
 | `Notice`, `requestUrl`, `moment` | The only Obsidian exports that are globals in the page |
 

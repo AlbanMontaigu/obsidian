@@ -77,7 +77,7 @@ export class TagSuggestModal extends Modal {
   }
 
   onOpen(): void {
-    this.modalEl.addClass("tag-everything-suggest-modal");
+    this.modalEl.addClass("tag-everything-dialog", "tag-everything-suggest-modal");
     this.setTitle(`${PLUGIN_NAME}: suggest tags with Claude Code`);
     const { folder, items, skipped } = this.request;
     const where = folder.isRoot() ? "the vault root" : folder.path;

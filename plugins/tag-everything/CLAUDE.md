@@ -152,6 +152,12 @@ and `docs/user-guide.md` when users see it.
   bookmark tab "Work", with a formula
   group search with a `NOT` and a tag switched off (notices removed) for the screenshot. Run
   `npm run smoke -- tag-everything`.
+- `tests/gallery.js`: not a test, a screenshot of every view and dialog (panel tabs, group / name / tag / check /
+  rename / review / suggest / rule dialogs, inbox, explorer, each settings section in the settings window) to
+  `dist/tag-everything-*.png`: `npm run smoke -- tag-everything --script gallery`, then look at them after any UI
+  change. Every dialog carries `.tag-everything-dialog` (styles.css *Dialogs*: muted intro, section headings, padded
+  list boxes, a footer above a line with its note left and buttons right); settings actions are rows with a labelled
+  button (`settings.ts` `buttonRow`), not link-styled `action` rows.
 - `tools/check-vault.ts "<vault>"`: **read-only**, folder listings only (no file content, so OneDrive
   files-on-demand stay in the cloud); every tagged name in a real vault must round-trip unchanged
   (2026-11-20 on the owner's vault: 9 500 files, 70 tagged names, 0 problems). Run it after any change to
