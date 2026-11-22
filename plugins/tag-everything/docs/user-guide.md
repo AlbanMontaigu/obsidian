@@ -84,7 +84,8 @@ Run it again to see what is left.
 Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 
 - Every tag with its count; frequently used tags are a little bigger (at most 1.4× the normal size). The tab **All**
-  (and each bookmark tab, Section 7) shows only the groups and the tags, using the panel's full height, and always
+  (and each bookmark tab, Section 7) shows only the groups and the tags, two titled sections (*Groups*, then *Tags*
+  under a line, with the number of tags shown), using the panel's full height, and always
   every tag with its count in the whole vault, whatever the search: the tags in the search stay in place, highlighted
   (click one to take it out).
 - **Click tags** to list the files and folders carrying all of them (AND). The panel then switches to the
@@ -137,9 +138,11 @@ Groups keep related tags together and double as saved searches.
 - Hover a tag of a group: **×** takes it out of the group, **⊘** excludes it from the group's search (`NOT tag`,
   struck through; click ↶ to include it again). Both are also in the tag's right-click menu.
 - **A group is a search**: click its **Search** button (it shows how many items the group finds), its name, or
-  *⋯ → Search with this group*. The button reads **Stop** while the search runs, and the group's header turns to the accent colour. The group's tags show at the top:
-  click one to leave it out (dashed), click again to put it back; click other tags to narrow further. Click the group
-  again, or **Clear**, to stop.
+  *⋯ → Search with this group*. The results show in the **Selection** tab. While the search runs, the group's header
+  turns to the accent colour and its button reads **→ Selection** with the count: back in All or a bookmark tab, click
+  it (or the group's name) to return to the results. In Selection, the group's tags show at the top:
+  click one to leave it out (dashed), click again to put it back; click other tags to narrow further. **Clear** there,
+  or the group's *⋯ → Stop the search*, stops it.
 - **Formulas** (the group dialog's *Searches for*): any combination of tags, e.g. `(b27 OR inc) AND (q3 OR 2026)`.
   - Operators `AND` / `OR` / `NOT`, also `ET` / `OU` / `NON` and `&` / `|` / `!`, and parentheses. Two tags side by
     side mean AND. `NOT` binds first, then `AND`, then `OR`.

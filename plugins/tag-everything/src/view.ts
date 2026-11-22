@@ -67,6 +67,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private requestRender = debounce(() => this.render(), 300, true);
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
+  private tagsHeadEl!: HTMLElement;
   private tagsEl!: HTMLElement;
   /** In the Selection tab: the tags that can still narrow the search. */
   private refineEl!: HTMLElement;
@@ -148,6 +149,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.selectedEl = root.createDiv({ cls: "tag-everything-view-selected" });
     this.refineEl = root.createDiv({ cls: "tag-everything-view-refine" });
     this.groupsEl = root.createDiv({ cls: "tag-everything-view-groups" });
+    this.tagsHeadEl = root.createDiv({ cls: "tag-everything-section-head tag-everything-tags-head" });
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
     this.statusEl = root.createDiv({ cls: "tag-everything-view-status" });
     this.resultsEl = root.createDiv({ cls: "tag-everything-view-results" });
@@ -357,6 +359,12 @@ export class TagEverythingView extends ItemView implements HoverParent {
     await this.saveGroups(gr.addTagsToGroup(this.groups, id, tags));
   }
 
+  /** Opens the Selection tab, where the active group's search lists what it finds. */
+  private showSelection(): void {
+    this.page = "selection";
+    this.stateChanged();
+  }
+
   /** Searches by every tag of the group still in use; on the active group, clears the search. */
   selectGroup(id: string): void {
     const group = this.activeGroup === id ? undefined : this.groups.find((g) => g.id === id);
@@ -452,6 +460,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const menu = new Menu();
     const active = this.activeGroup === group.id;
     const n = this.matchPaths(gr.groupExpr(group)).length;
+    if (active) menu.addItem((i) => i.setTitle(`Show in Selection (${plural(n, "item")})`).setIcon("arrow-right").onClick(() => this.showSelection()));
     menu.addItem((i) =>
       i
         .setTitle(active ? "Stop the search" : `Search with this group (${plural(n, "item")})`)
@@ -566,7 +575,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     if (this.page === "selection" && !this.hasSearch()) this.page = null;
     // One tab at a time: a tag tab (groups, tags), Selection (search, results), or a page (Inbox, Tools).
     const selection = this.page === "selection";
-    for (const el of [this.groupsEl, this.tagsEl]) el.toggle(!this.page);
+    for (const el of [this.groupsEl, this.tagsHeadEl, this.tagsEl]) el.toggle(!this.page);
     for (const el of [this.selectedEl, this.refineEl, this.statusEl, this.resultsEl]) el.toggle(selection);
     this.pageEl.toggle(this.page === "inbox" || this.page === "tools");
     this.requestRender.cancel();
@@ -715,8 +724,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const index = this.plugin.index;
     const counts = index.counts();
 
-    const head = el.createDiv({ cls: "tag-everything-groups-head" });
-    head.createSpan({ cls: "tag-everything-groups-title", text: "Groups" });
+    const head = el.createDiv({ cls: "tag-everything-section-head" });
+    head.createSpan({ cls: "tag-everything-section-title", text: "Groups" });
     const add = head.createDiv({
       cls: "clickable-icon tag-everything-group-add",
       attr: { "aria-label": "New group: a name and the tags it searches for, with AND, OR, NOT (or drop a tag here)" },
@@ -769,17 +778,23 @@ export class TagEverythingView extends ItemView implements HoverParent {
           this.editGroup(group);
         });
       }
-      // Labelled search button: the whole header searches too, but an icon alone was easy to miss.
+      // Labelled search button: the whole header searches too, but an icon alone was easy to miss. On the group
+      // searching it leads to the Selection tab, where its results are; stopping is in ⋯ (and Clear there).
+      const open = (): void => (active ? this.showSelection() : this.selectGroup(group.id));
       const find = header.createDiv({
         cls: "tag-everything-group-search",
-        attr: { "aria-label": active ? "Stop the search" : `Search with the whole group: lists the ${plural(n, "item")} it finds` },
+        attr: {
+          "aria-label": active
+            ? `Show the ${plural(n, "item")} it finds in the Selection tab (⋯ → Stop the search to clear it)`
+            : `Search with the whole group: lists the ${plural(n, "item")} it finds`,
+        },
       });
-      setIcon(find.createSpan({ cls: "tag-everything-group-search-icon" }), active ? "search-x" : "search");
-      find.createSpan({ cls: "tag-everything-group-search-label", text: active ? "Stop" : "Search" });
+      setIcon(find.createSpan({ cls: "tag-everything-group-search-icon" }), active ? "arrow-right" : "search");
+      find.createSpan({ cls: "tag-everything-group-search-label", text: active ? "Selection" : "Search" });
       find.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       clickable(find, (evt) => {
         evt.stopPropagation();
-        this.selectGroup(group.id);
+        open();
       });
       const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Group options" } });
       setIcon(more, "more-horizontal");
@@ -788,8 +803,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
         if (evt.instanceOf(MouseEvent)) this.groupMenu(group, evt);
         else this.groupMenuAt(group, more);
       });
-      clickable(header, () => this.selectGroup(group.id));
-      header.setAttr("aria-label", active ? "Click to stop the search" : "Click to search with this group");
+      clickable(header, open);
+      header.setAttr("aria-label", active ? "Click to show its results in the Selection tab" : "Click to search with this group");
       header.addEventListener("contextmenu", (evt) => {
         evt.preventDefault();
         this.groupMenu(group, evt);
@@ -860,6 +875,10 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const rows = entries
       .filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    // A titled section under the groups, like them, with the number of tags shown.
+    this.tagsHeadEl.empty();
+    this.tagsHeadEl.createSpan({ cls: "tag-everything-section-title", text: "Tags" });
+    this.tagsHeadEl.createSpan({ cls: "tag-everything-section-count", text: String(rows.length) });
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",

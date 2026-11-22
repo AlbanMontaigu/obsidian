@@ -369,7 +369,8 @@ const cloudChip = (tag) => [...panel().querySelectorAll(".tag-everything-view-ta
 
 panel().querySelector(".tag-everything-view-clear")?.click();
 await sleep(100);
-check("groups: empty state shown", plugin.settings.groups.length === 0 && !!panel().querySelector(".tag-everything-groups-head"));
+check("groups: empty state shown", plugin.settings.groups.length === 0 && !!panel().querySelector(".tag-everything-section-head"));
+check("panel: the tags have their own titled section under the groups", panel().querySelector(".tag-everything-tags-head .tag-everything-section-title")?.textContent === "Tags" && !!panel().querySelector(".tag-everything-view-groups + .tag-everything-tags-head + .tag-everything-view-tags"));
 panel().querySelector(".tag-everything-group-add").click();
 await sleep(300);
 const nameModal = document.querySelector(".tag-everything-group-modal");
@@ -412,9 +413,13 @@ check("groups: a group tag can be switched off in the search", offNow?.classList
 offNow.click();
 await sleep(200);
 check("groups: and on again", results() === 1, String(results()));
+view.page = null; // back on All, where the group searching shows
 groupEl("Shared docs").querySelector(".tag-everything-group-header").click();
 await sleep(200);
-check("groups: clicking the active group clears the search", results() === 0 && !panel().querySelector(".tag-everything-group.is-active"));
+check("groups: clicking the active group shows its results, the search kept", view.page === "selection" && results() === 1 && !!panel().querySelector(".tag-everything-group.is-active"));
+view.selectGroup(groupEl("Shared docs").dataset.group);
+await sleep(200);
+check("groups: selecting the active group again clears the search", results() === 0 && !panel().querySelector(".tag-everything-group.is-active"));
 // ---- group formulas: (A OR B) AND (C OR D), through the group menu and the formula dialog
 const formulaId = await view.createGroup("Formula", ["shared"]);
 await sleep(200);
@@ -624,10 +629,18 @@ const searchLabel = () => groupEl("Formula").querySelector(".tag-everything-grou
 check("groups: the search button is labelled", searchLabel() === "Search", searchLabel());
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
-check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group") && searchLabel() === "Stop");
+check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group"));
+allTab().click();
+await sleep(200);
+check("groups: on the group searching, the button leads to Selection", searchLabel() === "Selection" && !selTab()?.classList.contains("is-active"), searchLabel());
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
-check("groups: and clears it", !panel().querySelector(".tag-everything-group.is-active"));
+check("groups: and opens the Selection tab, the search kept", selTab()?.classList.contains("is-active") && groupEl("Formula").classList.contains("is-active"));
+groupEl("Formula").querySelector(".tag-everything-group-more").click();
+await sleep(200);
+[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent === "Stop the search")?.click();
+await sleep(200);
+check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-everything-group.is-active"));
 
 // ---- bookmark tabs: create one, bookmark tags and a group (drop, menu), the tab shows only them, saved
 const tabEl = (name) => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === name);
