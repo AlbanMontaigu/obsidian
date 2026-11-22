@@ -664,6 +664,13 @@ check("groups: the search button is labelled", searchLabel() === "Search", searc
 groupEl("Formula").querySelector(".tag-everything-group-search").click();
 await sleep(200);
 check("groups: the search button runs the group", groupEl("Formula").classList.contains("is-active") && !!panel().querySelector(".tag-everything-view-selected-group"));
+const groupName = panel().querySelector(".tag-everything-view-selected-group");
+const firstGroupChip = panel().querySelector(".tag-everything-view-selected .tag-everything-chip");
+check(
+  "groups: the group's name on its own line, its tags below",
+  !!firstGroupChip && groupName.getBoundingClientRect().bottom <= firstGroupChip.getBoundingClientRect().top,
+  `${groupName?.getBoundingClientRect().bottom} vs ${firstGroupChip?.getBoundingClientRect().top}`,
+);
 allTab().click();
 await sleep(200);
 check("groups: on the group searching, the button leads to Selection", searchLabel() === "Selection" && !selTab()?.classList.contains("is-active"), searchLabel());
