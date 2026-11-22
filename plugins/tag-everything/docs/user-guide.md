@@ -99,6 +99,13 @@ Open it with the ribbon `tags` icon or the command *Open the tags panel*.
 - **Right-click a tag → Exclude this tag (NOT)** to leave out the items carrying it (shown as `NOT tag`, struck
   through, at the top); right-click it again to search with it instead.
   The same menu has *Rename or merge tag…* (Section 12).
+- **Focus on the tags that matter** (All only): the *Tags* heading reads **used [10]–[100] See all**. All shows only
+  the tags used 10 to 100 times: neither the one-offs nor the tags on almost everything; the count reads *42 of 180*.
+  Type other numbers in the boxes: the tags follow as you type, **Enter** or leaving the box saves; an empty second
+  box means *no limit*. **See all** shows every tag (the numbers are kept; typing one turns it off again). The tags
+  in the search always stay, and typing in the filter finds every tag. Bookmark tabs are not filtered (you chose
+  their tags). The TagEverything explorer has the same boxes (Section 10). Default 10–100; also in the settings
+  (Section 14).
 - **Filter tags**: type, then **Enter** selects the first match, **Escape** clears.
 - **Results** work like the file explorer: click to open (Ctrl/Cmd-click or middle-click: new tab; non-note files open
   in their default app, folders are revealed), **Ctrl/Cmd + hover** for a page preview, **drag** one into a note to
@@ -233,6 +240,10 @@ your folders. The tab shown is remembered across restarts.
   faded), so a half-typed tag leaves the tree as it is; an unfinished formula (`tax AND`) says what is missing and
   keeps the last search. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
   clears the box. The search is not remembered across restarts.
+- Under the box, **used [10]–[100] See all**: the same numbers as the panel's All tab (Section 5), so the root holds
+  only the tags used that many times (the line under it reads *12 of 180 tags*). Type other numbers (an empty second
+  box: no limit), or **See all** for every tag; it changes the panel too. A tag you opened stays, and while a formula
+  is in the box the root holds every tag of what it finds.
 - At the root, **every tag**, with the number of items carrying it. Click a tag to open it: inside are the other
   tags that **tell its files apart** (each opening the same way), then its files and folders. Only a tag found on
   **several** of its files, but not on all of them, is a branch:
@@ -423,6 +434,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer |
 | Colour tags automatically | On | Section 8 |
+| Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | On / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |
 | Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |

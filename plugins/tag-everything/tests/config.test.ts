@@ -81,3 +81,13 @@ test("claudeTook: time and cost when known", () => {
   assert.equal(claudeTook(4200, 0.031), "4 s, API cost $0.03");
   assert.equal(claudeTook(null, null), "");
 });
+
+test("normalizeSettings: the All tab's count range, on at 10–100 by default, damaged values back to it", () => {
+  const d = normalizeSettings({});
+  assert.deepEqual([d.tagRangeOn, d.tagRangeMin, d.tagRangeMax], [true, 10, 100]);
+  const kept = normalizeSettings({ tagRangeOn: false, tagRangeMin: 2, tagRangeMax: 0 });
+  assert.deepEqual([kept.tagRangeOn, kept.tagRangeMin, kept.tagRangeMax], [false, 2, 0], "0 = no upper limit");
+  const bad = normalizeSettings({ tagRangeOn: "yes", tagRangeMin: 0, tagRangeMax: 2.5 });
+  assert.deepEqual([bad.tagRangeOn, bad.tagRangeMin, bad.tagRangeMax], [true, 10, 100]);
+  assert.equal(normalizeSettings({ tagRangeMax: -1 }).tagRangeMax, 100);
+});

@@ -2,10 +2,43 @@
 // methods used here (`setAttr`, `setCssProps`, `createSpan`...) are Obsidian's global DOM extensions.
 
 import type { Expr } from "./formula.ts";
+import { type CountRange, parseBound } from "./cloud.ts";
 
 /** A DOM node of any window: `instanceof Node` is false for a node of a pop-out window, which has its own `Node`. */
 export function isNode(target: EventTarget | null): target is Node {
   return !!target && typeof (target as Partial<Node>).nodeType === "number";
+}
+
+/** Drag payloads inside the panel (lower-case: DataTransfer.types lower-cases custom types). */
+export const TAG_MIME = "application/x-tag-everything-tag";
+export const GROUP_MIME = "application/x-tag-everything-group";
+
+/** Accepts tags (and, with `onGroup`, groups) dragged within the panel. */
+export function dropZone(el: HTMLElement, onTag: (tag: string) => void, onGroup?: (id: string) => void): void {
+  const accepts = (evt: DragEvent): boolean => {
+    const types = [...(evt.dataTransfer?.types ?? [])];
+    return types.includes(TAG_MIME) || (!!onGroup && types.includes(GROUP_MIME));
+  };
+  el.addEventListener("dragover", (evt) => {
+    if (!accepts(evt)) return;
+    evt.preventDefault();
+    if (evt.dataTransfer) evt.dataTransfer.dropEffect = [...evt.dataTransfer.types].includes(TAG_MIME) ? "copy" : "move";
+    el.addClass("is-drop-target");
+  });
+  el.addEventListener("dragleave", (evt) => {
+    const to = evt.relatedTarget;
+    if (!(isNode(to) && el.contains(to))) el.removeClass("is-drop-target");
+  });
+  el.addEventListener("drop", (evt) => {
+    el.removeClass("is-drop-target");
+    if (!accepts(evt)) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const tag = evt.dataTransfer?.getData(TAG_MIME);
+    const group = evt.dataTransfer?.getData(GROUP_MIME);
+    if (tag) onTag(tag);
+    else if (group && onGroup) onGroup(group);
+  });
 }
 
 /** Makes `el` a button for the keyboard too: focusable, Enter / Space run `fn` like a click. */
@@ -75,4 +108,85 @@ export function renderExpr(parent: HTMLElement, e: Expr, chip: TagChipFn, outer:
     renderExpr(parent, item, chip, e.k);
   });
   if (parens) op(")", "is-paren");
+}
+
+/** The tag count range's boxes (src/ui.ts `countRangeControl`). */
+export interface CountRangeControl {
+  el: HTMLElement;
+  /** Shows the stored range again, except in the box being typed in. */
+  update(r: CountRange): void;
+}
+
+/**
+ * The tag count range as two number boxes and a See all switch, for the panel's All tab and the explorer's root:
+ * "used [10]–[100] See all". A readable number typed changes the range at once (`change(r, false)`: redraw the tags,
+ * the box keeps the focus) and turns See all off; Enter, Escape or leaving the box commits it (`change(r, true)`: save),
+ * an unreadable one goes back to the last readable value. See all shows every tag and keeps the numbers.
+ */
+export function countRangeControl(parent: HTMLElement, initial: CountRange, change: (r: CountRange, save: boolean) => void): CountRangeControl {
+  let current: CountRange = { ...initial };
+  const el = parent.createDiv({ cls: "tag-everything-range" });
+  el.createSpan({ cls: "tag-everything-range-label", text: "used" });
+  const boxes: HTMLInputElement[] = [];
+  const box = (bound: "min" | "max", label: string, placeholder: string): HTMLInputElement => {
+    const input = el.createEl("input", {
+      type: "text",
+      cls: "tag-everything-range-input",
+      attr: { inputmode: "numeric", "aria-label": label, placeholder, spellcheck: "false" },
+    });
+    input.dataset.bound = bound;
+    const read = (): CountRange | null => {
+      const n = parseBound(input.value, bound);
+      return n === null ? null : { ...current, on: true, [bound]: n };
+    };
+    input.addEventListener("input", () => {
+      const r = read();
+      if (!r) return;
+      current = r;
+      paint(input);
+      change(current, false);
+    });
+    input.addEventListener("change", () => {
+      current = read() ?? current;
+      paint();
+      change(current, true);
+    });
+    input.addEventListener("keydown", (evt) => {
+      if (evt.isComposing) return;
+      if (evt.key === "Enter" || evt.key === "Escape") {
+        evt.preventDefault();
+        evt.stopPropagation();
+        input.blur();
+      }
+    });
+    boxes.push(input);
+    return input;
+  };
+  const min = box("min", "Fewest uses of a tag shown", "1");
+  el.createSpan({ cls: "tag-everything-range-dash", text: "–" });
+  const max = box("max", "Most uses of a tag shown (empty: no limit)", "∞");
+  const all = el.createEl("button", { cls: "tag-everything-range-all", text: "See all" });
+  all.addEventListener("click", () => {
+    current = { ...current, on: !current.on };
+    paint();
+    change(current, true);
+  });
+  /** Puts `current` in the boxes (not into `typing`, the box being typed in) and the switch. */
+  function paint(typing?: HTMLInputElement): void {
+    if (typing !== min) min.value = String(current.min);
+    if (typing !== max) max.value = current.max ? String(current.max) : "";
+    all.toggleClass("is-active", !current.on);
+    all.setAttr("aria-pressed", String(!current.on));
+    all.setAttr("aria-label", current.on ? "Show every tag, whatever its count" : "Every tag is shown: click to keep to the range again");
+    el.toggleClass("is-off", !current.on);
+  }
+  paint();
+  return {
+    el,
+    update(r: CountRange): void {
+      current = { ...r };
+      const doc = el.ownerDocument;
+      paint(boxes.find((b) => b === doc.activeElement));
+    },
+  };
 }

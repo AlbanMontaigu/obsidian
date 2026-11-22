@@ -23,6 +23,11 @@ const g1 = await view.createGroup("Clients", ["client", "shared"]);
 const g2 = await view.createGroup("Formula");
 await view.setGroupFormula(g2, "(shared OR B27) AND NOT final");
 view.showTab(null);
+// The tag count range on (the gallery's tags are used a few times, not 10 to 100): "used [2]–[∞]".
+plugin.settings.tagRangeMin = 2;
+plugin.settings.tagRangeMax = 0;
+plugin.settings.tagRangeOn = true;
+await plugin.saveSettings();
 await sleep(300);
 await snap("panel-all");
 view.selectOnly("md"); // on every note of the gallery vault: results and tags to narrow them

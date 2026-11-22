@@ -23,6 +23,10 @@ plugin.settings.extensionTags = false;
 plugin.index.setExtensionTags(false);
 check("extension tags off: none left", !plugin.index.tagsOf("Docs/scan.pdf").includes("pdf") && !plugin.index.counts().has("md"));
 
+// All's count range is on at 10–100 by default; the fixture's tags are used fewer than 10 times: off until its section.
+check("tag count range on by default, 10–100", plugin.settings.tagRangeOn === true && plugin.settings.tagRangeMin === 10 && plugin.settings.tagRangeMax === 100);
+plugin.settings.tagRangeOn = false;
+
 // Sections up to "UI" exercise the name / sidecar engine on notes: frontmatter storage off for them.
 check("note tags go to frontmatter by default", plugin.settings.noteTagsInFrontmatter === true);
 plugin.settings.noteTagsInFrontmatter = false;
@@ -312,7 +316,7 @@ if (settingTab) {
   // Declarative tab (getSettingDefinitions): its rows are indexed for Obsidian's settings search.
   const walk = (d) => (d.items ? d.items.flatMap(walk) : [d.name]);
   const names = (settingTab.settingItems ?? []).flatMap(walk);
-  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Badges for") && names.includes("Claude Code program") && names.includes("Model"), JSON.stringify(names));
+  check("settings: declarative rows, indexed for settings search", names.includes("Store file tags in") && names.includes("Badges for") && names.includes("Claude Code program") && names.includes("Model") && names.includes("Used at least") && names.includes("Used at most"), JSON.stringify(names));
   check("settings: tab has an icon", settingTab.icon === "tags", String(settingTab.icon));
   // Through the real dialog: the badges toggle disables / enables the badge option and is saved.
   app.setting.open();
@@ -322,9 +326,11 @@ if (settingTab) {
   const row = (name) => [...el.querySelectorAll(".setting-item")].find((i) => i.querySelector(".setting-item-name")?.textContent === name);
   const disabledCount = () => el.querySelectorAll(".setting-item.is-disabled").length;
   const toggle = row("Show tag badges")?.querySelector(".checkbox-container");
-  // The naming rule is on by default: "Lower-case new tags" is implied, so disabled (1 row).
+  // The naming rule is on by default: "Lower-case new tags" is implied, so disabled; the count range is off here
+  // (turned off at the start), so its two numbers are disabled too (3 rows).
   const isDisabled = (name) => !!row(name)?.classList.contains("is-disabled");
-  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 1 && isDisabled("Lower-case new tags"), String(disabledCount()));
+  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 3 && isDisabled("Lower-case new tags"), String(disabledCount()));
+  check("settings: the count range's numbers disabled while it is off", isDisabled("Used at least") && isDisabled("Used at most") && !isDisabled("Only tags used a number of times"));
   const ruleToggle = row("Tag naming rule")?.querySelector(".checkbox-container");
   check("settings: naming rule on by default, liaison words editable", plugin.settings.tagRule === true && !!row("Liaison words")?.querySelector("textarea") && !isDisabled("Liaison words"));
   ruleToggle?.click();
@@ -340,8 +346,8 @@ if (settingTab) {
   const saved = (await plugin.loadData())?.showBadges;
   toggle?.click();
   await sleep(300);
-  check("settings: badge option disabled while badges are off", off === 2 && saved === false, `disabled=${off} saved=${saved}`);
-  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 1 && (await plugin.loadData())?.showBadges === true);
+  check("settings: badge option disabled while badges are off", off === 4 && saved === false, `disabled=${off} saved=${saved}`);
+  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 3 && (await plugin.loadData())?.showBadges === true);
   // Tag maintenance: settings hold options only; one row leads to the panel's Tools tab, where the actions are.
   check("settings: no maintenance action, one row leading to the Tools tab", names.includes("Tag tools") && !names.includes("Re-read all tags") && !names.includes("Check and fix tag names"), JSON.stringify(names));
   row("Tag tools")?.querySelector("button")?.click();
@@ -669,6 +675,69 @@ await sleep(200);
 [...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent === "Stop the search")?.click();
 await sleep(200);
 check("groups: ⋯ → Stop the search clears it", !panel().querySelector(".tag-everything-group.is-active"));
+
+// ---- the tag count range in All: "used [10]–[100] See all" in the Tags heading. A number typed applies at once (the box
+// keeps the focus), Enter / leaving the box saves; See all shows every tag. Tags in the search, and every tag while
+// filtering by name, stay.
+{
+  const counts = plugin.index.counts();
+  const top = Math.max(...counts.values()); // the most used count: the rarer tags are hidden
+  const within = (a, b) => [...counts].filter(([, n]) => n >= a && (!b || n <= b)).map(([t]) => t).sort().join();
+  const cloudTags = () => [...panel().querySelectorAll(".tag-everything-view-tags > .tag-everything-chip")].map((e) => e.firstChild.textContent).sort().join();
+  const box = (b) => panel().querySelector(`.tag-everything-tags-head .tag-everything-range-input[data-bound="${b}"]`);
+  const seeAll = () => panel().querySelector(".tag-everything-tags-head .tag-everything-range-all");
+  const headCount = () => panel().querySelector(".tag-everything-tags-head .tag-everything-section-count")?.textContent;
+  const type = async (b, text) => {
+    box(b).focus();
+    box(b).value = text;
+    box(b).dispatchEvent(new Event("input"));
+    await sleep(200);
+  };
+  const commit = async (b) => {
+    box(b).dispatchEvent(new Event("change"));
+    box(b).blur();
+    await sleep(300);
+  };
+  const rare = [...counts].find(([, n]) => n < top)?.[0];
+  check("range: off, every tag shown; the boxes say 10 and 100, See all pressed", allTab().classList.contains("is-active") && cloudTags().split(",").length === counts.size && box("min")?.value === "10" && box("max")?.value === "100" && seeAll()?.classList.contains("is-active"), `${cloudTags()} / ${box("min")?.value}`);
+  const minEl = box("min");
+  await type("min", String(top));
+  const want = within(top, 100);
+  check(
+    "range: a number typed applies at once, See all off, the count says of how many, the box keeps the focus",
+    plugin.settings.tagRangeOn && cloudTags() === want && want.split(",").length < counts.size && headCount() === `${want.split(",").length} of ${counts.size}` && !seeAll().classList.contains("is-active") && box("min") === minEl && document.activeElement === minEl,
+    `${cloudTags()} vs ${want} / ${headCount()}`,
+  );
+  await commit("min");
+  check("range: saved when the box is left", (await plugin.loadData())?.tagRangeMin === top && (await plugin.loadData())?.tagRangeOn === true);
+  check("range: a rare tag outside it is hidden", !!rare && !cloudChip(rare), rare);
+  view.selectOnly(rare);
+  await sleep(100);
+  allTab().click();
+  await sleep(200);
+  check("range: a tag in the search stays shown, marked", cloudChip(rare)?.classList.contains("is-selected"));
+  cloudChip(rare)?.click();
+  await sleep(200);
+  allTab().click();
+  await sleep(200);
+  const filterBox = panel().querySelector(".tag-everything-view-search");
+  filterBox.value = rare;
+  filterBox.dispatchEvent(new Event("input"));
+  await sleep(200);
+  check("range: filtering by name finds every tag", !!cloudChip(rare) && !view.getState().selected.length);
+  filterBox.value = "";
+  filterBox.dispatchEvent(new Event("input"));
+  await sleep(200);
+  await type("max", "");
+  await commit("max");
+  check("range: an empty max = no limit, saved", plugin.settings.tagRangeMax === 0 && box("max").value === "" && cloudTags() === within(top, 0) && (await plugin.loadData())?.tagRangeMax === 0);
+  await type("min", "abc");
+  await commit("min");
+  check("range: an unreadable number goes back to the stored one", box("min").value === String(top) && plugin.settings.tagRangeMin === top, box("min").value);
+  seeAll().click();
+  await sleep(300);
+  check("range: See all shows every tag, keeps the numbers, saved", !plugin.settings.tagRangeOn && cloudTags().split(",").length === counts.size && headCount() === String(counts.size) && box("min").value === String(top) && seeAll().classList.contains("is-active") && (await plugin.loadData())?.tagRangeOn === false);
+}
 
 // ---- bookmark tabs: create one, bookmark tags and a group (drop, menu), the tab shows only them, saved
 const tabEl = (name) => [...panel().querySelectorAll(".tag-everything-tab")].find((t) => t.textContent === name);
@@ -1305,6 +1374,46 @@ const childrenOf = (row) => {
 const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 const ownTags = [...plugin.index.counts(undefined, true).keys()].sort(byName);
 check("explorer: the root lists every stored tag by name, no extension tag, no file", exTop().join() === ownTags.join() && !exTop().includes("md"), exTop().join(" | "));
+// the tag count range, shared with the panel's All tab: under the search box, it keeps the root to the tags used that
+// many times (stored tags); an open tag stays
+{
+  const own = plugin.index.counts(undefined, true);
+  const top = Math.max(...own.values());
+  const rare = [...own].find(([, n]) => n < top)?.[0];
+  const exBox = (b) => exEl.querySelector(`.tag-everything-explorer-range .tag-everything-range-input[data-bound="${b}"]`);
+  const exAll = () => exEl.querySelector(".tag-everything-explorer-range .tag-everything-range-all");
+  check("explorer range: the panel's numbers, See all pressed (off)", exBox("min")?.value === String(plugin.settings.tagRangeMin) && exAll()?.classList.contains("is-active"), exBox("min")?.value);
+  explorer.toggle([rare]);
+  exBox("min").focus();
+  exBox("min").value = String(top);
+  exBox("min").dispatchEvent(new Event("input"));
+  await sleep(200);
+  const want = [...own].filter(([t, n]) => n >= top || t === rare).map(([t]) => t).sort(byName).join();
+  check(
+    "explorer range: a number typed keeps the root to the tags used that many times, an open one stays, the box keeps the focus",
+    exTop().join() === want && want.split(",").length < ownTags.length && document.activeElement === exBox("min") && / of \d+ tags/.test(exEl.querySelector(".tag-everything-explorer-status").textContent),
+    `${exTop().join()} vs ${want}`,
+  );
+  exBox("min").dispatchEvent(new Event("change"));
+  exBox("min").blur();
+  await sleep(400);
+  const panelMin = document.querySelector('.tag-everything-view .tag-everything-tags-head .tag-everything-range-input[data-bound="min"]')?.value;
+  check("explorer range: saved, and the panel shows it", (await plugin.loadData())?.tagRangeOn === true && panelMin === String(top) && !exAll().classList.contains("is-active"), panelMin);
+  explorer.toggle([rare]);
+  // a formula: the root holds the tags of what it finds, whatever their count there
+  const box = exEl.querySelector(".tag-everything-explorer-input");
+  box.value = "kpi";
+  box.dispatchEvent(new Event("input"));
+  await sleep(200);
+  const kpiRoot = [...plugin.index.counts(plugin.index.paths().filter((p) => plugin.index.hasTag(p, "kpi")), true).keys()].sort(byName).join();
+  check("explorer range: not while a formula filters the tree", plugin.settings.tagRangeOn && exTop().filter((k) => !k.includes("/")).join() === kpiRoot, `${exTop().join()} vs ${kpiRoot}`);
+  box.value = "";
+  box.dispatchEvent(new Event("input"));
+  await sleep(200);
+  exAll().click();
+  await sleep(400);
+  check("explorer range: See all, every stored tag again", exTop().join() === ownTags.join() && !plugin.settings.tagRangeOn, exTop().join());
+}
 // the formula box: autocompletes the tag being typed, a picked tag becomes a chip with a ×; the tree then holds only
 // the matching items
 const exSearch = exEl.querySelector(".tag-everything-explorer-input");

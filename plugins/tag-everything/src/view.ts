@@ -1,13 +1,14 @@
 import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, ViewStateResult, WorkspaceLeaf, debounce, setIcon } from "obsidian";
-import { cloudWeights, narrowingTags } from "./cloud.ts";
+import { type CountRange, cloudWeights, inCountRange, narrowingTags, rangeText } from "./cloud.ts";
 import * as gr from "./groups.ts";
 import * as fx from "./formula.ts";
 import * as tb from "./tabs.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
-import { type FormulaContext, GroupModal, NameModal } from "./dialogs.ts";
-import { clickable, isNode, paintTag, renderExpr } from "./ui.ts";
+import { NameModal } from "./dialogs.ts";
+import { PanelGroups } from "./panel-groups.ts";
+import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, dropZone, paintTag, renderExpr } from "./ui.ts";
 import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
 import { InboxPane, inboxFiles } from "./inbox-pane.ts";
 import { renderTools } from "./tools-pane.ts";
@@ -15,10 +16,6 @@ import { renderTools } from "./tools-pane.ts";
 export const VIEW_TYPE = "tag-everything-view";
 /** Most items listed at once (panel results, a level of the TagEverything explorer). */
 export const MAX_RESULTS = 500;
-/** Drag payloads inside the panel (lower-case: DataTransfer.types lower-cases custom types). */
-const TAG_MIME = "application/x-tag-everything-tag";
-const GROUP_MIME = "application/x-tag-everything-group";
-
 
 /**
  * A tab of the panel that is not a tag tab: Selection (the search and its results), Inbox (files without tags,
@@ -63,11 +60,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private page: PanelPage | null = null;
   /** The Inbox tab's content (public for the smoke test). */
   readonly inbox: InboxPane;
+  /** The Groups section of the tag tabs, its menu and dialog (src/panel-groups.ts). */
+  private groupsPane: PanelGroups;
   /** Inbox and Tools: their content, and the inbox count on its tab, follow the vault. */
   private requestRender = debounce(() => this.render(), 300, true);
   private tabsEl!: HTMLElement;
   private groupsEl!: HTMLElement;
   private tagsHeadEl!: HTMLElement;
+  private tagsCountEl!: HTMLElement;
+  /** In All's Tags heading: the count range (src/ui.ts `countRangeControl`). */
+  private range!: CountRangeControl;
   private tagsEl!: HTMLElement;
   /** In the Selection tab: the tags that can still narrow the search. */
   private refineEl!: HTMLElement;
@@ -83,6 +85,22 @@ export class TagEverythingView extends ItemView implements HoverParent {
   ) {
     super(leaf);
     this.inbox = new InboxPane(plugin, this.rowHost());
+    this.groupsPane = new PanelGroups({
+      app: this.app,
+      plugin,
+      activeGroup: () => this.activeGroup,
+      selected: () => this.selected,
+      addToSearch: (tags) => void this.selected.push(...tags),
+      searchExpr: () => this.searchExpr(),
+      selectGroup: (id) => this.selectGroup(id),
+      showSelection: () => this.showSelection(),
+      currentTab: () => this.currentTab,
+      save: (change) => this.save(change),
+      chip: (parent, tag, extra) => this.chip(parent, tag, extra),
+      toggle: (tag) => this.toggle(tag),
+      bookmarkItems: (menu, kind, value) => this.bookmarkItems(menu, kind, value),
+      matchPaths: (expr) => this.matchPaths(expr),
+    });
   }
 
   getViewType(): string {
@@ -149,7 +167,15 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.selectedEl = root.createDiv({ cls: "tag-everything-view-selected" });
     this.refineEl = root.createDiv({ cls: "tag-everything-view-refine" });
     this.groupsEl = root.createDiv({ cls: "tag-everything-view-groups" });
+    // A titled section under the groups, like them: the number of tags shown, then (All) the count range.
     this.tagsHeadEl = root.createDiv({ cls: "tag-everything-section-head tag-everything-tags-head" });
+    this.tagsHeadEl.createSpan({ cls: "tag-everything-section-title", text: "Tags" });
+    const headEnd = this.tagsHeadEl.createDiv({ cls: "tag-everything-tags-head-end" });
+    this.tagsCountEl = headEnd.createSpan({ cls: "tag-everything-section-count" });
+    this.range = countRangeControl(headEnd, countRangeOf(this.plugin.settings), (r, save) => {
+      setCountRange(this.plugin, r, save);
+      if (!save) this.renderTags(); // saved: every view redraws (index "changed")
+    });
     this.tagsEl = root.createDiv({ cls: "tag-everything-view-tags" });
     this.statusEl = root.createDiv({ cls: "tag-everything-view-status" });
     this.resultsEl = root.createDiv({ cls: "tag-everything-view-results" });
@@ -234,10 +260,23 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.app.workspace.requestSaveLayout();
   }
 
-  // ---- tag groups (stored in settings.groups, logic in src/groups.ts)
+  // ---- tag groups (src/panel-groups.ts) and bookmark tabs: stored in the settings, saved here
 
   private get groups(): gr.TagGroup[] {
     return this.plugin.settings.groups;
+  }
+
+  /**
+   * Creates a group and returns its id (public for the smoke test). Tags in `excluded` make it a formula:
+   * `tags AND NOT excluded`. Throws on an empty name.
+   */
+  createGroup(name: string, tags: readonly string[] = [], excluded: readonly string[] = []): Promise<string> {
+    return this.groupsPane.createGroup(name, tags, excluded);
+  }
+
+  /** Sets what the group searches for from a formula's text (public for the smoke test). Throws on a syntax error. */
+  setGroupFormula(id: string, text: string): Promise<void> {
+    return this.groupsPane.setGroupFormula(id, text);
   }
 
   private async save(change: Partial<Pick<TagEverythingSettings, "groups" | "tabs">>): Promise<void> {
@@ -249,30 +288,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
       console.error("[tag-everything] saving tag groups / tabs failed", err);
       new Notice("TagEverything: the tag groups and tabs could not be saved.");
     }
-  }
-
-  private async saveGroups(groups: gr.TagGroup[]): Promise<void> {
-    await this.save({ groups });
-  }
-
-  /**
-   * Creates a group and returns its id (public for the smoke test). Tags in `excluded` make it a formula:
-   * `tags AND NOT excluded`. Throws on an empty name.
-   */
-  async createGroup(name: string, tags: readonly string[] = [], excluded: readonly string[] = []): Promise<string> {
-    return this.createGroupFrom(name, fx.andOf([...tags.map(fx.tagExpr), ...excluded.map((t) => fx.notExpr(fx.tagExpr(t)))]));
-  }
-
-  /** Creates a group searching for `expr` (null: an empty group); created from a bookmark tab, it is bookmarked there. */
-  private async createGroupFrom(name: string, expr: fx.Expr | null): Promise<string> {
-    const { groups, id } = gr.addGroup(this.groups, name);
-    const tabs = this.tab ? tb.setBookmark(this.tabs, this.tab, "groups", id, true) : this.tabs;
-    await this.save({ groups: gr.setFormula(groups, id, expr), tabs });
-    return id;
-  }
-
-  private deleteGroup(id: string): void {
-    void this.save({ groups: gr.deleteGroup(this.groups, id), tabs: tb.forgetGroup(this.tabs, id) });
   }
 
   // ---- bookmark tabs (stored in settings.tabs, logic in src/tabs.ts)
@@ -355,10 +370,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
     menu.showAtMouseEvent(evt);
   }
 
-  async addToGroup(id: string, tags: readonly string[]): Promise<void> {
-    await this.saveGroups(gr.addTagsToGroup(this.groups, id, tags));
-  }
-
   /** Opens the Selection tab, where the active group's search lists what it finds. */
   private showSelection(): void {
     this.page = "selection";
@@ -376,29 +387,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
       this.page = "selection";
     }
     this.stateChanged();
-  }
-
-  /**
-   * Sets what the group searches for from a formula's text (public for the smoke test): tags are matched to the
-   * vault's spelling, an empty text empties the group. Throws on a syntax error.
-   */
-  async setGroupFormula(id: string, text: string): Promise<void> {
-    await this.saveGroups(this.withFormula(this.groups, id, this.parseFormula(text)));
-  }
-
-  /** A formula typed by the user, tags matched to the vault's spelling; null when empty. Throws on a syntax error. */
-  private parseFormula(text: string): fx.Expr | null {
-    return text.trim() ? fx.resolveTags(fx.parseFormula(text), [...this.plugin.index.counts().keys()]) : null;
-  }
-
-  /** `groups` with group `id` searching for `expr`; on the active group, its new tags join the search switched on. */
-  private withFormula(groups: gr.TagGroup[], id: string, expr: fx.Expr | null): gr.TagGroup[] {
-    const before = groups.find((g) => g.id === id);
-    if (this.activeGroup === id && expr) {
-      const counts = this.plugin.index.counts();
-      for (const t of fx.formulaTags(expr)) if (!before?.tags.includes(t) && counts.has(t) && !this.selected.includes(t)) this.selected.push(t);
-    }
-    return gr.setFormula(groups, id, expr);
   }
 
   /** The current search: the active group's formula without its switched-off tags, AND the other selected tags, AND NOT the excluded ones. */
@@ -426,105 +414,6 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const used = expr && fx.prune(expr, (t) => counts.has(t));
     if (!used) return [];
     return index.paths().filter((p) => fx.evaluate(used, (t) => index.hasTag(p, t)));
-  }
-
-  /** The group dialog's view of the vault: tags, counts, and how many items a formula finds. */
-  private formulaContext(): FormulaContext {
-    const counts = this.plugin.index.counts();
-    return { tags: this.plugin.index.ranked(), counts, countMatches: (expr) => this.matchPaths(fx.resolveTags(expr, [...counts.keys()])).length };
-  }
-
-  /**
-   * New group: a name and what it searches for, starting from `expr` (the current search, a dropped tag). With `run`
-   * (from the Selection tab), the search becomes the new group's, so its formula's results show at once.
-   */
-  private newGroup(expr: fx.Expr | null, run = false): void {
-    const heading = run ? "New group from this search" : "New group";
-    new GroupModal(this.app, heading, "", expr ? fx.formatFormula(expr) : "", this.formulaContext(), async (name, text) => {
-      const id = await this.createGroupFrom(name, this.parseFormula(text));
-      if (run) this.selectGroup(id);
-    }).open();
-  }
-
-  /** Edits a group's name and formula in one dialog (public for the smoke test). */
-  editGroup(group: gr.TagGroup): void {
-    const expr = gr.groupExpr(group);
-    const current = group.formula ?? (expr ? fx.formatFormula(expr) : "");
-    new GroupModal(this.app, `Edit group "${group.name}"`, group.name, current, this.formulaContext(), async (name, text) => {
-      const parsed = this.parseFormula(text); // first: a syntax error keeps the dialog open, nothing saved
-      await this.saveGroups(this.withFormula(gr.renameGroup(this.groups, group.id, name), group.id, parsed));
-    }).open();
-  }
-
-  private groupMenu(group: gr.TagGroup, evt: MouseEvent): void {
-    const menu = new Menu();
-    const active = this.activeGroup === group.id;
-    const n = this.matchPaths(gr.groupExpr(group)).length;
-    if (active) menu.addItem((i) => i.setTitle(`Show in Selection (${plural(n, "item")})`).setIcon("arrow-right").onClick(() => this.showSelection()));
-    menu.addItem((i) =>
-      i
-        .setTitle(active ? "Stop the search" : `Search with this group (${plural(n, "item")})`)
-        .setIcon(active ? "search-x" : "search")
-        .onClick(() => this.selectGroup(group.id)),
-    );
-    menu.addItem((i) =>
-      i
-        .setTitle("Edit name and formula (AND, OR, NOT)…")
-        .setIcon("pencil")
-        .onClick(() => this.editGroup(group)),
-    );
-    const extra = this.selected.filter((t) => !group.tags.includes(t));
-    if (extra.length) {
-      menu.addItem((i) =>
-        i
-          .setTitle(`Add the selected tags (${extra.length})`)
-          .setIcon("plus")
-          .onClick(() => void this.addToGroup(group.id, extra)),
-      );
-    }
-    this.bookmarkItems(menu, "groups", group.id);
-    menu.addSeparator();
-    menu.addItem((i) =>
-      i
-        .setTitle("Delete group (the tags stay on the files)")
-        .setIcon("trash")
-        .onClick(() => this.deleteGroup(group.id)),
-    );
-    menu.showAtMouseEvent(evt);
-  }
-
-  /** The group menu, opened from the keyboard: under the ⋯ button. */
-  private groupMenuAt(group: gr.TagGroup, el: HTMLElement): void {
-    const r = el.getBoundingClientRect();
-    this.groupMenu(group, new MouseEvent("contextmenu", { clientX: r.left, clientY: r.bottom }));
-  }
-
-  /** Accepts tags (and, with `onGroup`, groups) dragged within the panel. */
-  private dropZone(el: HTMLElement, onTag: (tag: string) => void, onGroup?: (id: string) => void): void {
-    const accepts = (evt: DragEvent): boolean => {
-      const types = [...(evt.dataTransfer?.types ?? [])];
-      return types.includes(TAG_MIME) || (!!onGroup && types.includes(GROUP_MIME));
-    };
-    el.addEventListener("dragover", (evt) => {
-      if (!accepts(evt)) return;
-      evt.preventDefault();
-      if (evt.dataTransfer) evt.dataTransfer.dropEffect = [...evt.dataTransfer.types].includes(TAG_MIME) ? "copy" : "move";
-      el.addClass("is-drop-target");
-    });
-    el.addEventListener("dragleave", (evt) => {
-      const to = evt.relatedTarget;
-      if (!(isNode(to) && el.contains(to))) el.removeClass("is-drop-target");
-    });
-    el.addEventListener("drop", (evt) => {
-      el.removeClass("is-drop-target");
-      if (!accepts(evt)) return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      const tag = evt.dataTransfer?.getData(TAG_MIME);
-      const group = evt.dataTransfer?.getData(GROUP_MIME);
-      if (tag) onTag(tag);
-      else if (group && onGroup) onGroup(group);
-    });
   }
 
   // ---- rendering
@@ -583,7 +472,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     this.renderTabs(matches);
     this.renderSelected();
     this.renderRefine(matches);
-    this.renderGroups();
+    this.groupsPane.render(this.groupsEl);
     this.renderTags();
     this.renderResults(matches);
     if (this.page === "inbox") this.inbox.render(this.pageEl);
@@ -630,7 +519,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
         evt.preventDefault();
         this.tabMenu(tab, evt);
       });
-      this.dropZone(
+      dropZone(
         t,
         (tag) => this.bookmark(tab.id, "tags", tag, true),
         (group) => this.bookmark(tab.id, "groups", group, true),
@@ -639,7 +528,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const add = el.createDiv({ cls: "clickable-icon tag-everything-tab-add", attr: { "aria-label": "New bookmark tab (or drop a tag or group here)" } });
     setIcon(add, "plus");
     clickable(add, () => this.newTab());
-    this.dropZone(
+    dropZone(
       add,
       (tag) => this.newTab([tag]),
       (group) => this.newTab([], [group]),
@@ -706,159 +595,16 @@ export class TagEverythingView extends ItemView implements HoverParent {
       b.createSpan({ text });
       b.addEventListener("click", run);
     };
-    if (group) button("tag-everything-view-formula", "pencil", "Edit group", `Edit the group "${group.name}": its name and formula`, () => this.editGroup(group));
+    if (group) button("tag-everything-view-formula", "pencil", "Edit group", `Edit the group "${group.name}": its name and formula`, () => this.groupsPane.editGroup(group));
     else {
       button("tag-everything-view-formula", "square-function", "Formula…", "Write this search as a formula (AND, OR, NOT, parentheses) and keep it as a group", () =>
-        this.newGroup(this.searchExpr(), true),
+        this.groupsPane.newGroup(this.searchExpr(), true),
       );
     }
     button("tag-everything-view-clear", "search-x", "Clear", "Clear the search", () => {
       this.resetSearch();
       this.stateChanged();
     });
-  }
-
-  private renderGroups(): void {
-    const el = this.groupsEl;
-    el.empty();
-    const index = this.plugin.index;
-    const counts = index.counts();
-
-    const head = el.createDiv({ cls: "tag-everything-section-head" });
-    head.createSpan({ cls: "tag-everything-section-title", text: "Groups" });
-    const add = head.createDiv({
-      cls: "clickable-icon tag-everything-group-add",
-      attr: { "aria-label": "New group: a name and the tags it searches for, with AND, OR, NOT (or drop a tag here)" },
-    });
-    setIcon(add, "plus");
-    clickable(add, () => this.newGroup(this.searchExpr()));
-    this.dropZone(add, (tag) => this.newGroup(fx.tagExpr(tag)));
-
-    // In a bookmark tab, its groups only, in the panel's group order (so dragging one onto another still reorders).
-    const tab = this.currentTab;
-    const shown = tab ? this.groups.filter((g) => tab.groups.includes(g.id)) : this.groups;
-    if (!shown.length) {
-      el.createDiv({
-        cls: "tag-everything-view-empty",
-        text: tab
-          ? `No group in this tab. + creates one here; or in All, drag a group onto "${tab.name}" (or ⋯ → Bookmark in the tab).`
-          : "No groups yet. + creates one: a name and the tags it searches for, joined with AND, OR, NOT. Drag tags onto a group to add them; its Search button lists what it finds.",
-      });
-      return;
-    }
-
-    for (const group of shown) {
-      const active = this.activeGroup === group.id;
-      const box = el.createDiv({ cls: "tag-everything-group", attr: { "data-group": group.id } });
-      box.toggleClass("is-collapsed", group.collapsed);
-      box.toggleClass("is-active", active);
-
-      const header = box.createDiv({ cls: "tag-everything-group-header" });
-      header.draggable = true; // drop a group on another to reorder
-      header.addEventListener("dragstart", (evt) => {
-        if (!evt.dataTransfer) return;
-        evt.dataTransfer.setData(GROUP_MIME, group.id);
-        evt.dataTransfer.effectAllowed = "move";
-      });
-
-      const fold = header.createDiv({ cls: "tag-everything-group-fold", attr: { "aria-label": group.collapsed ? "Unfold" : "Fold" } });
-      setIcon(fold, "chevron-down");
-      clickable(fold, (evt) => {
-        evt.stopPropagation();
-        void this.saveGroups(gr.setCollapsed(this.groups, group.id, !group.collapsed));
-      });
-
-      const n = this.matchPaths(gr.groupExpr(group)).length;
-      header.createSpan({ cls: "tag-everything-group-name", text: group.name });
-      if (group.formula) {
-        const fxIcon = header.createSpan({ cls: "tag-everything-group-formula-icon", attr: { "aria-label": `Formula: ${group.formula} (click to edit)` } });
-        setIcon(fxIcon, "square-function");
-        clickable(fxIcon, (evt) => {
-          evt.stopPropagation();
-          this.editGroup(group);
-        });
-      }
-      // Labelled search button: the whole header searches too, but an icon alone was easy to miss. On the group
-      // searching it leads to the Selection tab, where its results are; stopping is in ⋯ (and Clear there).
-      const open = (): void => (active ? this.showSelection() : this.selectGroup(group.id));
-      const find = header.createDiv({
-        cls: "tag-everything-group-search",
-        attr: {
-          "aria-label": active
-            ? `Show the ${plural(n, "item")} it finds in the Selection tab (⋯ → Stop the search to clear it)`
-            : `Search with the whole group: lists the ${plural(n, "item")} it finds`,
-        },
-      });
-      setIcon(find.createSpan({ cls: "tag-everything-group-search-icon" }), active ? "arrow-right" : "search");
-      find.createSpan({ cls: "tag-everything-group-search-label", text: active ? "Selection" : "Search" });
-      find.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
-      clickable(find, (evt) => {
-        evt.stopPropagation();
-        open();
-      });
-      const more = header.createDiv({ cls: "clickable-icon tag-everything-group-more", attr: { "aria-label": "Group options" } });
-      setIcon(more, "more-horizontal");
-      clickable(more, (evt) => {
-        evt.stopPropagation();
-        if (evt.instanceOf(MouseEvent)) this.groupMenu(group, evt);
-        else this.groupMenuAt(group, more);
-      });
-      clickable(header, open);
-      header.setAttr("aria-label", active ? "Click to show its results in the Selection tab" : "Click to search with this group");
-      header.addEventListener("contextmenu", (evt) => {
-        evt.preventDefault();
-        this.groupMenu(group, evt);
-      });
-
-      this.dropZone(
-        box,
-        (tag) => void this.addToGroup(group.id, [tag]),
-        (moved) => void this.saveGroups(gr.moveGroup(this.groups, moved, group.id)),
-      );
-
-      if (group.collapsed) continue;
-      const body = box.createDiv({ cls: "tag-everything-group-tags" });
-      if (!group.tags.length) body.createDiv({ cls: "tag-everything-view-empty", text: "Drag tags here." });
-      const groupChip = (parent: HTMLElement, tag: string, negated: boolean): void => {
-        const c = counts.get(tag) ?? 0;
-        const chip = this.chip(parent, tag, (this.selected.includes(tag) ? "is-selected" : "") + (c ? "" : " is-missing") + (negated ? " is-negated" : ""));
-        chip.createSpan({ cls: "tag-everything-chip-count", text: String(c) });
-        // Hover buttons, also in the chip's right-click menu: NOT on / off in the group's search, take out of the group.
-        const notLabel = negated ? "Include it again in the group's search" : "Exclude it in the group's search (NOT)";
-        const negate = (): void => void this.saveGroups(gr.toggleTagNot(this.groups, group.id, tag));
-        const remove = (): void => void this.saveGroups(gr.removeTagFromGroup(this.groups, group.id, tag));
-        const not = chip.createSpan({ cls: "tag-everything-chip-not", attr: { "aria-label": notLabel } });
-        setIcon(not, negated ? "undo-2" : "ban");
-        const x = chip.createSpan({ cls: "tag-everything-chip-remove", attr: { "aria-label": "Remove from the group" } });
-        setIcon(x, "x");
-        not.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          negate();
-        });
-        x.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          remove();
-        });
-        chip.addEventListener("contextmenu", (evt) => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          const menu = new Menu();
-          menu.addItem((i) => i.setTitle(notLabel).setIcon(negated ? "undo-2" : "ban").onClick(negate));
-          menu.addItem((i) => i.setTitle("Remove from the group").setIcon("x").onClick(remove));
-          menu.showAtMouseEvent(evt);
-        });
-        if (c) clickable(chip, () => this.toggle(tag));
-        else chip.setAttr("aria-label", "No file or folder carries this tag");
-      };
-      const error = gr.formulaError(group);
-      if (error) {
-        const err = body.createDiv({ cls: "tag-everything-error", text: `Formula not understood (${error}): searching all the tags. ⋯ → Edit name and formula.` });
-        err.setAttr("aria-label", group.formula ?? "");
-      }
-      const expr = gr.groupFormula(group);
-      if (expr) renderExpr(body, expr, groupChip);
-      else for (const tag of group.tags) groupChip(body, tag, false);
-    }
   }
 
   /**
@@ -872,13 +618,20 @@ export class TagEverythingView extends ItemView implements HoverParent {
     // In a bookmark tab, its tags only; one no item carries any more stays (faded) so it can be removed.
     const tab = this.currentTab;
     const entries: [string, number][] = tab ? tab.tags.map((t): [string, number] => [t, counts.get(t) ?? 0]) : [...counts];
-    const rows = entries
-      .filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter))
+    const named = entries.filter(([t]) => !this.filter || t.toLowerCase().includes(this.filter));
+    // The count range keeps All to the tags that matter; not in a bookmark tab (picked by hand), nor while filtering
+    // by name (the tag looked for must show), and a tag in the search always stays (a click takes it out).
+    const range = countRangeOf(this.plugin.settings);
+    const ranged = !tab && !this.filter && range.on;
+    const rows = named
+      .filter(([t, n]) => !ranged || inCountRange(n, range) || this.selected.includes(t) || this.excluded.includes(t))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    // A titled section under the groups, like them, with the number of tags shown.
-    this.tagsHeadEl.empty();
-    this.tagsHeadEl.createSpan({ cls: "tag-everything-section-title", text: "Tags" });
-    this.tagsHeadEl.createSpan({ cls: "tag-everything-section-count", text: String(rows.length) });
+    // the number of tags shown, of how many when the range hides some
+    const hidden = named.length - rows.length;
+    this.tagsCountEl.setText(hidden ? `${rows.length} of ${named.length}` : String(rows.length));
+    this.tagsCountEl.setAttr("aria-label", hidden ? `${plural(hidden, "tag")} outside the range ${rangeText(range)}` : null);
+    this.range.el.toggle(!tab);
+    this.range.update(range);
     if (!rows.length) {
       this.tagsEl.createDiv({
         cls: "tag-everything-view-empty",
@@ -886,7 +639,9 @@ export class TagEverythingView extends ItemView implements HoverParent {
           ? `No tag matches "${this.filter}".`
           : tab
             ? `No tag in this tab yet. In All, drag a tag onto "${tab.name}" (or right-click it → Bookmark in the tab).`
-            : "No tags yet. Right-click a file or folder → Edit tags.",
+            : hidden
+              ? `No tag is used ${rangeText(range)} times. Change the numbers above, or click See all.`
+              : "No tags yet. Right-click a file or folder → Edit tags.",
       });
       return;
     }
@@ -957,4 +712,22 @@ export class TagEverythingView extends ItemView implements HoverParent {
       wireItemRow(this.rowHost(), row, item); // open, preview, drag, file menu (src/items.ts)
     }
   }
+}
+
+/** The tag count range stored in the settings (src/cloud.ts). */
+export function countRangeOf(s: TagEverythingSettings): CountRange {
+  return { on: s.tagRangeOn, min: s.tagRangeMin, max: s.tagRangeMax };
+}
+
+/**
+ * Sets the tag count range (panel and explorer boxes); with `save`, saves the settings, after which the panel and
+ * the explorer redraw (index "changed") and their boxes show it.
+ */
+export function setCountRange(plugin: TagEverythingPlugin, r: CountRange, save: boolean): void {
+  Object.assign(plugin.settings, { tagRangeOn: r.on, tagRangeMin: r.min, tagRangeMax: r.max });
+  if (!save) return;
+  plugin.saveSettings().catch((err) => {
+    console.error("[tag-everything] saving the tag count range failed", err);
+    new Notice("TagEverything: the tag count range could not be saved.");
+  });
 }

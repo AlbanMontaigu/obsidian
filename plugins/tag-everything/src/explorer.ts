@@ -4,9 +4,10 @@ import { FormulaTagSuggest } from "./dialogs.ts";
 import { type Expr, evaluate, formatFormula, formulaTags, prune, requiredTags, resolveTags, tryParseFormula } from "./formula.ts";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
-import { MAX_RESULTS } from "./view.ts";
+import { MAX_RESULTS, countRangeOf, setCountRange } from "./view.ts";
+import { inCountRange } from "./cloud.ts";
 import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
-import { clickable, onEnter, paintTag, renderExpr } from "./ui.ts";
+import { type CountRangeControl, clickable, countRangeControl, onEnter, paintTag, renderExpr } from "./ui.ts";
 import { InboxPane } from "./inbox-pane.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
@@ -74,6 +75,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private inputEl!: HTMLInputElement;
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
+  /** Under the search box: the tag count range, shared with the panel's All tab (src/ui.ts `countRangeControl`). */
+  private range!: CountRangeControl;
   /** Vault events come in bursts (a folder moved, a sync): one redraw once they stop. */
   private requestRender = debounce(() => this.render(), 100, true);
 
@@ -151,6 +154,10 @@ export class TagExplorerView extends ItemView implements HoverParent {
     clickable(collapse, () => {
       this.expanded.clear();
       this.stateChanged();
+    });
+    this.range = countRangeControl(root.createDiv({ cls: "tag-everything-explorer-range" }), countRangeOf(this.plugin.settings), (r, save) => {
+      setCountRange(this.plugin, r, save);
+      if (!save) this.render(); // saved: every view redraws (index "changed")
     });
     this.statusEl = root.createDiv({ cls: "tag-everything-explorer-status" });
     this.treeEl = root.createDiv({ cls: "tag-everything-explorer-tree" });
@@ -260,7 +267,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     const scroll = this.contentEl.scrollTop; // a redraw after a tag change must not jump to the top
     const inbox = this.tab === "inbox";
     this.renderTabs();
-    for (const el of [this.barEl, this.statusEl, this.treeEl]) el.toggle(!inbox);
+    for (const el of [this.barEl, this.range.el.parentElement!, this.statusEl, this.treeEl]) el.toggle(!inbox);
     this.pageEl.toggle(inbox);
     this.treeEl.empty();
     this.pageEl.empty();
@@ -274,15 +281,23 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const paths = expr ? index.paths().filter((p) => evaluate(expr, (t) => index.hasTag(p, t))) : index.paths();
-    const root = this.renderNode(this.treeEl, [], paths);
+    // The count range keeps the root to the tags that matter, as in the panel's All tab; not while a formula filters
+    // the tree (its counts are within what it finds), and an open tag stays.
+    const range = countRangeOf(this.plugin.settings);
+    this.range.update(range);
+    const keep = range.on && !expr ? (tag: string, n: number): boolean => inCountRange(n, range) || this.expanded.has(keyOf([tag])) : undefined;
+    const root = this.renderNode(this.treeEl, [], paths, keep);
     const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
+    const shown = keep ? root.tags.filter(([t, n]) => keep(t, n)).length : root.tags.length;
+    const tagsText =
+      shown < root.tags.length ? `${shown} of ${plural(root.tags.length, "tag")}${shown ? "" : " (none in the range: See all shows them)"}` : plural(root.tags.length, "tag");
     this.statusEl.setText(
       !index.ready
         ? "Reading tags…"
         : !index.counts(undefined, true).size
           ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
-          : [found ?? `${plural(root.tags.length, "tag")} on ${plural(tagged, "item")}`, search.problem].filter(Boolean).join(". "),
+          : [found ?? `${tagsText} on ${plural(tagged, "item")}`, search.problem].filter(Boolean).join(". "),
     );
     this.statusEl.toggleClass("mod-warning", !!search.problem);
     this.contentEl.scrollTop = scroll;
@@ -325,14 +340,16 @@ export class TagExplorerView extends ItemView implements HoverParent {
   }
 
   /**
-   * Draws the node at `trail` into `parent` (its branches, open ones drawn inside, then its items); returns the node.
+   * Draws the node at `trail` into `parent` (its branches, those `keep` keeps when given, open ones drawn inside, then
+   * its items); returns the node, all its branches.
    * Built from Obsidian's own tree classes (`tree-item`, `tree-item-self`, `collapse-icon`, `tree-item-children`,
    * `tree-item-flair`), as the core search and outline are, so it looks and indents like the file explorer.
    */
-  private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>): ReturnType<typeof tagNode> {
+  private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>, keep?: (tag: string, n: number) => boolean): ReturnType<typeof tagNode> {
     const index = this.plugin.index;
     const node = tagNode(paths, (p) => index.ownTagsOf(p), trail);
     for (const [tag, n] of node.tags) {
+      if (keep && !keep(tag, n)) continue;
       const branch = [...trail, tag];
       const open = this.expanded.has(keyOf(branch));
       const box = parent.createDiv({ cls: "tree-item" });

@@ -94,6 +94,30 @@ export class TagEverythingSettingTab extends PluginSettingTab {
       },
       {
         type: "group",
+        heading: "Tags panel",
+        items: [
+          {
+            name: "Only tags used a number of times",
+            desc: "The panel's All tab and the root of the TagEverything explorer show only the tags used between the two numbers below, to keep to what matters. Both have the same numbers and a See all switch. Tags in the search, open ones in the explorer, and every tag while you filter by name or formula, stay shown.",
+            aliases: ["range", "count", "occurrences", "slider", "filter", "minimum", "maximum"],
+            control: { type: "toggle", key: "tagRangeOn" },
+          },
+          {
+            name: "Used at least",
+            desc: "Fewest files and folders carrying a tag shown.",
+            aliases: ["range", "minimum"],
+            control: { type: "number", key: "tagRangeMin", min: 1, placeholder: "10", disabled: () => !s().tagRangeOn },
+          },
+          {
+            name: "Used at most",
+            desc: "Most files and folders carrying a tag shown; 0: no limit.",
+            aliases: ["range", "maximum"],
+            control: { type: "number", key: "tagRangeMax", min: 0, placeholder: "100", disabled: () => !s().tagRangeOn },
+          },
+        ],
+      },
+      {
+        type: "group",
         heading: "File explorer",
         items: [
           {

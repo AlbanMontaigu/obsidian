@@ -418,6 +418,56 @@
   letter-spacing: 0.05em;
 }
 
+/* The tag count range (src/ui.ts countRangeControl): "used [10]–[100] See all", in All's Tags heading and under the
+   explorer's search box. Off (See all pressed): the numbers fade, still editable. */
+.tag-everything-tags-head-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-everything-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.tag-everything-range .tag-everything-range-input {
+  width: 3.5em;
+  height: auto;
+  padding: 1px 4px;
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag-everything-range.is-off .tag-everything-range-input {
+  opacity: 0.5;
+}
+
+.tag-everything-range .tag-everything-range-all {
+  height: auto;
+  padding: 1px 6px;
+  margin-left: 2px;
+  font-size: var(--font-ui-smaller);
+  box-shadow: none;
+  background-color: transparent;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.tag-everything-range .tag-everything-range-all.is-active {
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.tag-everything-explorer-range {
+  margin-bottom: var(--size-4-1);
+}
+
 /* A card: a header strip (name, search button, menu) above the chips. The group searching has its header in the
    accent band with its name in the on-accent colour, and its chips stay on the plain background so they read clearly. */
 .tag-everything-group {

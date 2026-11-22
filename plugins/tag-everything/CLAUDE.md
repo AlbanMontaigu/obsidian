@@ -8,7 +8,9 @@ reference) before changing code. Users' view: `docs/user-guide.md`. Storage form
 Tag any file or folder of a vault from the file explorer (right-click → *TagEverything* submenu, multi-selection, command). Markdown notes:
 tags in the frontmatter `tags` property (Obsidian-native, setting `noteTagsInFrontmatter`, on by default). Other
 files: tags in the file name (`report[tax receipt].pdf`) or in `.ts` sidecar JSON files; mostly compatible with
-TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag and filters by
+TagSpaces. Reading always merges name + frontmatter + sidecar tags. A side panel lists every tag (its All tab only those used
+within a count range, 10–100 by default, typed in its boxes or in the settings, with a See all switch; the explorer's
+root has the same boxes) and filters by
 tags (AND) in its Selection tab, with foldable tag groups that double as saved searches, and named bookmark tabs that show only the tags
 and groups bookmarked in them; badges show tags in the explorer. The **TagEverything explorer** (left sidebar) is a
 tree of tags: every tag at the root, inside a tag the tags telling its files apart (on more than one, not on all),
@@ -38,7 +40,8 @@ their tags kept on disk, an eye-off icon in the file explorer.
 | How tags are parsed / written in names, sidecars, frontmatter | `format.ts` (pure) | `docs/format.md`; the AI assistant guide text (`guide.ts`), which restates the format for vaults; run `tools/check-vault.ts` |
 | Naming rule, fixes, *Check tag names* | `naming.ts` (pure), `fix-modal.ts` | user guide §3-4 |
 | Anything that writes tags | `main.ts` `applyTags` / `replaceTags` → `enqueue` → `applyOne` (one path; add a `Planner`, not a new path) | invariants below |
-| Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts`, `dialogs.ts` | user guide §5-7 |
+| Panel search, groups, formulas, tabs | `formula.ts` / `groups.ts` / `tabs.ts` (pure), then `view.ts` (search, tag cloud, tabs, Selection), `panel-groups.ts` (the Groups section, its menu and dialog), `dialogs.ts` | user guide §5-7 |
+| Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
 | Claude Code suggestions (prompt, flags, answer) | `suggest.ts` (pure), `claude.ts` (process), `suggest-modal.ts`, `main.ts` `suggestTags` / `runClaude` / `addTagsEach` | user guide §9; check a real run by hand (smoke fakes it) |
@@ -83,9 +86,9 @@ and `docs/user-guide.md` when users see it.
 ## Tests
 
 - `tests/format.test.ts`: the format, including frontmatter shapes, planning per target, round-trips and refusals, `parseTagInput`, `extensionTag`.
-- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`, Claude Code program and model), message texts.
+- `tests/config.test.ts`: `normalizeSettings` on missing / damaged data (naming rule, liaison words, extension tags on for an old `data.json`, Claude Code program and model, the count range on at 10–100), message texts.
 - `tests/naming.test.ts`: the rule (accents, digits), problems, fixes (compounds, `/` like `-`, elisions, acronyms), every fix follows the rule, liaison word list, editor input, audit, `replacePlan` (in place, no duplicate), `parseReplacement`, formula / group / tab follow-up.
-- `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic; `narrowingTags` (on some items not all, not in the search).
+- `tests/cloud.test.ts`: cloud sizing bounds, log scale, levels, monotonic; `narrowingTags` (on some items not all, not in the search); the count range (`inCountRange` bounds, no limit, off, swapped; `rangeText`; `parseBound`: whole numbers, min at least 1, empty / 0 max = no limit).
 - `tests/colors.test.ts`: automatic colours stable, case / `#` / nested roots, spread over the palette.
 - `tests/groups.test.ts`: group operations, multi-membership, no mutation, reorder, loading malformed data, formulas (`setFormula`: a plain AND stored as tags, empty = empty group).
 - `tests/tabs.test.ts`: tab operations, bookmark once / remove, no mutation, a deleted group leaves the tabs, loading malformed data.
@@ -136,7 +139,7 @@ and `docs/user-guide.md` when users see it.
   saved state, the Selection tab: a selected tag switches to it with search and results only, All shows only groups
   and every tag with its vault count, the selected one marked (a click there takes it out); with one item no narrowing
   tag, with `shared` the narrowing tags (on some items, not all, not `shared`) and a click on one narrows and stays
-  in Selection; the sections *Narrow* and *Results* titled with their counts, narrowing chips without cloud weight, the search in a card; its *Formula…* button (with Clear on their own line under the search; each with its icon (function, search-x; pencil for *Edit group*) centred on the label within 0.5px) opens the group dialog with the search and the operator buttons, OR inserted
+  in Selection; All's count range (on by default at 10–100, turned off at the start of the smoke since the fixture's tags are used once or twice; its settings rows disabled while off; the boxes say 10 and 100 with See all pressed; a number typed applies at once with the box keeping the focus, *n of m*, saved when the box is left; a tag of the search and a name filter bypass it; an empty max = no limit; an unreadable number goes back; See all shows every tag and keeps the numbers); the sections *Narrow* and *Results* titled with their counts, narrowing chips without cloud weight, the search in a card; its *Formula…* button (with Clear on their own line under the search; each with its icon (function, search-x; pencil for *Edit group*) centred on the label within 0.5px) opens the group dialog with the search and the operator buttons, OR inserted
   with its spaces, live count, saved as a group whose search runs at once, *Edit group* on a group search; gone once cleared, labelled group search button "Search", then "Selection" on the group searching (opens the Selection tab, search kept), *⋯ → Stop the search* clears it, draggable results, hover source), bookmark tabs (+ creates and shows one,
   bookmark by dropping a tag and a group on the tab and through the tag menu, All unchanged, a tab shows only its bookmarks, `data.json` and panel state, a group
   created in a tab is bookmarked there and leaves it when deleted), modal; naming rule: the editor lower-cases, puts a
@@ -146,7 +149,7 @@ and `docs/user-guide.md` when users see it.
   frontmatter) plus the fixture's `B27 INC IMAC` are listed with their fixes, an invalid edited fix disables Fix, one row unticked, then the fix: case-only rename
   `budget[B27 INC].md` → `budget[b27 inc].md` (Windows), split in the name, `proj/alpha` split in the frontmatter (`alpha` not repeated), frontmatter tag dropped, unticked one kept,
   group formula + `data.json` + panel search follow, a second check lists only what was left; a folder sidecar written with `adapter.write` (no vault event) is found because the check re-reads first, and fixed in its sidecar; the settings' *Tag maintenance* holds no action, only *Tag tools*, which opens the panel's Tools tab; the AI assistant guide (folder menu item writes `Projects/CLAUDE.md` with the folder's tags, an edited one is skipped, a lower-case `claude.md` blocks it, the root command writes one without folder section; all deleted after); Claude Code suggestions with `plugin.runClaude` faked (folder menu → dialog, working folder, prompt with items, tags and dictionary, made-up path ignored, tag already there dropped, compound split, new tag dashed, cost / time, a tag switched off, Add writes the rest to a folder sidecar and a note's frontmatter; a selection's common folder; a non-JSON answer shown as an error; closing cancels; the real runner with a missing program explains the setting); the TagEverything explorer (command, hover source,
-  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the formula box (`KP` suggests kpi and
+  left sidebar, its own icon on the tab, no folder mode; root = every stored tag; the count range under the box (the panel's numbers, a number typed keeps the root to the tags used that many times with an open one kept and the focus kept, saved and shown in the panel's boxes, not while a formula is applied, See all); the formula box (`KP` suggests kpi and
   leaves the tree whole, picking it makes a chip and keeps the items carrying kpi, Enter opens its path, `AND` after it
   warns and keeps the search, `OR shared` + Enter joins the chips, a chip's × removes it, `shared et non final` (NOT
   chip struck), Backspace removes the last chip, Escape clears); with `showUnsupportedFiles` off a
@@ -237,7 +240,7 @@ Deliberate exceptions, each for a reason:
   file). At most 200 rows drawn. Auto-tag on arrival waits 2 s after the last create of a burst; a file still being
   written by another app may refuse the rename (the failure notice says so; the file stays in the inbox).
 - `main.ts` is ~650 lines (over the ~500 guideline) even with the Claude Code runner (0.26.0) and the menus (0.28.0)
-  moved out; `view.ts` ~930. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
+  moved out; `view.ts` ~730 after the Groups section moved to `panel-groups.ts` (0.30.0): the bookmark tabs (`renderTabs`, tab menu, bookmark items) are the next to move out. The next feature in `main.ts` should first move the write path (`enqueue`, `applyNow`, `applyOne`, `readFrontTags`) to its own module.
 - Exclusions: any change rebuilds the index (an item included again has its sidecar to read). The badges check every
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a

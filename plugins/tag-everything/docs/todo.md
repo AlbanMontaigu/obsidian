@@ -15,10 +15,6 @@ On tag search engine, include a criteria of date of create (optional) and anothe
 
 Propose a way with claude to optimise tags by detecting potential duplicate or very similar and group them. By the way general rule, one tag one key works point. Ex sur les synonymes (genre bancaire et banque)
 
-# Tag sliders (min max) in the all panel
-
-Propose a way to filter by number of occurence of the tag in an easy way (slider ?) Goal is to allow to be focussed on what matter the most. Like by default < 100 and > 10 (can be parametrized in settings)
-
 # Tag consistency engine
 
 In a folder when a group of files have always the same things take that into account also to identify what might be wrong or exceptional.

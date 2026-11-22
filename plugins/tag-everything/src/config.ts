@@ -45,6 +45,12 @@ export interface TagEverythingSettings {
   excluded: string[];
   /** Exclusion rules (src/exclude.ts): the items they cover are excluded from TagEverything. */
   excludeRules: ExcludeRule[];
+  /** The panel's All tab shows only the tags used between `tagRangeMin` and `tagRangeMax` times (src/cloud.ts `inCountRange`). */
+  tagRangeOn: boolean;
+  /** Fewest uses of a tag the All tab shows while `tagRangeOn` (1 or more). */
+  tagRangeMin: number;
+  /** Most uses of a tag the All tab shows while `tagRangeOn`; 0 = no upper limit. */
+  tagRangeMax: number;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Bookmark tabs of the TagEverything panel (src/tabs.ts). Edited in the panel. */
@@ -71,6 +77,9 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   inboxDismissed: [],
   excluded: [],
   excludeRules: [],
+  tagRangeOn: true,
+  tagRangeMin: 10,
+  tagRangeMax: 100,
   groups: [],
   tabs: [],
 };
@@ -84,6 +93,10 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
   const d = DEFAULT_SETTINGS;
   const bool = (k: keyof TagEverythingSettings): boolean => (typeof r[k] === "boolean" ? r[k] : (d[k] as boolean));
   const text = (k: "claudeCommand" | "claudeModel"): string => (typeof r[k] === "string" ? r[k].trim() : d[k]);
+  const int = (k: "inboxDays" | "tagRangeMin" | "tagRangeMax", min: number, max: number): number => {
+    const v = r[k];
+    return typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : d[k];
+  };
   const groups = normalizeGroups(r.groups);
   return {
     ...r,
@@ -101,11 +114,14 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     claudeModel: text("claudeModel"),
     rules: normalizeRules(r.rules),
     autoApplyRules: bool("autoApplyRules"),
-    inboxDays: typeof r.inboxDays === "number" && Number.isInteger(r.inboxDays) && r.inboxDays >= 1 && r.inboxDays <= 365 ? r.inboxDays : d.inboxDays,
+    inboxDays: int("inboxDays", 1, 365),
     inboxFolder: typeof r.inboxFolder === "string" ? cleanFolder(r.inboxFolder) : d.inboxFolder,
     inboxDismissed: cleanTagList(r.inboxDismissed),
     excluded: normalizeExcludedPaths(r.excluded),
     excludeRules: normalizeExcludeRules(r.excludeRules),
+    tagRangeOn: bool("tagRangeOn"),
+    tagRangeMin: int("tagRangeMin", 1, 1_000_000),
+    tagRangeMax: int("tagRangeMax", 0, 1_000_000),
     groups,
     tabs: normalizeTabs(r.tabs, groups.map((g) => g.id)),
   };
