@@ -633,6 +633,27 @@
   cursor: default;
 }
 
+/* an inherited tag (src/inherit.ts: from a folder above, or a folder name), never written: italic, no fill, a dotted
+   outline and a ↳ before it, wherever a tag is drawn (chips, badges, the explorer's tag rows) */
+.tag-everything-chip.tag-everything-inherited,
+.tag-everything-badge.tag-everything-inherited {
+  background: transparent;
+  border-style: dotted;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.tag-everything-chip.tag-everything-inherited::before,
+.tag-everything-badge.tag-everything-inherited::before {
+  content: "↳";
+  font-style: normal;
+}
+
+.tag-everything-explorer-row.tag-everything-inherited .tag-everything-explorer-name {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 /* search started from a group: its switched-off tags */
 .tag-everything-chip.is-off {
   border-style: dashed;

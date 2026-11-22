@@ -3,6 +3,8 @@ import * as ts from "./format.ts";
 import { autoColor } from "./colors.ts";
 import { type Expr, evaluate } from "./formula.ts";
 import { type DateField, type DateRange, inRange } from "./dates.ts";
+import { type InheritOptions, Inheritance, folderNameTags, inheriting } from "./inherit.ts";
+import { type NamingRule, makeRule } from "./naming.ts";
 
 export interface Entry {
   /** Tags read from the file name. Always empty for folders: folder names are never read for tags. */
@@ -19,17 +21,21 @@ export interface Entry {
 interface Stored extends Entry {
   /** Name, frontmatter and sidecar tags: the ones an edit can change. */
   own: string[];
-  /** `own` with the extension tag first. */
+  /** Inherited from the folders above it (src/inherit.ts), minus the tags it already has: never written. */
+  inh: string[];
+  /** `own` then `inh`: every tag but the extension one. */
+  shown: string[];
+  /** The extension tag first, then `own`, then `inh`. */
   all: string[];
   set: ReadonlySet<string>;
 }
 
-const EMPTY: Stored = { name: [], front: [], side: [], ext: [], own: [], all: [], set: new Set() };
+const EMPTY: Stored = { name: [], front: [], side: [], ext: [], own: [], inh: [], shown: [], all: [], set: new Set() };
 
 function stored(e: Entry): Stored {
   const own = ts.dedupe([...e.name, ...e.front, ...e.side]);
   const all = e.ext.length ? ts.dedupe([...e.ext, ...own]) : own;
-  return { name: e.name, front: e.front, side: e.side, ext: e.ext, own, all, set: new Set(all) };
+  return { name: e.name, front: e.front, side: e.side, ext: e.ext, own, inh: [], shown: own, all, set: new Set(all) };
 }
 
 function isEmpty(e: Entry): boolean {
@@ -114,6 +120,18 @@ export class TagIndex extends Events {
   excluded: (path: string, isFolder: boolean) => boolean = () => false;
   /** Mirrors the `extensionTags` setting: change it with `setExtensionTags`. */
   private extensionTags: boolean;
+  /** Mirrors the settings `inheritFolderTags` / `folderNameTags`: change them with `setInheritance`. */
+  private inherit: InheritOptions = { inherit: false, folderNames: false };
+  private nameRule: NamingRule = makeRule();
+  /**
+   * While inheritance is on: `entries` plus, for every item of the vault, the tags it inherits; computed on first use
+   * after a change (one pass over the vault). Off: `entries` itself.
+   */
+  private viewCache: Map<string, Stored> | null = null;
+  /** The computation behind `viewCache`, kept to say where an inherited tag comes from. */
+  private inheritance: Inheritance | null = null;
+  /** Tags that some item inherits and no item stores (a folder name's): drawn as inherited in tag lists. */
+  private inheritedOnly = new Set<string>();
   private notify = debounce(() => this.trigger("changed"), 50, true);
 
   constructor(
@@ -128,14 +146,85 @@ export class TagIndex extends Events {
     return this.entries.get(path) ?? EMPTY;
   }
 
-  /** Every tag of the item (extension, name, frontmatter, sidecar), once. Do not mutate. */
+  /** Every tag of the item (extension, name, frontmatter, sidecar, inherited), once. Do not mutate. */
   tagsOf(path: string): readonly string[] {
-    return (this.entries.get(path) ?? EMPTY).all;
+    return (this.view().get(path) ?? EMPTY).all;
   }
 
-  /** The tags an edit can change (name, frontmatter, sidecar): `tagsOf` without the extension tag. Do not mutate. */
+  /** The tags an edit can change (name, frontmatter, sidecar): no extension tag, no inherited one. Do not mutate. */
   ownTagsOf(path: string): readonly string[] {
     return (this.entries.get(path) ?? EMPTY).own;
+  }
+
+  /** The item's own tags, then the ones it inherits: what the explorers show (no extension tag). Do not mutate. */
+  shownTagsOf(path: string): readonly string[] {
+    return (this.view().get(path) ?? EMPTY).shown;
+  }
+
+  /** The tags the item inherits from its folders (and, for a folder, from its own name). Do not mutate. */
+  inheritedOf(path: string): readonly string[] {
+    return (this.view().get(path) ?? EMPTY).inh;
+  }
+
+  /** The folder the item inherits `tag` from (the nearest), or null when it doesn't inherit it. */
+  inheritedFrom(path: string, tag: string): string | null {
+    if (!this.inheritedOf(path).includes(tag)) return null;
+    return this.inheritance?.sourceOf(path, this.app.vault.getAbstractFileByPath(path) instanceof TFolder, tag) ?? null;
+  }
+
+  /** Is the tag only inherited (some item inherits it, none stores it)? Tag lists draw it as inherited. */
+  onlyInherited(tag: string): boolean {
+    this.view();
+    return this.inheritedOnly.has(tag);
+  }
+
+  /** Turns inheritance on or off, or changes the liaison words that split folder names (settings). */
+  setInheritance(opts: InheritOptions, stopWords: string): void {
+    const rule = makeRule(stopWords);
+    const sameWords = rule.stopWords.size === this.nameRule.stopWords.size && [...rule.stopWords].every((w) => this.nameRule.stopWords.has(w));
+    if (opts.inherit === this.inherit.inherit && opts.folderNames === this.inherit.folderNames && sameWords) return;
+    this.inherit = { inherit: opts.inherit, folderNames: opts.folderNames };
+    this.nameRule = rule;
+    this.inheritedOnly = new Set();
+    this.changed();
+  }
+
+  private view(): Map<string, Stored> {
+    if (!inheriting(this.inherit)) return this.entries;
+    return (this.viewCache ??= this.computeView());
+  }
+
+  /** One pass over the vault: every item's inherited tags on top of its stored entry. */
+  private computeView(): Map<string, Stored> {
+    const names = new Map<string, readonly string[]>();
+    const inh = new Inheritance(this.inherit, {
+      ownOf: (p) => (this.entries.get(p) ?? EMPTY).own,
+      nameTagsOf: (name) => {
+        let tags = names.get(name);
+        if (!tags) names.set(name, (tags = folderNameTags(name, this.nameRule)));
+        return tags;
+      },
+      excluded: (p, isFolder) => this.excluded(p, isFolder),
+    });
+    const out = new Map<string, Stored>();
+    const inherited = new Set<string>();
+    const kept = new Set<string>();
+    for (const item of this.app.vault.getAllLoadedFiles()) {
+      if (item instanceof TFolder && item.isRoot()) continue;
+      const base = this.entries.get(item.path) ?? EMPTY;
+      for (const t of base.own) kept.add(t);
+      const tags = inh.tagsOf(item.path, item instanceof TFolder, base.set);
+      if (!tags.length) {
+        if (base !== EMPTY) out.set(item.path, base);
+        continue;
+      }
+      for (const t of tags) inherited.add(t);
+      const all = [...base.all, ...tags];
+      out.set(item.path, { ...base, inh: tags, shown: [...base.own, ...tags], all, set: new Set(all) });
+    }
+    this.inheritance = inh;
+    this.inheritedOnly = new Set([...inherited].filter((t) => !kept.has(t)));
+    return out;
   }
 
   /** Do the file's dates (`stat`) meet the range (src/dates.ts)? A folder, or a path no longer in the vault: no. */
@@ -150,7 +239,7 @@ export class TagIndex extends Events {
   }
 
   hasTag(path: string, tag: string): boolean {
-    return (this.entries.get(path) ?? EMPTY).set.has(tag);
+    return (this.view().get(path) ?? EMPTY).set.has(tag);
   }
 
   /** Colour stored for the tag in a `.ts` sidecar, if any. */
@@ -163,23 +252,24 @@ export class TagIndex extends Events {
     return this.colorMap.get(tag) ?? (this.autoColors ? autoColor(tag) : undefined);
   }
 
+  /** Every item with a tag (stored, extension or inherited). */
   paths(): string[] {
-    return [...this.entries.keys()];
+    return [...this.view().keys()];
   }
 
   get size(): number {
-    return this.entries.size;
+    return this.view().size;
   }
 
   /**
    * Tag -> number of items, over `paths` (default: everything, cached until the next change). `own`: stored tags
-   * only (no extension tag), for what lists or fixes the tags written in the vault.
+   * only (no extension tag, no inherited one), for what lists or fixes the tags written in the vault.
    */
   counts(paths?: Iterable<string>, own = false): ReadonlyMap<string, number> {
     const cache = !paths && !own;
     if (cache && this.countsCache) return this.countsCache;
     const out = new Map<string, number>();
-    for (const p of paths ?? this.entries.keys()) for (const t of own ? this.ownTagsOf(p) : this.tagsOf(p)) out.set(t, (out.get(t) ?? 0) + 1);
+    for (const p of paths ?? this.view().keys()) for (const t of own ? this.ownTagsOf(p) : this.tagsOf(p)) out.set(t, (out.get(t) ?? 0) + 1);
     if (cache) this.countsCache = out;
     return out;
   }
@@ -193,6 +283,7 @@ export class TagIndex extends Events {
   private changed(): void {
     this.countsCache = null;
     this.rankedCache = null;
+    this.viewCache = null;
     this.notify();
   }
 
@@ -257,14 +348,16 @@ export class TagIndex extends Events {
     if (changed) this.changed();
   }
 
+  // While inheritance is on, any item created, deleted or moved can change what is inherited: always `changed()`.
+
   onCreate(item: TAbstractFile): void {
-    if (this.refreshName(item)) this.changed();
+    if (this.refreshName(item) || inheriting(this.inherit)) this.changed();
   }
 
   onDelete(item: TAbstractFile): void {
     const folder = item instanceof TFolder;
     this.scanLog?.push((sides) => dropKeys(sides, item.path, folder));
-    if (dropKeys(this.entries, item.path, folder)) this.changed();
+    if (dropKeys(this.entries, item.path, folder) || inheriting(this.inherit)) this.changed();
   }
 
   /** Re-keys the item and, for a folder, everything below it (its `.ts` folder moved with it). */
@@ -273,7 +366,7 @@ export class TagIndex extends Events {
     const newPath = item.path;
     this.scanLog?.push((sides) => rekey(sides, oldPath, newPath, folder));
     const moved = rekey(this.entries, oldPath, newPath, folder);
-    if (this.refreshName(item) || moved) this.changed();
+    if (this.refreshName(item) || moved || inheriting(this.inherit)) this.changed();
   }
 
   rebuild(): Promise<void> {

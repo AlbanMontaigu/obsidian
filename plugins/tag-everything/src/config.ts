@@ -21,6 +21,10 @@ export interface TagEverythingSettings {
   stopWords: string;
   /** Every file also carries its extension as a tag (`pdf`, `md`), read from its name, never written. */
   extensionTags: boolean;
+  /** Files and folders also carry the tags of the folders they are in (src/inherit.ts): computed, never written. */
+  inheritFolderTags: boolean;
+  /** A folder's name, split like a tag, is a tag of the folder and of what is in it (src/inherit.ts): never written. */
+  folderNameTags: boolean;
   showBadges: boolean;
   /** Tags without a sidecar colour get a stable colour picked from their name. */
   autoColors: boolean;
@@ -72,6 +76,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   tagRule: true,
   stopWords: DEFAULT_STOP_WORDS,
   extensionTags: true,
+  inheritFolderTags: false,
+  folderNameTags: false,
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
@@ -116,6 +122,8 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     tagRule: bool("tagRule"),
     stopWords: typeof r.stopWords === "string" && r.stopWords.trim() ? r.stopWords : d.stopWords,
     extensionTags: bool("extensionTags"),
+    inheritFolderTags: bool("inheritFolderTags"),
+    folderNameTags: bool("folderNameTags"),
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,

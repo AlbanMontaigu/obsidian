@@ -1,6 +1,7 @@
 import { TAbstractFile, TFolder, setIcon } from "obsidian";
 import type TagEverythingPlugin from "./main.ts";
 import { paintTag } from "./ui.ts";
+import { markInherited } from "./items.ts";
 import { PLUGIN_NAME } from "./messages.ts";
 
 /**
@@ -39,6 +40,8 @@ interface RowBadges {
   tags: string[];
   /** Excluded from TagEverything: why, for the icon's tooltip; such a row shows nothing else. */
   excluded?: string;
+  /** The item: its pill's list adds the tags it inherits (src/inherit.ts). */
+  path?: string;
 }
 
 export class ExplorerBadges {
@@ -90,7 +93,7 @@ export class ExplorerBadges {
           const { name, ext: [ext = null] } = index.get(path);
           const own = index.ownTagsOf(path);
           const tags = own.filter((t) => t !== ext && (settings.badgeScope !== "sidecar" || !name.includes(t)));
-          if (ext || tags.length) wanted.set(host, { ext, tags });
+          if (ext || tags.length) wanted.set(host, { ext, tags, path });
         }
       }
       for (const host of [...this.decorated.keys()]) if (!wanted.has(host) || !host.isConnected) this.undecorate(host);
@@ -107,10 +110,10 @@ export class ExplorerBadges {
   }
 
   /** Everything the badges of a row depend on: tags and their colours. */
-  private signature({ ext, tags, excluded }: RowBadges): string {
+  private signature({ ext, tags, excluded, path }: RowBadges): string {
     if (excluded !== undefined) return `\u0002${excluded}`;
     const { index } = this.plugin;
-    const all = ext ? [ext, ...tags] : tags;
+    const all = [...(ext ? [ext] : []), ...tags, ...(path && tags.length ? index.inheritedOf(path).map((t) => `\u0003${t}`) : [])];
     return (ext ?? "") + "\u0000" + all.map((t) => t + "\u0001" + (index.colorFor(t) ?? "")).join("\u0000");
   }
 
@@ -126,7 +129,7 @@ export class ExplorerBadges {
     return chip;
   }
 
-  private decorate(host: HTMLElement, { ext, tags, excluded }: RowBadges, signature: string): void {
+  private decorate(host: HTMLElement, { ext, tags, excluded, path }: RowBadges, signature: string): void {
     if (excluded !== undefined) {
       const label = `Excluded from ${PLUGIN_NAME}${excluded ? ` (by ${excluded})` : ""}: its tags are ignored. Right-click → ${PLUGIN_NAME} to include it again.`;
       setIcon(host.createSpan({ cls: EXCLUDED_CLS, attr: { "aria-label": label } }), "eye-off");
@@ -136,33 +139,35 @@ export class ExplorerBadges {
       host.prepend(this.chip(host, ext, EXT_CLS));
       host.addClass(HAS_EXT_CLS);
     }
-    if (tags.length) this.addPill(host, tags);
+    if (tags.length) this.addPill(host, tags, path);
     this.decorated.set(host, signature);
   }
 
   /**
-   * Appends the round pill with the number of `tags` to `host`; hovering or clicking it lists them. Also used by the
-   * TagEverything explorer's rows.
+   * Appends the round pill with the number of `tags` (stored) to `host`; hovering or clicking it lists them, then the
+   * tags `path` inherits (marked). Also used by the TagEverything explorer's rows.
    */
-  addPill(host: HTMLElement, tags: readonly string[]): void {
+  addPill(host: HTMLElement, tags: readonly string[], path?: string): void {
     const pill = host.createSpan({ cls: `tag-everything-badge ${COUNT_CLS}`, text: String(tags.length) });
-    pill.addEventListener("mouseenter", () => this.showList(pill, tags));
+    pill.addEventListener("mouseenter", () => this.showList(pill, tags, path));
     pill.addEventListener("mouseleave", () => this.hideSoon());
     // A click shows the list too (no hover on a touch screen) and doesn't open the file under the pill.
     pill.addEventListener("click", (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      this.showList(pill, tags);
+      this.showList(pill, tags, path);
     });
   }
 
   /** The row's tags, one per line, under the pill (above it near the bottom of the window). */
-  private showList(pill: HTMLElement, tags: readonly string[]): void {
+  private showList(pill: HTMLElement, tags: readonly string[], path?: string): void {
     this.hideList();
     const doc = pill.ownerDocument;
     const win = doc.defaultView ?? window;
     const list = doc.body.createDiv({ cls: LIST_CLS });
     for (const tag of tags) this.chip(list, tag);
+    const { index } = this.plugin;
+    if (path) for (const tag of index.inheritedOf(path)) markInherited(this.chip(list, tag), index, tag, path);
     list.addEventListener("mouseenter", () => this.cancelHide());
     list.addEventListener("mouseleave", () => this.hideSoon());
     const at = pill.getBoundingClientRect();

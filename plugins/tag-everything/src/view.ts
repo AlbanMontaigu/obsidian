@@ -9,7 +9,7 @@ import type { TagEverythingSettings } from "./config.ts";
 import { NameModal, dateMenu } from "./dialogs.ts";
 import { PanelGroups } from "./panel-groups.ts";
 import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, paintTag } from "./ui.ts";
-import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
+import { type RowHost, markInherited, renderItemRow, wireItemRow } from "./items.ts";
 import { renderTools } from "./tools-pane.ts";
 import { type DateFilters, DATE_FIELDS, criterionText, filtersText, hasDates, normalizeDates } from "./dates.ts";
 
@@ -523,6 +523,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     el.dataset.tag = tag;
     paintTag(el, this.plugin.index.colorFor(tag));
     el.createSpan({ text: tag });
+    markInherited(el, this.plugin.index, tag);
     // Every chip of the panel can be dragged onto a group.
     el.draggable = true;
     el.addEventListener("dragstart", (evt) => {
@@ -666,13 +667,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   /**
-   * Whether the tag lists of the panel (All, Narrow) show a tag: with `panelExtensionTags` off, only the stored ones
-   * (a tag that is only an extension is left out) and those in the search.
+   * Whether the tag lists of the panel (All, Narrow) show a tag: with `panelExtensionTags` off, only the stored and
+   * inherited ones (a tag that is only an extension is left out) and those in the search.
    */
   private tagShown(): (tag: string) => boolean {
     if (this.plugin.settings.panelExtensionTags) return () => true;
-    const own = this.plugin.index.counts(undefined, true);
-    return (t) => own.has(t) || this.selected.includes(t) || this.excluded.includes(t);
+    const index = this.plugin.index;
+    const own = index.counts(undefined, true);
+    return (t) => own.has(t) || index.onlyInherited(t) || this.selected.includes(t) || this.excluded.includes(t);
   }
 
   /** In the Selection tab, above the results: the tags that can still narrow the search, counted in what it finds. */

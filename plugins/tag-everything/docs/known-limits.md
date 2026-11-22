@@ -75,5 +75,11 @@ entry of the area you change; add one when you leave a limit behind (users' side
   redraws on a vault or tag change, not when a day passes. The explorer's calendar edits only the dates ANDed at the
   top of its box (others are typed). The inbox's criteria are not remembered across restarts (the panel's are, with
   its search).
+- Inherited tags (src/inherit.ts): recomputed over the whole vault on the first read after any change while a setting
+  is on (not measured on the owner's 9 500-file vault). Only searches and lists use them: consistency, put away, auto-tag
+  rules and the inbox read stored tags, so a file with inherited tags only is still in the inbox. Folder name tags
+  always follow the naming rule's split (even with the rule off) and can't be renamed (rename the folder); a group or
+  query block naming one keeps it after the folder is renamed (faded). The core explorer's pill counts stored tags only
+  (no pill for inherited-only files, to keep thousands of rows quiet). The tag editor doesn't show inherited tags.
 - Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
   its frontmatter (renames the note, so opt-in); a rename / merge that also rewrites query blocks.

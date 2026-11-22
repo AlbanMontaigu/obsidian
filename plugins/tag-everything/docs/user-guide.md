@@ -29,12 +29,31 @@ flowchart TD
 
 Tags are always **read from every place and merged**: a note's tags are the tags in its name, plus its frontmatter
 tags, plus its sidecar tags. A note named `budget[b27 inc].md` with `tags: [q3]` shows `b27 inc q3`. When you edit it,
-the name tags you keep stay in the name and new tags go to the frontmatter. Folder names are never read for tags.
+the name tags you keep stay in the name and new tags go to the frontmatter. Folder names are not read for tags
+unless *Folder names as tags* is on (below).
 **Extension tags** (setting *File extension as a tag*, on by default): every file also carries its extension,
 lower-cased, as a tag (`pdf`, `docx`, `md`), shown first. It is read from the name and stored nowhere, so the tag
 editor doesn't show it, *Check tag names* ignores it, and the AI assistant guide explains it instead of listing it.
 A name with no plain extension (`README`, more than 10 characters, or not only letters and digits) has none.
 Other fields of a sidecar or `tsm.json` (id, description, colours…) and other note properties are kept.
+
+**Inherited tags** (two settings, both off by default): an item can also carry tags because of the folders it is in.
+
+- *Inherit folder tags*: a folder's tags pass to every file and folder inside it, at any depth. Tag `Clients/Acme`
+  with `acme` once, and every document under it is found by `acme`.
+- *Folder names as tags*: a folder's name is a tag of the folder and of everything inside it, split like a new tag
+  (lower-case words, liaison words and a leading ordering number left out): `1. Projects/B27 Board/memo.pdf` carries
+  `projects`, `b27` and `board`.
+
+Inherited tags are **computed, never written**: no file is renamed, no sidecar or frontmatter changes, and turning the
+settings off removes them. They are drawn apart everywhere they show: *in italics, with a dotted outline and a ↳
+before them* (panel chips and results, query blocks, the badges' list, the TagEverything explorer, where a tag given
+only by folders is a branch in italics with a folder-tree icon). Hover one: it says which folder it comes from. They
+count in every search, formula, group, query block and tag count, but not in what edits or checks the tags you wrote:
+the tag editor, *Check tag names*, rename / merge, the review, tag consistency, auto-tag rules and the inbox (a file
+with inherited tags only is still untagged there). To change one, edit the folder's tags or rename the folder. In the
+file explorer, a pill counts the item's own tags; hovering it lists them, then the inherited ones; a file with
+inherited tags only gets no pill (its folder shows them).
 
 ## 2. Tag files and folders
 
@@ -538,6 +557,8 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along. Off: they stay under the old name, so the file loses its sidecar tags; the files of a renamed folder keep theirs (the folder's `.ts` moves with it) |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
+| Inherit folder tags | Off | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written |
+| Folder names as tags | Off | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written |
 | Colour tags automatically | On | Section 8 |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |

@@ -8,7 +8,7 @@ import { PLUGIN_NAME, plural } from "./messages.ts";
 import type TagEverythingPlugin from "./main.ts";
 import { MAX_RESULTS, countRangeOf, setCountRange } from "./view.ts";
 import { inCountRange, rangeText } from "./cloud.ts";
-import { type RowHost, revealInExplorer, wireItemRow } from "./items.ts";
+import { INHERITED_CLS, type RowHost, markInherited, revealInExplorer, wireItemRow } from "./items.ts";
 import { type CountRangeControl, clickable, countRangeControl, dateChip, onEnter, paintTag, renderExpr } from "./ui.ts";
 import { InboxPane } from "./inbox-pane.ts";
 
@@ -310,7 +310,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.range.update(range);
     const keep = range.on && !expr ? (tag: string, n: number): boolean => inCountRange(n, range) || this.expanded.has(keyOf([tag])) : undefined;
     const root = this.renderNode(this.treeEl, [], paths, keep);
-    const tagged = root.paths.filter((p) => index.ownTagsOf(p).length).length;
+    const tagged = root.paths.filter((p) => index.shownTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
     const shown = keep ? root.tags.filter(([t, n]) => keep(t, n)).length : root.tags.length;
     const tagsText = shown < root.tags.length ? `${shown} of ${plural(root.tags.length, "tag")}` : plural(root.tags.length, "tag");
@@ -319,7 +319,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.statusEl.setText(
       !index.ready
         ? "Reading tags…"
-        : !index.counts(undefined, true).size
+        : !index.counts(undefined, true).size && !root.tags.length
           ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
           : [found ?? `${tagsText} on ${plural(tagged, "item")}${allHidden}`, search.problem].filter(Boolean).join(". "),
     );
@@ -347,6 +347,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
         chip.dataset.tag = tag;
         paintTag(chip, index.colorFor(tag));
         chip.createSpan({ text: tag });
+        markInherited(chip, index, tag);
         remove(chip, tag, tag);
       },
       (parent, term, negated) => {
@@ -383,7 +384,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
    */
   private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>, keep?: (tag: string, n: number) => boolean): ReturnType<typeof tagNode> {
     const index = this.plugin.index;
-    const node = tagNode(paths, (p) => index.ownTagsOf(p), trail);
+    const node = tagNode(paths, (p) => index.shownTagsOf(p), trail);
     for (const [tag, n] of node.tags) {
       if (keep && !keep(tag, n)) continue;
       const branch = [...trail, tag];
@@ -398,12 +399,15 @@ export class TagExplorerView extends ItemView implements HoverParent {
       const arrow = row.createDiv({ cls: "tree-item-icon collapse-icon" });
       arrow.toggleClass("is-collapsed", !open);
       setIcon(arrow, "right-triangle");
+      const inherited = index.onlyInherited(tag); // given by folders only: no item stores it, nothing to rename
+      row.toggleClass(INHERITED_CLS, inherited);
       const inner = row.createDiv({ cls: "tree-item-inner" });
-      setIcon(inner.createSpan({ cls: "tag-everything-explorer-icon" }), "tag");
+      setIcon(inner.createSpan({ cls: "tag-everything-explorer-icon" }), inherited ? "folder-tree" : "tag");
       inner.createSpan({ cls: "tag-everything-explorer-name", text: tag });
+      if (inherited) setTooltip(row, `${tag}: from folders only (their names or their tags), never written`);
       row.createDiv({ cls: "tree-item-flair-outer" }).createSpan({ cls: "tree-item-flair", text: String(n) });
       clickable(row, () => this.toggle(branch));
-      row.addEventListener("contextmenu", (evt) => {
+      if (!inherited) row.addEventListener("contextmenu", (evt) => {
         evt.preventDefault();
         const menu = new Menu();
         menu.addItem((i) => i.setTitle("Rename or merge tag…").setIcon("pencil").onClick(() => this.plugin.renameTag(tag)));
@@ -445,7 +449,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     inner.createSpan({ cls: "tag-everything-explorer-name", text: item instanceof TFile && ext ? item.basename : item.name });
     const flair = row.createDiv({ cls: "tree-item-flair-outer" });
     const tags = index.ownTagsOf(item.path);
-    if (tags.length) this.plugin.badges.addPill(flair, tags);
+    if (tags.length) this.plugin.badges.addPill(flair, tags, item.path);
     const where = flair.createSpan({ cls: "clickable-icon tag-everything-explorer-where" });
     setIcon(where, "folder");
     setTooltip(where, `In ${item.parent && !item.parent.isRoot() ? item.parent.path : "the vault root"}. Click: show it there in the file explorer`);

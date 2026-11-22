@@ -33,6 +33,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Put away (where a tagged file belongs), bring in (outside folders) | `putaway.ts` / `bring-in.ts` (pure), `putaway-modal.ts`, `bring-in-watcher.ts`, `bring-in-modal.ts`, `main.ts` `moveFiles` / `renameOwn`; menu entry in `menu.ts`, *To put away* in `inbox-pane.ts` `renderPutAway`, *Suggest better places* in `tools-pane.ts`, the list in `settings.ts` | user guide §13 |
 | Date criteria (created / modified: panel search, inbox, date terms `created:30d` in formulas, groups, explorer box, query blocks) | `dates.ts` (pure), `formula.ts` (`DateExpr`: parse, format, evaluate), `index.ts` `matches` / `dated`, `dialogs.ts` `dateMenu`, `view.ts` `setDates` / `searchExpr`, `explorer.ts` `setDates`, `inbox.ts` `inboxPaths`, `inbox-pane.ts` | user guide §5, §6, §10, §11, §13 |
 | Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
+| Inherited tags (folder tags passed down, folder names as tags) and how they are drawn | `inherit.ts` (pure), `index.ts` `computeView` / `setInheritance`, `items.ts` `markInherited`, `styles.css` `.tag-everything-inherited` | user guide §1 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
 | Claude Code suggestions (prompt, flags, answer) | `suggest.ts` (pure), `claude.ts` (process), `suggest-modal.ts`, `main.ts` `suggestTags` / `runClaude` / `addTagsEach` | user guide §9; check a real run by hand (smoke fakes it) |
@@ -53,8 +54,10 @@ and `docs/user-guide.md` when users see it.
 
 1. A file's tags = name tags ∪ frontmatter tags (`.md` only) ∪ sidecar tags, whatever the settings. A folder's
    tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
-   `tagsOf`: derived from the name, **never written**. What edits or lists stored tags (editor, `replaceTags`,
-   *Check tag names*, the guide's lists) uses `ownTagsOf` / `counts(paths, true)`.
+   `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, off by
+   default; src/inherit.ts) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
+   (`markInherited`). What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
+   rules, inbox, consistency, put away) uses `ownTagsOf` / `counts(paths, true)`.
 2. The format stays compatible with `docs/format.md`. Never write `tsi.json` / `tsl.json`.
 3. Never lose a tag: rename, then frontmatter, then sidecar. Kept tags never move between name and frontmatter; tags
    only move out of the sidecar, so a failure part-way can leave a tag in two places, never in neither.
@@ -81,13 +84,13 @@ Budget first (root `CLAUDE.md`, *Definition of done*): every Obsidian launch cos
 
 Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pure module, named after it:
 `format`, `config`, `naming`, `cloud`, `colors`, `groups`, `formula`, `ui`, `query`, `taxonomy`,
-`exclude`, `inbox`, `explore`, `dates`, `consistency`, `sections`, `putaway`, `bring-in` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
+`exclude`, `inbox`, `explore`, `dates`, `consistency`, `sections`, `putaway`, `bring-in`, `inherit`, `guide` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
 
 `tests/smoke.js` + `tests/fixtures/vault/`: ~330 in-app checks in one script (a run executes them all). Each check
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
 `groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `fix:`, `command:`,
 `guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `put away:`, `bring in:`, `sections:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
-`ext:`, `dates:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
+`ext:`, `dates:`, `inherit:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is off by default (the fixture's
 tags are used once or twice; its section turns it on); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle

@@ -1708,6 +1708,106 @@ await plugin.saveSettings();
 await view.setState(panelState, { history: false });
 await sleep(300);
 
+// ---- inherited tags: a folder's tags and the words of its name pass to what is inside it; computed, never written,
+// drawn apart (italic, dotted, ↳). On a folder of its own, deleted at the end, both settings put back off.
+check("inherit: both settings off by default", plugin.settings.inheritFolderTags === false && plugin.settings.folderNameTags === false);
+await vault.createFolder("Inherit");
+await vault.createFolder("Inherit/2. Client Work");
+const inhMemo = await vault.create("Inherit/2. Client Work/memo.md", "plain");
+const inhPdf = await vault.createBinary("Inherit/2. Client Work/scan[urgent].pdf", new ArrayBuffer(4));
+const inhSub = "Inherit/2. Client Work";
+await adapter.mkdir("Inherit/.ts");
+await adapter.write("Inherit/.ts/tsm.json", JSON.stringify({ tags: [{ title: "acme" }] }));
+await plugin.index.rebuild();
+const inh = (p) => plugin.index.inheritedOf(p).join();
+check("inherit: off, nothing inherited", inh(inhPdf.path) === "" && !plugin.index.hasTag(inhPdf.path, "acme") && plugin.index.hasTag("Inherit", "acme"));
+plugin.settings.inheritFolderTags = true;
+await plugin.saveSettings();
+await sleep(300);
+check(
+  "inherit: a file carries the tags of the folders above it, after its own; not an own tag",
+  plugin.index.tagsOf(inhPdf.path).join() === "pdf,urgent,acme" && inh(inhPdf.path) === "acme" && plugin.index.ownTagsOf(inhPdf.path).join() === "urgent" && inh(inhMemo.path) === "acme",
+  `${plugin.index.tagsOf(inhPdf.path)} / ${inh(inhMemo.path)}`,
+);
+check("inherit: a subfolder inherits too, the tagged folder doesn't inherit from itself", inh(inhSub) === "acme" && inh("Inherit") === "");
+check("inherit: saved in data.json", (await plugin.loadData())?.inheritFolderTags === true);
+check(
+  "inherit: never written (note, file name, no sidecar)",
+  (await adapter.read(inhMemo.path)) === "plain" && !!vault.getAbstractFileByPath("Inherit/2. Client Work/scan[urgent].pdf") && !(await adapter.exists(`${inhSub}/.ts`)),
+);
+check("inherit: the tag editor shows only the item's own tags", plugin.index.ownTagsOf(inhMemo.path).length === 0 && plugin.index.counts(undefined, true).get("acme") === 1);
+plugin.settings.folderNameTags = true;
+await plugin.saveSettings();
+await sleep(300);
+check(
+  "inherit: folder names: words of every folder above, nearest first, ordering number left out; a folder carries its own name's",
+  inh(inhMemo.path) === "client,work,inherit,acme" && inh(inhSub) === "client,work,inherit,acme" && inh("Inherit") === "inherit",
+  `${inh(inhMemo.path)} / ${inh(inhSub)} / ${inh("Inherit")}`,
+);
+check(
+  "inherit: where from: the nearest folder, or the folder's own name",
+  plugin.index.inheritedFrom(inhMemo.path, "acme") === "Inherit" && plugin.index.inheritedFrom(inhMemo.path, "work") === inhSub && plugin.index.inheritedFrom(inhSub, "work") === inhSub,
+);
+check("inherit: a tag only folders give is only inherited, a stored one is not", plugin.index.onlyInherited("work") && !plugin.index.onlyInherited("acme") && !plugin.index.onlyInherited("urgent"));
+// panel: the search finds the untagged note by an inherited tag; its row draws that tag apart
+await plugin.showTag("work");
+await sleep(300);
+const memoChip = (t) => resultRow("memo.md")?.querySelector(`.tag-everything-result-tags .tag-everything-chip[data-tag="${t}"]`);
+const pdfChip = (t) => resultRow("scan[urgent].pdf")?.querySelector(`.tag-everything-result-tags .tag-everything-chip[data-tag="${t}"]`);
+check(
+  "inherit: panel search by an inherited tag finds the files and the subfolder",
+  !!resultRow("memo.md") && !!resultRow("scan[urgent].pdf") && !!resultRow("2. Client Work"),
+  [...panel().querySelectorAll(".tag-everything-result-name")].map((n) => n.textContent).join(" | "),
+);
+const inhStyle = memoChip("acme") && getComputedStyle(memoChip("acme"));
+check(
+  "inherit: an inherited chip is drawn apart (italic, dotted, ↳), an own one is not",
+  memoChip("acme")?.classList.contains("tag-everything-inherited") && inhStyle.fontStyle === "italic" && inhStyle.borderTopStyle === "dotted" &&
+    getComputedStyle(memoChip("acme"), "::before").content.includes("↳") && !!pdfChip("urgent") && !pdfChip("urgent").classList.contains("tag-everything-inherited"),
+  memoChip("acme")?.outerHTML,
+);
+// core file explorer: the pill counts the stored tags; its list adds the inherited ones, drawn apart
+app.workspace.getLeavesOfType("file-explorer")[0]?.view.revealInFolder?.(inhPdf);
+await sleep(300);
+plugin.badges.refresh();
+await sleep(300);
+const inhPill = rowOf(inhPdf.path)?.querySelector(":scope > .tag-everything-count");
+inhPill?.dispatchEvent(new MouseEvent("mouseenter"));
+await sleep(100);
+const inhListChips = [...document.querySelectorAll(".tag-everything-badge-list .tag-everything-badge")];
+check(
+  "inherit: badges: the pill counts the stored tags, its list adds the inherited ones apart",
+  inhPill?.textContent === "1" && inhListChips.map((c) => c.textContent).join() === "urgent,client,work,inherit,acme" &&
+    inhListChips.filter((c) => c.classList.contains("tag-everything-inherited")).length === 4,
+  `${inhPill?.textContent} / ${inhListChips.map((c) => c.textContent + (c.classList.contains("tag-everything-inherited") ? "*" : "")).join()}`,
+);
+check("inherit: a file with inherited tags only gets no pill", !rowOf(inhMemo.path)?.querySelector(":scope > .tag-everything-count"));
+await snap("inherit"); // the panel's results and the badge list, inherited tags drawn apart
+inhPill?.dispatchEvent(new MouseEvent("mouseleave"));
+// the TagEverything explorer: a tag only folders give is a branch drawn apart, with no rename menu
+const inhExplorer = await plugin.openExplorer();
+await sleep(300);
+const inhBranch = [...(inhExplorer?.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag") ?? [])].find((r) => r.dataset.tag === "work");
+check(
+  "inherit: explorer: a tag only folders give is a branch drawn apart; a stored one is not",
+  inhBranch?.classList.contains("tag-everything-inherited") && getComputedStyle(inhBranch.querySelector(".tag-everything-explorer-name")).fontStyle === "italic" &&
+    ![...inhExplorer.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag")].find((r) => r.dataset.tag === "acme")?.classList.contains("tag-everything-inherited"),
+  inhBranch?.outerHTML.slice(0, 200),
+);
+// live: a folder renamed changes what is inside it inherits
+await app.fileManager.renameFile(vault.getAbstractFileByPath(inhSub), "Inherit/3. Archive");
+check("inherit: a folder renamed: its contents inherit its new name at once", await waitFor(() => inh("Inherit/3. Archive/memo.md") === "archive,inherit,acme"), inh("Inherit/3. Archive/memo.md"));
+plugin.settings.inheritFolderTags = false;
+plugin.settings.folderNameTags = false;
+await plugin.saveSettings();
+await sleep(300);
+check("inherit: both off: nothing inherited, the note back out of the index's tags", inh("Inherit/3. Archive/memo.md") === "" && !plugin.index.onlyInherited("archive") && !plugin.index.hasTag("Inherit/3. Archive/memo.md", "acme"));
+await vault.delete(vault.getAbstractFileByPath("Inherit"), true);
+if (await adapter.exists("Inherit")) await adapter.rmdir("Inherit", true); // its .ts folder is invisible to the vault
+await plugin.index.rebuild();
+await view.setState(panelState, { history: false });
+await sleep(300);
+
 // ---- TagEverything explorer: a tree of tags. Every file can show (even those the core explorer hides); inside a tag,
 // only the tags telling its files apart are branches, a file alone under a tag shows directly; a file row is its
 // extension chip, its name and the tag-count pill.

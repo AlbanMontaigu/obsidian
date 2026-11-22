@@ -58,6 +58,7 @@ export default class TagEverythingPlugin extends Plugin {
     this.index = new TagIndex(this.app, this.settings.extensionTags);
     this.index.autoColors = this.settings.autoColors;
     this.index.excluded = (path, isFolder) => !!this.exclusion(path, isFolder);
+    this.syncInheritance();
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
     this.bringIn = new BringInWatcher(this);
@@ -183,7 +184,13 @@ export default class TagEverythingPlugin extends Plugin {
     await this.saveData(this.settings);
     this.index.autoColors = this.settings.autoColors;
     this.index.setExtensionTags(this.settings.extensionTags);
+    this.syncInheritance();
     this.index.trigger("changed"); // panel and badges redraw with the new colours
+  }
+
+  private syncInheritance(): void {
+    const { inheritFolderTags, folderNameTags, stopWords } = this.settings;
+    this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags }, stopWords);
   }
 
   /**
@@ -390,7 +397,7 @@ export default class TagEverythingPlugin extends Plugin {
       }
       const prefix = folder.isRoot() ? "" : `${folder.path}/`;
       const under = this.index.paths().filter((p) => p === folder.path || p.startsWith(prefix));
-      const { storage, noteTagsInFrontmatter, tagRule, lowercase, stopWords, extensionTags } = this.settings;
+      const { storage, noteTagsInFrontmatter, tagRule, lowercase, stopWords, extensionTags, inheritFolderTags, folderNameTags } = this.settings;
       const text = claudeGuide({
         folder: folder.path,
         storage,
@@ -399,6 +406,8 @@ export default class TagEverythingPlugin extends Plugin {
         lowercase,
         stopWords,
         extensionTags,
+        inheritFolderTags,
+        folderNameTags,
         // the tags written in the vault: extension tags are explained, not listed
         folderTags: this.index.counts(under, true),
         vaultTags: this.index.counts(undefined, true),

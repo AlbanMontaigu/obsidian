@@ -10,6 +10,8 @@ const base: GuideInput = {
   lowercase: false,
   stopWords: "de, la  the",
   extensionTags: true,
+  inheritFolderTags: false,
+  folderNameTags: false,
   folderTags: new Map([["b27", 4], ["inc", 1]]),
   vaultTags: new Map([["tax", 2], ["b27", 9], ["alpha", 2]]),
   date: "2026-11-21",
@@ -59,4 +61,7 @@ test("claudeGuide: sidecar storage, notes like other files, rule off", () => {
   assert.doesNotMatch(g, /Naming rule/);
   assert.match(g, /No naming rule is enforced, but new tags are lower-case/);
   assert.doesNotMatch(claudeGuide({ ...base, extensionTags: false }), /extension as a tag/);
+  assert.doesNotMatch(claudeGuide(base), /inherited tags/);
+  assert.match(claudeGuide({ ...base, inheritFolderTags: true }), /inherited tags, the tags of every folder above it:/);
+  assert.match(claudeGuide({ ...base, folderNameTags: true }), /inherited tags, the words of its folders' names/);
 });

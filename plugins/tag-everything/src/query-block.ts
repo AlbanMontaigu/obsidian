@@ -1,7 +1,7 @@
 import { HoverParent, HoverPopover, MarkdownRenderChild, TAbstractFile, TFile, TFolder, debounce, setIcon } from "obsidian";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import { MAX_QUERY_LIMIT, type Query, compareQueryItems, matchQuery, parseQuery } from "./query.ts";
-import { type RowHost, renderItemRow, wireItemRow } from "./items.ts";
+import { type RowHost, markInherited, renderItemRow, wireItemRow } from "./items.ts";
 import { clickable, paintTag, renderExpr } from "./ui.ts";
 import { hasDateTerms } from "./formula.ts";
 import type TagEverythingPlugin from "./main.ts";
@@ -110,6 +110,7 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
   private chip(parent: HTMLElement, tag: string): HTMLElement {
     const chip = parent.createSpan({ cls: "tag-everything-chip is-small", text: tag, attr: { "data-tag": tag, "aria-label": `Show ${tag} in the panel` } });
     paintTag(chip, this.plugin.index.colorFor(tag));
+    markInherited(chip, this.plugin.index, tag);
     clickable(chip, (evt) => {
       evt.stopPropagation();
       void this.plugin.showTag(tag);

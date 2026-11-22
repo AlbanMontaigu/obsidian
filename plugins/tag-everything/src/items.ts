@@ -1,10 +1,30 @@
-import { App, HoverParent, Keymap, Menu, TAbstractFile, TFile, TFolder, WorkspaceLeaf, setIcon } from "obsidian";
+import { App, HoverParent, Keymap, Menu, TAbstractFile, TFile, TFolder, WorkspaceLeaf, setIcon, setTooltip } from "obsidian";
 import { parentOf } from "./format.ts";
 import type { TagIndex } from "./index.ts";
 import { clickable } from "./ui.ts";
 
 // What a file or folder row shows and does in the plugin's views (panel results, TagEverything explorer, query blocks,
 // inbox): open, page preview, drag into a note, the usual file menu. Internal APIs are guarded: missing, they do nothing.
+
+/** On a chip (or the explorer's tag row) of an inherited tag (src/inherit.ts): italic, dotted, ↳ (styles.css). */
+export const INHERITED_CLS = "tag-everything-inherited";
+
+/**
+ * Marks `el`, drawn for `tag`, as inherited when it is: with `path`, when that item inherits it (the tooltip says from
+ * where); without, in a list of tags, when no item stores it (only folders give it).
+ */
+export function markInherited(el: HTMLElement, index: TagIndex, tag: string, path?: string): void {
+  if (path === undefined) {
+    if (!index.onlyInherited(tag)) return;
+    el.addClass(INHERITED_CLS);
+    setTooltip(el, `${tag}: from folders only (their names or their tags), never written`);
+    return;
+  }
+  const from = index.inheritedFrom(path, tag);
+  if (from === null) return;
+  el.addClass(INHERITED_CLS);
+  setTooltip(el, from === path ? `${tag}: from this folder's name, never written` : `${tag}: inherited from ${from}, never written`);
+}
 
 /** Where a row lives: the hover-link source registered for it, and what owns its page preview. */
 export interface RowHost {
@@ -119,7 +139,7 @@ export function renderItemRow(parent: HTMLElement, item: TAbstractFile, index: T
   const tags = index.tagsOf(item.path).filter((t) => t !== ext);
   if (tags.length) {
     const chips = body.createDiv({ cls: "tag-everything-result-tags" });
-    for (const t of tags) chip(chips, t);
+    for (const t of tags) markInherited(chip(chips, t), index, t, item.path);
   }
   return { row, body };
 }

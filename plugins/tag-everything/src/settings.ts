@@ -91,6 +91,18 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         control: { type: "toggle", key: "extensionTags" },
       },
       {
+        name: "Inherit folder tags",
+        desc: "Files and folders also carry the tags of every folder they are in. Shown in italics with a dotted outline and ↳, never written: tag the folder, or edit its tags, to change them.",
+        aliases: ["inherit", "folder tags", "parent", "propagate"],
+        control: { type: "toggle", key: "inheritFolderTags" },
+      },
+      {
+        name: "Folder names as tags",
+        desc: "A folder's name is a tag of the folder and of everything in it (1. Projects/B27 Board gives projects, b27 and board). Split like a new tag: lower-case words, liaison words and a leading number left out. Shown in italics with a dotted outline and ↳, never written.",
+        aliases: ["folder name", "path", "inherit"],
+        control: { type: "toggle", key: "folderNameTags" },
+      },
+      {
         name: "Colour tags automatically",
         desc: "Each tag gets a theme colour picked from its name; a colour stored in a .ts sidecar wins.",
         aliases: ["color"],

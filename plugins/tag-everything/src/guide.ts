@@ -21,6 +21,9 @@ export interface GuideInput {
   stopWords: string;
   /** Each file's extension counts as a tag in Obsidian (read from the name, never written). */
   extensionTags: boolean;
+  /** Settings `inheritFolderTags` / `folderNameTags` (src/inherit.ts): tags shown in Obsidian, never written. */
+  inheritFolderTags: boolean;
+  folderNameTags: boolean;
   /** Tag -> items, over the folder and everything under it (ignored at the vault root). */
   folderTags: ReadonlyMap<string, number>;
   /** Tag -> items, over the whole vault. */
@@ -81,6 +84,12 @@ export function claudeGuide(g: GuideInput): string {
       ? [
           "In Obsidian each file also carries its extension as a tag, lower-cased (`pdf`, `md`): it is read from the",
           "name, so never write it as a tag; it is left out of the lists below.",
+        ]
+      : []),
+    ...(g.inheritFolderTags || g.folderNameTags
+      ? [
+          `In Obsidian an item also carries, as inherited tags, ${[g.inheritFolderTags && "the tags of every folder above it", g.folderNameTags && "the words of its folders' names (`1. Projects/B27` gives `projects` and `b27`)"].filter(Boolean).join(" and ")}:`,
+          "they are never written, so don't copy them onto the files; tag the folder instead. The lists below leave them out.",
         ]
       : []),
     "",
