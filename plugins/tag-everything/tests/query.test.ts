@@ -13,6 +13,16 @@ test("parseQuery: formula lines joined (side by side = AND), options and comment
   assert.equal(q.error, null);
 });
 
+test("parseQuery: archived: show | hide fixes the block; without it, it follows the archive switch", () => {
+  assert.equal(parseQuery("tax").archived, null);
+  assert.equal(parseQuery("tax\narchived: Show").archived, true);
+  assert.equal(parseQuery("tax\narchived: hide").archived, false);
+  const bad = parseQuery("tax\narchived: maybe");
+  assert.equal(bad.archived, null);
+  assert.match(bad.warnings[0], /archived: "maybe" is not show or hide/);
+  assert.equal(bad.formula, "tax");
+});
+
 test("parseQuery: bad options are named and fall back to the defaults; the formula still works", () => {
   const q = parseQuery("tax\nsort: size\nlimit: 0\ncolour: red");
   assert.equal(q.sort, "name");

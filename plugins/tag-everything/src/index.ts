@@ -5,6 +5,7 @@ import { type Expr, evaluate } from "./formula.ts";
 import { type DateField, type DateRange, inRange } from "./dates.ts";
 import { type InheritOptions, Inheritance, folderNameTags, inheriting } from "./inherit.ts";
 import { type NamingRule, makeRule } from "./naming.ts";
+import { isArchived } from "./archive.ts";
 
 export interface Entry {
   /** Tags read from the file name. Always empty for folders: folder names are never read for tags. */
@@ -110,6 +111,13 @@ export class TagIndex extends Events {
   private countsCache: Map<string, number> | null = null;
   private storedCountsCache: Map<string, number> | null = null;
   private rankedCache: string[] | null = null;
+  /** Archive tags and whether archived items show (settings, src/archive.ts): change them with `setArchive`. */
+  private archive: ReadonlySet<string> = new Set();
+  private showArchived = true;
+  /** `visiblePaths()`, `visibleCounts()`, `visibleStoredCounts()` while archived items are hidden; cleared on change. */
+  private visibleCache: string[] | null = null;
+  private visibleCountsCache: ReadonlyMap<string, number> | null = null;
+  private visibleStoredCache: Map<string, number> | null = null;
   /** False until the first scan is done: until then, an empty index does not mean "no tags". */
   ready = false;
   /** Mirrors the `autoColors` setting (set by the plugin). */
@@ -267,6 +275,60 @@ export class TagIndex extends Events {
     return [...(inherited ? this.view() : this.entries).keys()];
   }
 
+  /** Mirrors the settings `archiveTags` / `showArchived` (src/archive.ts); a change is an index change. */
+  setArchive(tags: ReadonlySet<string>, show: boolean): void {
+    const same = tags.size === this.archive.size && [...tags].every((t) => this.archive.has(t));
+    if (same && show === this.showArchived) return;
+    this.archive = tags;
+    this.showArchived = show;
+    this.changed();
+  }
+
+  /** The archive tags (setting `archiveTags`); empty: nothing is ever archived. Do not mutate. */
+  get archiveTags(): ReadonlySet<string> {
+    return this.archive;
+  }
+
+  /** Are archived items hidden from the views (archive tags set, `showArchived` off)? */
+  get hidesArchived(): boolean {
+    return !this.showArchived && this.archive.size > 0;
+  }
+
+  /** Does the item carry an archive tag, its own or an inherited one? */
+  archived(path: string): boolean {
+    return isArchived(this.tagsOf(path), this.archive);
+  }
+
+  /** Is the item left out of the views: archived while archived items are hidden? */
+  hidden(path: string): boolean {
+    return this.hidesArchived && this.archived(path);
+  }
+
+  /**
+   * `paths(inherited)` without the hidden items: what the panel, the explorer and query blocks list. Maintenance
+   * (rename, checks, the guide) uses `paths()`: an archived item's tags are tags of the vault all the same.
+   */
+  visiblePaths(inherited = true): string[] {
+    if (!this.hidesArchived) return this.paths(inherited);
+    if (inherited) return (this.visibleCache ??= this.paths().filter((p) => !this.hidden(p)));
+    return this.paths(false).filter((p) => !this.hidden(p));
+  }
+
+  /** `counts()` over the visible items (cached until the next change): the counts the views show. */
+  visibleCounts(): ReadonlyMap<string, number> {
+    if (!this.hidesArchived) return this.counts();
+    return (this.visibleCountsCache ??= this.counts(this.visiblePaths()));
+  }
+
+  /** `storedCounts()` over the visible items (cached until the next change): the explorer with inherited tags hidden. */
+  visibleStoredCounts(): ReadonlyMap<string, number> {
+    if (!this.hidesArchived) return this.storedCounts();
+    if (this.visibleStoredCache) return this.visibleStoredCache;
+    const out = new Map<string, number>();
+    for (const [p, e] of this.entries) if (!this.hidden(p)) for (const t of e.all) out.set(t, (out.get(t) ?? 0) + 1);
+    return (this.visibleStoredCache = out);
+  }
+
   get size(): number {
     return this.view().size;
   }
@@ -301,6 +363,9 @@ export class TagIndex extends Events {
   private changed(): void {
     this.countsCache = null;
     this.storedCountsCache = null;
+    this.visibleCache = null;
+    this.visibleCountsCache = null;
+    this.visibleStoredCache = null;
     this.rankedCache = null;
     this.viewCache = null;
     this.notify();

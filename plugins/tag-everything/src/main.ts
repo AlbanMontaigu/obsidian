@@ -23,6 +23,7 @@ import { rulesTags } from "./inbox.ts";
 import { ConsistencyModal, openConsistency } from "./consistency-modal.ts";
 import { type Exclusion, type ExcludedNames, exclusionOf, parseNames, renameExcluded, setExcluded } from "./exclude.ts";
 import { BringInWatcher } from "./bring-in-watcher.ts";
+import { archiveTagSet } from "./archive.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
 /** Plans one item's change from its current tags and where its new tags go. */
@@ -65,7 +66,7 @@ export default class TagEverythingPlugin extends Plugin {
     this.index = new TagIndex(this.app, this.settings.extensionTags);
     this.index.autoColors = this.settings.autoColors;
     this.index.excluded = (path, isFolder) => !!this.exclusion(path, isFolder);
-    this.syncInheritance();
+    this.syncIndexOptions();
     this.store = new MetaStore(this.app);
     this.badges = new ExplorerBadges(this);
     this.bringIn = new BringInWatcher(this);
@@ -192,13 +193,28 @@ export default class TagEverythingPlugin extends Plugin {
     await this.saveData(this.settings);
     this.index.autoColors = this.settings.autoColors;
     this.index.setExtensionTags(this.settings.extensionTags);
-    this.syncInheritance();
+    this.syncIndexOptions();
     this.index.trigger("changed"); // panel and badges redraw with the new colours
   }
 
-  private syncInheritance(): void {
-    const { inheritFolderTags, folderNameTags, stopWords } = this.settings;
+  private syncIndexOptions(): void {
+    const { inheritFolderTags, folderNameTags, stopWords, archiveTags, showArchived } = this.settings;
     this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags }, stopWords);
+    this.index.setArchive(archiveTagSet(archiveTags), showArchived);
+  }
+
+  /**
+   * Shows or hides the archived items everywhere at once (setting `showArchived`, src/archive.ts): the switch of the
+   * panel, the explorer, the inbox and query blocks all land here; saving redraws them all (index "changed").
+   */
+  async toggleArchived(): Promise<void> {
+    this.settings.showArchived = !this.settings.showArchived;
+    try {
+      await this.saveSettings();
+    } catch (err) {
+      console.error("[tag-everything] saving the archived items option failed", err);
+      new Notice(`${PLUGIN_NAME}: the option could not be saved.`);
+    }
   }
 
   /**

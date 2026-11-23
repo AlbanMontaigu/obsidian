@@ -47,6 +47,16 @@ test("normalizeSettings: ignored names default to the lists, an emptied box stay
   assert.equal(normalizeSettings({ excludedExtensions: 3 }).excludedExtensions, DEFAULT_SETTINGS.excludedExtensions);
 });
 
+test("normalizeSettings: archives hidden by default, tagged archive or archives; an emptied list stays empty", () => {
+  const old = normalizeSettings({ tagRule: true }); // a data.json from before the setting
+  assert.equal(old.showArchived, false);
+  assert.equal(old.archiveTags, "archive, archives");
+  assert.equal(normalizeSettings({ showArchived: true }).showArchived, true);
+  assert.equal(normalizeSettings({ showArchived: "yes" }).showArchived, false);
+  assert.equal(normalizeSettings({ archiveTags: "" }).archiveTags, "", "archiving turned off is a choice");
+  assert.equal(normalizeSettings({ archiveTags: 1 }).archiveTags, DEFAULT_SETTINGS.archiveTags);
+});
+
 test("normalizeSettings: Claude Code program and model, empty by default, trimmed", () => {
   assert.equal(DEFAULT_SETTINGS.claudeCommand, "");
   assert.equal(normalizeSettings({}).claudeModel, "");

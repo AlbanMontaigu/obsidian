@@ -1611,6 +1611,65 @@ document.querySelectorAll(".notice").forEach((n) => n.remove());
   await vault.delete(file("Scratch"), true);
 }
 
+// ---- archives: an item tagged archive (own or inherited) is hidden from the panel, the explorer, its inbox and query
+// blocks by default; one switch, in each of them, shows them everywhere
+{
+  const panelBefore = view.getState();
+  await vault.createFolder("Arch");
+  await vault.create("Arch/old[archive smokearch].pdf", "x");
+  await vault.create("Arch/new[smokearch].pdf", "x");
+  await vault.create("ArchQ.md", `${FENCE}tag-everything\nsmokearch\n${FENCE}\n\n${FENCE}tag-everything\nsmokearch\narchived: show\n${FENCE}\n`);
+  await waitFor(() => plugin.index.paths().includes("Arch/old[archive smokearch].pdf") && plugin.index.paths().includes("Arch/new[smokearch].pdf"));
+  const aEx = await plugin.openExplorer();
+  aEx.showTab("tags");
+  view.selectOnly("smokearch");
+  await sleep(300);
+  const results = () => [...view.contentEl.querySelectorAll(".tag-everything-view-results .tag-everything-result")].map((r) => r.dataset.path).join();
+  check(
+    "archive: hidden by default: out of the panel's results and the explorer's counts, still in the index",
+    plugin.settings.showArchived === false && results() === "Arch/new[smokearch].pdf" && aEx.known.get("smokearch") === 1 && plugin.index.hasTag("Arch/old[archive smokearch].pdf", "archive"),
+    `${results()} / ${aEx.known.get("smokearch")}`,
+  );
+  const panelSwitch = () => view.contentEl.querySelector(".tag-everything-view-bar .tag-everything-archive-toggle");
+  const exSwitch = () => aEx.contentEl.querySelector(".tag-everything-explorer-bar .tag-everything-archive-toggle");
+  check(
+    "archive: the switch in the panel's and the explorer's bars, off, naming the archive tags",
+    panelSwitch()?.isShown() && exSwitch()?.isShown() && !panelSwitch().classList.contains("is-active") && /hidden \(tagged archive, archives\)/.test(panelSwitch().getAttribute("aria-label")),
+    panelSwitch()?.getAttribute("aria-label"),
+  );
+  const aLeaf = app.workspace.getLeaf(true);
+  await aLeaf.openFile(file("ArchQ.md"));
+  await aLeaf.setViewState({ type: "markdown", state: { file: "ArchQ.md", mode: "preview" } });
+  await waitFor(() => aLeaf.view.containerEl.querySelectorAll(".tag-everything-query").length === 2);
+  const aBlocks = () => [...aLeaf.view.containerEl.querySelectorAll(".tag-everything-query")];
+  const aCount = (i) => aBlocks()[i]?.querySelector(".tag-everything-query-count")?.textContent;
+  check(
+    "archive: query blocks: one follows the switch (shown in its header), archived: show always lists them",
+    aCount(0) === "1 item" && aCount(1) === "2 items" && !!aBlocks()[0].querySelector(".tag-everything-archive-toggle") && !aBlocks()[1].querySelector(".tag-everything-archive-toggle"),
+    `${aCount(0)} / ${aCount(1)}`,
+  );
+  panelSwitch().click();
+  await waitFor(() => results().split(",").length === 2 && aCount(0) === "2 items" && aEx.known.get("smokearch") === 2);
+  check(
+    "archive: one click on the panel's switch shows them everywhere, saved",
+    results().split(",").length === 2 && aCount(0) === "2 items" && aEx.known.get("smokearch") === 2 && exSwitch()?.classList.contains("is-active") && (await plugin.loadData())?.showArchived === true,
+    `${results()} / ${aCount(0)} / ${aEx.known.get("smokearch")}`,
+  );
+  aEx.showTab("inbox");
+  await sleep(300);
+  const inboxSwitch = aEx.contentEl.querySelector(".tag-everything-inbox .tag-everything-archive-toggle");
+  check("archive: the inbox has the switch too, on", !!inboxSwitch && inboxSwitch.classList.contains("is-active"), inboxSwitch?.outerHTML.slice(0, 200));
+  inboxSwitch?.click();
+  aEx.showTab("tags");
+  await waitFor(() => results() === "Arch/new[smokearch].pdf" && aCount(0) === "1 item" && aEx.known.get("smokearch") === 1);
+  check("archive: switched off from the inbox: hidden again everywhere", plugin.settings.showArchived === false && results() === "Arch/new[smokearch].pdf" && aCount(0) === "1 item" && aEx.known.get("smokearch") === 1, `${results()} / ${aCount(0)}`);
+  aLeaf.detach();
+  await vault.delete(file("Arch"), true);
+  await vault.delete(file("ArchQ.md"));
+  await view.setState(panelBefore, { history: false });
+  await sleep(300);
+}
+
 // ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
 plugin.settings.extensionTags = true;
 await plugin.saveSettings();

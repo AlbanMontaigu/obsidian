@@ -68,6 +68,10 @@ entry of the area you change; add one when you leave a limit behind (users' side
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a
   tag carried only by excluded items leaves the panel's search (it is not put back on inclusion).
+- Archives: one switch for every view (no per-view choice, except a query block's `archived:` line). Obsidian's file
+  explorer is not filtered (not ours; its badges still show). Maintenance lists (*Check tag names*, reviews, tag
+  consistency, the AI guide, *Suggest better places*) include archived items on purpose: their tags are the vault's.
+  A tag only archived items carry still resolves in searches and formulas, and shows `0` while they are hidden.
 - Ignored names are on by default, so a vault upgraded to 0.42 loses from the index whatever sat in a `tmp` / `temp`
   / `venv` folder or carried an ignored extension; their tags stay on disk and come back when the name is taken out
   of the box. Dot-folders and dot-files are already invisible to the Vault API, so their `.*` defaults only matter

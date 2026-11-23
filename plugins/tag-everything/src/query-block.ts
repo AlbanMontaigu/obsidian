@@ -4,6 +4,7 @@ import { MAX_QUERY_LIMIT, type Query, compareQueryItems, matchQuery, parseQuery 
 import { type RowHost, markInherited, renderItemRow, wireItemRow } from "./items.ts";
 import { clickable, paintTag, renderExpr } from "./ui.ts";
 import { hasDateTerms } from "./formula.ts";
+import { archiveToggle } from "./archive-toggle.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 /** Hover-link source of the query blocks' rows (Ctrl/Cmd + hover: page preview), registered by main.ts. */
@@ -60,7 +61,7 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
       el.createDiv({ cls: "tag-everything-error", text: `${PLUGIN_NAME} query: ${query.error}` });
       el.createDiv({
         cls: "tag-everything-query-help",
-        text: "Tags with AND, OR, NOT and parentheses, e.g. (invoice OR facture) AND NOT paid. Options on their own line: sort: name | modified | created, limit: 20.",
+        text: "Tags with AND, OR, NOT and parentheses, e.g. (invoice OR facture) AND NOT paid. Options on their own line: sort: name | modified | created, limit: 20, archived: show | hide.",
       });
       return;
     }
@@ -70,7 +71,9 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
     }
     const known = [...index.counts().keys()];
     const now = Date.now();
-    const found = matchQuery(query.expr, index.paths(), (p, t) => index.hasTag(p, t), known, (p, f, r) => index.dated(p, f, r, now));
+    // archived items (src/archive.ts): as the block's `archived:` line says, else as the archive switch
+    const paths = query.archived === null ? index.visiblePaths() : query.archived ? index.paths() : index.paths().filter((p) => !index.archived(p));
+    const found = matchQuery(query.expr, paths, (p, t) => index.hasTag(p, t), known, (p, f, r) => index.dated(p, f, r, now));
     this.found = new Set(found.paths);
     const unknown = new Set(found.unknown);
     const formulaEl = head.createDiv({ cls: "tag-everything-formula" });
@@ -79,6 +82,7 @@ export class TagQueryBlock extends MarkdownRenderChild implements HoverParent {
       chip.toggleClass("is-negated", negated);
       chip.toggleClass("is-missing", unknown.has(tag));
     });
+    if (query.archived === null) archiveToggle(head, plugin);
 
     const { vault } = plugin.app;
     const stat = (f: TAbstractFile): { mtime: number; ctime: number } => (f instanceof TFile ? f.stat : { mtime: 0, ctime: 0 });

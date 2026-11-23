@@ -45,6 +45,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab count; `InboxPane`, drawn in the explorer's Inbox tab), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
 | Exclusions (paths, ignored names with their defaults, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `hasExclusions` / `excludedNamesChanged` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
+| Archives (which tags archive, the one show / hide switch, what is hidden where) | `archive.ts` (pure), `index.ts` `setArchive` / `visiblePaths` / `visibleCounts` / `hidden`, `archive-toggle.ts` (the icon), `main.ts` `toggleArchived`; views: `view.ts`, `panel-groups.ts`, `explorer.ts`, `inbox-pane.ts`, `query-block.ts` | user guide §2, §11; a new view that lists items uses the `visible*` listing and carries the switch; maintenance keeps `paths()` / `counts()` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -78,6 +79,9 @@ and `docs/user-guide.md` when users see it.
    runs on a new file only when the user turned `autoApplyRules` on (off by default).
 9. An excluded item (src/exclude.ts: by hand, by an ignored name of the settings, or by a rule) is never in the index and never written (`applyOne` throws); excluding or
    including touches only `data.json`, never the item's tags. An excluded path follows its item's renames.
+10. An archived item (src/archive.ts: an archive tag, own or inherited) stays in the index and is never written
+   because of it; only the browsing views (panel, explorer, inbox, query blocks) leave it out, through the `visible*`
+   listing, while `showArchived` is off (the default). One switch for all of them.
 
 ## Tests
 
@@ -85,13 +89,13 @@ Budget first (root `CLAUDE.md`, *Definition of done*): every Obsidian launch cos
 
 Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pure module, named after it:
 `format`, `config`, `naming`, `cloud`, `colors`, `groups`, `formula`, `ui`, `query`, `taxonomy`,
-`exclude`, `inbox`, `explore`, `dates`, `consistency`, `sections`, `putaway`, `bring-in`, `inherit`, `guide` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
+`exclude`, `inbox`, `explore`, `dates`, `consistency`, `sections`, `putaway`, `bring-in`, `inherit`, `guide`, `archive` (`.test.ts`). Run the ones of the modules you changed and of those importing them.
 
 `tests/smoke.js` + `tests/fixtures/vault/`: ~330 in-app checks in one script (a run executes them all). Each check
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
 `groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `fix:`, `command:`,
 `guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `put away:`, `bring in:`, `sections:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
-`ignore:`, `ext:`, `dates:`, `inherit:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
+`ignore:`, `archive:`, `ext:`, `dates:`, `inherit:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is off by default (the fixture's
 tags are used once or twice; its section turns it on); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle

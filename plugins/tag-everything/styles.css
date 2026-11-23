@@ -223,8 +223,19 @@
    colour while a criterion is set; in the search, a criterion is a chip with a calendar icon. */
 .tag-everything-dates-button.is-active,
 .tag-everything-ext-toggle.is-active,
-.tag-everything-inherited-toggle.is-active {
+.tag-everything-inherited-toggle.is-active,
+.tag-everything-archive-toggle.is-active {
   color: var(--interactive-accent);
+}
+
+/* The archive switch in a query block's header: small, after the formula. */
+.tag-everything-query-head .tag-everything-archive-toggle {
+  padding: 2px;
+}
+
+.tag-everything-query-head .tag-everything-archive-toggle svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* A formula written with Formula… (ORs, parentheses): one chip with the function icon. */

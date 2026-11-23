@@ -6,6 +6,7 @@
 //   invoice AND 2025 AND NOT paid
 //   sort: modified
 //   limit: 20
+//   archived: show
 //   ```
 
 import { type Expr, evaluate, formulaTags, isDateWord, resolveTags, tryParseFormula } from "./formula.ts";
@@ -28,17 +29,22 @@ export interface Query {
   error: string | null;
   sort: QuerySort;
   limit: number;
+  /**
+   * `archived: show` (true) / `hide` (false): the block always lists, or never lists, archived items (src/archive.ts);
+   * null: it follows the archive switch, shown in its header.
+   */
+  archived: boolean | null;
   /** Options that were not understood, each with what is expected; the rest of the block still works. */
   warnings: string[];
 }
 
 /**
- * Reads a query block: option lines (`sort: name | modified | created`, `limit: 1-500`), comment lines (`//`), and
- * the formula (every other line). An option line is `word:`, which no tag can start with (`:` is not allowed in a
- * tag), so it never takes a formula line.
+ * Reads a query block: option lines (`sort: name | modified | created`, `limit: 1-500`, `archived: show | hide`),
+ * comment lines (`//`), and the formula (every other line). An option line is `word:`, which no tag can start with
+ * (`:` is not allowed in a tag), so it never takes a formula line.
  */
 export function parseQuery(source: string): Query {
-  const q: Query = { formula: "", expr: null, error: null, sort: "name", limit: DEFAULT_QUERY_LIMIT, warnings: [] };
+  const q: Query = { formula: "", expr: null, error: null, sort: "name", limit: DEFAULT_QUERY_LIMIT, archived: null, warnings: [] };
   const formula: string[] = [];
   for (const raw of source.split("\n")) {
     const line = raw.trim();
@@ -58,8 +64,11 @@ export function parseQuery(source: string): Query {
       const n = Number(v);
       if (Number.isInteger(n) && n >= 1 && n <= MAX_QUERY_LIMIT) q.limit = n;
       else q.warnings.push(`limit: "${value.trim()}" is not a whole number from 1 to ${MAX_QUERY_LIMIT}`);
+    } else if (key.toLowerCase() === "archived") {
+      if (v === "show" || v === "hide") q.archived = v === "show";
+      else q.warnings.push(`archived: "${value.trim()}" is not show or hide`);
     } else {
-      q.warnings.push(`"${key}:" is not an option (sort, limit)`);
+      q.warnings.push(`"${key}:" is not an option (sort, limit, archived)`);
     }
   }
   q.formula = formula.join(" ");

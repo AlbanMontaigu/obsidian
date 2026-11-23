@@ -9,6 +9,7 @@ import { plural } from "./messages.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { clickable, paintTag } from "./ui.ts";
 import { PutAwayModal, putAwayPlan, transitFolders, waitingFiles } from "./putaway-modal.ts";
+import { archiveToggleLabel } from "./archive.ts";
 import type TagEverythingPlugin from "./main.ts";
 
 /** Rows drawn at most: an inbox is meant to be emptied, not scrolled. */
@@ -22,7 +23,7 @@ export function inboxFiles(plugin: TagEverythingPlugin, dates: DateFilters = {})
   const { index, settings, app } = plugin;
   const candidates = app.vault
     .getFiles()
-    .filter((f) => f.name !== GUIDE_FILE && !plugin.isExcluded(f))
+    .filter((f) => f.name !== GUIDE_FILE && !plugin.isExcluded(f) && !index.hidden(f.path)) // archived: only while shown
     .map((f) => ({ path: f.path, ctime: f.stat.ctime, mtime: f.stat.mtime, tagged: index.ownTagsOf(f.path).length > 0 }));
   return inboxPaths(candidates, Date.now(), settings.inboxDays, new Set(settings.inboxDismissed), settings.inboxFolder, dates)
     .map((p) => app.vault.getAbstractFileByPath(p))
@@ -137,7 +138,15 @@ export class InboxPane {
     dates.buttonEl.addClass("tag-everything-dates-button");
     dates.buttonEl.toggleClass("is-active", hasDates(this.dates));
     labelled("wand-sparkles", "New rule", "New auto-tag rule", () => new RuleModal(this.plugin.app, plugin).open());
-    if (folder) labelled("folder-x", "Whole vault", `Stop focusing the inbox on ${folder}`, () => void plugin.focusInbox(""));
+    // The archive switch (src/archive.ts): the explorer's bar, with its own, is hidden on this tab.
+    if (plugin.index.archiveTags.size) {
+      const shown = plugin.settings.showArchived;
+      const archived = labelled("archive", "Archived", archiveToggleLabel(plugin.index.archiveTags, shown), () => void plugin.toggleArchived());
+      archived.buttonEl.addClass("tag-everything-archive-toggle");
+      archived.buttonEl.toggleClass("is-active", shown);
+      archived.buttonEl.setAttr("aria-pressed", String(shown));
+    }
+    if (folder) labelled("folder-x", "Whole vault", `Stop focusing the inbox on ${folder}`, () => void plugin.focusInbox("")); // last: only while focused
     if (!plugin.settings.rules.length) {
       el.createDiv({
         cls: "tag-everything-where",
@@ -155,7 +164,7 @@ export class InboxPane {
   /** "To put away": the tagged files waiting in a transit folder, each with its best folder; nothing moves from here. */
   private renderPutAway(el: HTMLElement): void {
     const { plugin } = this;
-    const waiting = waitingFiles(plugin);
+    const waiting = waitingFiles(plugin).filter((f) => !plugin.index.hidden(f.path));
     if (!waiting.length) return;
     const plan = putAwayPlan(plugin, waiting);
     const section = el.createDiv({ cls: "tag-everything-inbox-putaway" });

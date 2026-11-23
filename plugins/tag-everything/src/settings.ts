@@ -3,6 +3,7 @@ import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
 import { DEFAULT_EXCLUDED_EXTENSIONS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_FOLDERS } from "./exclude.ts";
+import { DEFAULT_ARCHIVE_TAGS } from "./archive.ts";
 import { deleteRule, describeConditions, describeRule } from "./inbox.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { describeBringIn } from "./bring-in.ts";
@@ -111,6 +112,24 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         desc: "Each tag gets a theme colour picked from its name; a colour stored in a .ts sidecar wins.",
         aliases: ["color"],
         control: { type: "toggle", key: "autoColors" },
+      },
+      {
+        type: "group",
+        heading: "Archives",
+        items: [
+          {
+            name: "Archive tags",
+            desc: `An item carrying one of these tags, its own or one it inherits (a folder named 4. Archives gives archives to everything in it), is archived. Comma separated. Empty: nothing is archived. Default: ${DEFAULT_ARCHIVE_TAGS}`,
+            aliases: ["archive", "archives", "hide", "old"],
+            control: { type: "text", key: "archiveTags", placeholder: "Nothing archived" },
+          },
+          {
+            name: "Show archived items",
+            desc: "Off: the panel, the TagEverything explorer, its inbox and query blocks leave the archived items out. Each of them has the same switch (the archive icon), which turns this on or off everywhere at once.",
+            aliases: ["archive", "archives", "hidden", "show"],
+            control: { type: "toggle", key: "showArchived", disabled: () => !s().archiveTags.trim() },
+          },
+        ],
       },
       {
         type: "group",

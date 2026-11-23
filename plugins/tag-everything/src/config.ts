@@ -8,6 +8,7 @@ import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { type AutoTagRule, cleanFolder, normalizeRules } from "./inbox.ts";
 import { DEFAULT_EXCLUDED_EXTENSIONS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_FOLDERS, type ExcludeRule, normalizeExcludeRules, normalizeExcludedPaths } from "./exclude.ts";
 import { type BringInFolder, normalizeBringIn } from "./bring-in.ts";
+import { DEFAULT_ARCHIVE_TAGS } from "./archive.ts";
 
 export interface TagEverythingSettings {
   /** Where new file tags go. Folder tags always go to `<folder>/.ts/tsm.json`. */
@@ -76,6 +77,13 @@ export interface TagEverythingSettings {
    * holds the stored tags only, so the folders don't repeat themselves as tags.
    */
   explorerInheritedTags: boolean;
+  /** Tags that archive an item, its own or inherited (comma separated; src/archive.ts). Empty: nothing is archived. */
+  archiveTags: string;
+  /**
+   * The panel, the TagEverything explorer, its inbox and query blocks show the archived items too. Off by default:
+   * archives are hidden. One switch, flipped from any of them or from the settings.
+   */
+  showArchived: boolean;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Sections of the panel's All tab (src/sections.ts; bookmark tabs before 0.37, same key). Edited in the panel. */
@@ -114,6 +122,8 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   panelExtensionTags: false,
   panelInheritedCollapsed: false,
   explorerInheritedTags: false,
+  archiveTags: DEFAULT_ARCHIVE_TAGS,
+  showArchived: false,
   groups: [],
   tabs: [],
 };
@@ -166,6 +176,8 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     panelExtensionTags: bool("panelExtensionTags"),
     panelInheritedCollapsed: bool("panelInheritedCollapsed"),
     explorerInheritedTags: bool("explorerInheritedTags"),
+    archiveTags: typeof r.archiveTags === "string" ? r.archiveTags : d.archiveTags, // empty: archiving turned off, kept
+    showArchived: bool("showArchived"),
     groups,
     tabs: normalizeSections(r.tabs, groups.map((g) => g.id)),
   };

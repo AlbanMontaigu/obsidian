@@ -71,6 +71,19 @@ inherited tags only gets no pill (its folder shows them).
 - Tagging more than 5 items shows its progress. If some fail, one notice lists why (the first 5, then how many more).
   Edits run one after the other: a second edit started before the first is written waits for it.
 
+### Archived items
+
+An item carrying the tag **archive** or **archives** (*Settings → Archives → Archive tags*) is archived: its own tag
+or one it inherits, so a folder tagged `archive`, or named `4. Archives`, archives everything in it. Archived items
+are **hidden by default** from the panel (tag counts, groups, results), the TagEverything explorer, its inbox and
+query blocks. Their tags stay as they are, and renaming or reviewing tags still reaches them.
+
+The **archive icon** shows them again. It sits in the panel's bar, in the explorer's bar, in the inbox (*Archived*)
+and in the header of every query block, and *Settings → Show archived items* is the same switch: turn it on in one
+place and the archived items come back everywhere; it stays as you left it. A query block can decide for itself with
+an `archived: show` or `archived: hide` line (section 11). A tag only archived items carry shows `0` while they are
+hidden (its tooltip says so). Obsidian's own file explorer is not filtered.
+
 ## 3. The tag naming rule
 
 Setting *Tag naming rule*, on by default: a tag is **one lower-case plain word** (letters and digits, accents
@@ -367,7 +380,9 @@ limit: 20
 - Every line that is not an option or a `//` comment is part of the formula; two lines side by side mean AND. Date
   terms (Section 6) work too: a line `modified:7d` lists only what changed in the last 7 days.
 - Options, each on its own line: `sort: name` (default, as the file explorer), `modified` or `created` (newest
-  first); `limit: 1` to `500` (default 50: the block then says how many more there are).
+  first); `limit: 1` to `500` (default 50: the block then says how many more there are); `archived: show` or
+  `hide` (always list, or never list, archived items; without it the block follows the archive icon in its header,
+  section 2).
 - The block shows the formula as chips (click one: the panel searches that tag), how many items match, then the items
   like the panel's results: click to open, Ctrl/Cmd + hover for a preview, drag into a note, right-click for the file
   menu.
@@ -582,6 +597,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written; the TagEverything explorer uses inherited tags only with its folder-tree icon on (Section 10, off by default) |
 | Folder names as tags | On | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written; listed in the panel's *Inherited* section (Section 5) |
 | Colour tags automatically | On | Section 8 |
+| Archives: *Archive tags* / *Show archived items* | `archive, archives` / Off | Section 2: items carrying one of these tags (own or inherited) are hidden from the panel, the explorer, the inbox and query blocks; the archive icon in each of them is the same switch. Empty list: nothing archived |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |
 | Show tag badges / Badges for | On / All tags | Explorer badges (Section 8); *Badges for* leaves out of the count and the list the tags already readable in the name |
 | Claude Code program | empty | For *Suggest tags with Claude Code* (Section 9). Empty: `claude` on the PATH, then `~/.local/bin`; otherwise the full path of `claude.exe` |

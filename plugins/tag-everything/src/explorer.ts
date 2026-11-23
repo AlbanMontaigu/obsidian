@@ -11,6 +11,7 @@ import { inCountRange, rangeText } from "./cloud.ts";
 import { INHERITED_CLS, type RowHost, markInherited, revealInExplorer, wireItemRow } from "./items.ts";
 import { type CountRangeControl, clickable, countRangeControl, dateChip, onEnter, paintTag, renderExpr } from "./ui.ts";
 import { InboxPane } from "./inbox-pane.ts";
+import { archiveToggle, updateArchiveToggle } from "./archive-toggle.ts";
 
 export const EXPLORER_VIEW_TYPE = "tag-everything-explorer";
 
@@ -79,6 +80,8 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private datesEl!: HTMLElement;
   /** The search bar's inherited tags toggle (setting `explorerInheritedTags`): marked while they are shown. */
   private inheritedEl!: HTMLElement;
+  /** The search bar's archive switch (setting `showArchived`, src/archive-toggle.ts). */
+  private archiveEl!: HTMLElement;
   /** Tag -> items, over the tags the tree uses (inherited ones only while shown); refreshed by each render. */
   private known: ReadonlyMap<string, number> = new Map();
   private statusEl!: HTMLElement;
@@ -178,6 +181,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
         new Notice(`${PLUGIN_NAME}: the option could not be saved.`);
       });
     });
+    this.archiveEl = archiveToggle(bar, this.plugin);
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
     clickable(collapse, () => {
@@ -313,14 +317,16 @@ export class TagExplorerView extends ItemView implements HoverParent {
       return;
     }
     const inherited = this.showsInherited();
-    this.known = inherited ? index.counts() : index.storedCounts();
+    // archived items only while shown (src/archive.ts)
+    this.known = inherited ? index.visibleCounts() : index.visibleStoredCounts();
     this.renderInheritedToggle(inherited);
+    updateArchiveToggle(this.archiveEl, this.plugin);
     this.renderChips();
     const search = treeSearch(joinFormula(this.chips, this.query), [...this.known.keys()], this.parsed ?? this.chips);
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const now = Date.now();
-    const all = index.paths(inherited);
+    const all = index.visiblePaths(inherited);
     const paths = expr ? all.filter((p) => index.matches(expr, p, now, inherited)) : all;
     this.datesEl.toggleClass("is-active", hasDates(topDates(this.chips)));
     // The count range keeps the root to the tags that matter, as in the panel's All tab; not while a formula filters
@@ -340,7 +346,14 @@ export class TagExplorerView extends ItemView implements HoverParent {
         ? "Reading tags…"
         : !index.counts(undefined, true).size && !root.tags.length
           ? "No tags yet. Right-click a file or folder → TagEverything → Edit tags."
-          : [found ?? `${tagsText} on ${plural(tagged, "item")}${allHidden}`, search.problem].filter(Boolean).join(". "),
+          : [
+              found ?? `${tagsText} on ${plural(tagged, "item")}${allHidden}`,
+              // nothing found while some items are hidden: say where they are (not when nothing is archived)
+              !tagged && all.length < index.paths(inherited).length ? "Archived items are hidden: the archive icon shows them" : "",
+              search.problem,
+            ]
+              .filter(Boolean)
+              .join(". "),
     );
     this.statusEl.toggleClass("mod-warning", !!search.problem);
     this.contentEl.scrollTop = scroll;

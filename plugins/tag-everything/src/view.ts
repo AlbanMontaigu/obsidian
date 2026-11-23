@@ -11,6 +11,8 @@ import { PanelGroups } from "./panel-groups.ts";
 import { type CountRangeControl, TAG_MIME, clickable, countRangeControl, paintTag } from "./ui.ts";
 import { type RowHost, markInherited, renderItemRow, wireItemRow } from "./items.ts";
 import { renderTools } from "./tools-pane.ts";
+import { archiveToggle, updateArchiveToggle } from "./archive-toggle.ts";
+import { missingTagLabel } from "./archive.ts";
 import { type DateFilters, DATE_FIELDS, criterionText, filtersText, hasDates, normalizeDates } from "./dates.ts";
 
 export const VIEW_TYPE = "tag-everything-view";
@@ -87,6 +89,8 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private datesEl!: HTMLElement;
   /** In All's Tags heading: shows or hides the extension tags (setting `panelExtensionTags`). */
   private extToggleEl!: HTMLElement;
+  /** In the bar: shows or hides the archived items, everywhere (setting `showArchived`, src/archive-toggle.ts). */
+  private archiveEl!: HTMLElement;
   private pageEl!: HTMLElement;
 
   constructor(
@@ -106,7 +110,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       save: (change) => this.save(change),
       chip: (parent, tag, extra) => this.chip(parent, tag, extra),
       tagChips: (parent, tags) => {
-        const counts = plugin.index.counts();
+        const counts = plugin.index.visibleCounts();
         this.cloud(parent, tags.map((t): [string, number] => [t, counts.get(t) ?? 0]), false);
       },
       toggle: (tag) => this.toggle(tag),
@@ -176,6 +180,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       const r = dates.getBoundingClientRect(); // under the icon, from the mouse or the keyboard alike
       dateMenu(this.dates, (f) => this.setDates(f)).showAtPosition({ x: r.left, y: r.bottom });
     });
+    this.archiveEl = archiveToggle(bar, this.plugin);
     const rebuild = bar.createDiv({ cls: "clickable-icon", attr: { "aria-label": "Re-read tags (picks up changes made outside Obsidian)" } });
     setIcon(rebuild, "refresh-cw");
     clickable(rebuild, () => {
@@ -464,14 +469,17 @@ export class TagEverythingView extends ItemView implements HoverParent {
     return search ? this.matchPaths(search) : null;
   }
 
-  /** Indexed paths matching `expr` (tags and dates); tags no item carries (e.g. renamed since) are left out of it first. */
+  /**
+   * Visible paths (archived ones only while shown) matching `expr` (tags and dates); tags no item carries (e.g.
+   * renamed since) are left out of it first.
+   */
   private matchPaths(expr: fx.Expr | null): string[] {
     const index = this.plugin.index;
     const counts = index.counts();
     const used = expr && fx.prune(expr, (t) => counts.has(t));
     if (!used) return [];
     const now = Date.now();
-    return index.paths().filter((p) => index.matches(used, p, now));
+    return index.visiblePaths().filter((p) => index.matches(used, p, now));
   }
 
   // ---- rendering
@@ -528,6 +536,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
     const matches = this.searchMatches(); // used by the tabs, narrowing tags and results: computed once
     this.renderTabs(matches);
     this.datesEl.toggleClass("is-active", hasDates(this.dates));
+    updateArchiveToggle(this.archiveEl, this.plugin);
     this.datesEl.setAttr("aria-label", hasDates(this.dates) ? `Dates: ${filtersText(this.dates)}` : "Dates: created or modified, recently or long ago");
     this.renderSelected();
     this.renderRefine(matches);
@@ -646,14 +655,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   }
 
   /**
-   * The tag cloud of All: every tag with its count in the whole vault, whatever the search; the tags in the search stay
-   * in place, marked (a click takes one out).
+   * The tag cloud of All: every tag with its count in the whole vault (archived items only while shown), whatever the
+   * search; the tags in the search stay in place, marked (a click takes one out).
    */
   private renderTags(): void {
     this.tagsEl.empty();
     this.inheritedEl.empty();
     const index = this.plugin.index;
-    const counts = index.counts();
+    const counts = index.visibleCounts();
     // The extension tags only with the option on (a tag in the search stays).
     const shown = this.tagShown();
     const entries: [string, number][] = [...counts].filter(([t]) => shown(t));
@@ -752,7 +761,7 @@ export class TagEverythingView extends ItemView implements HoverParent {
       el.createSpan({ cls: "tag-everything-chip-count", text: String(n) });
       if (on || not) el.setAttr("aria-label", "In the search: click to take it out (right-click: more)");
       if (n || on || not) clickable(el, () => this.toggle(tag));
-      else el.setAttr("aria-label", "No file or folder carries this tag (right-click: remove it from the tab)");
+      else el.setAttr("aria-label", `${missingTagLabel(this.plugin.index.counts().has(tag))} (right-click: remove it from the tab)`);
       this.tagMenu(el, tag);
     }
   }
@@ -760,13 +769,14 @@ export class TagEverythingView extends ItemView implements HoverParent {
   private renderResults(matches: string[] | null): void {
     this.resultsEl.empty();
     const index = this.plugin.index;
-    const total = index.size;
+    const total = index.visiblePaths().length;
     this.statusEl.toggleClass("tag-everything-section-head", !!matches);
     if (!matches) {
+      const hidden = index.hidesArchived ? `, archived ones hidden` : "";
       this.statusEl.setText(
         this.activeGroup
           ? "No tag of this group is switched on: click one above."
-          : `${plural(total, "tagged item")}. Click a tag (right-click: exclude it), or Search with a whole group.`,
+          : `${plural(total, "tagged item")}${hidden}. Click a tag (right-click: exclude it), or Search with a whole group.`,
       );
       return;
     }

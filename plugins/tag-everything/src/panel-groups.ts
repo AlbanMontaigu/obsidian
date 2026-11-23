@@ -12,6 +12,7 @@ import type TagEverythingPlugin from "./main.ts";
 import type { TagEverythingSettings } from "./config.ts";
 import { type FormulaContext, GroupModal, NameModal } from "./dialogs.ts";
 import { GROUP_MIME, clickable, dateChip, dropZone, renderExpr } from "./ui.ts";
+import { missingTagLabel } from "./archive.ts";
 
 /** What the groups need from the panel: its search, its chips and menus, and saving. */
 export interface GroupsHost {
@@ -110,8 +111,8 @@ export class PanelGroups {
   /** The group dialog's view of the vault: tags, counts, and how many items a formula finds. */
   private formulaContext(): FormulaContext {
     const index = this.host.plugin.index;
-    const counts = index.counts();
-    return { tags: index.ranked(), counts, countMatches: (expr) => this.host.matchPaths(fx.resolveTags(expr, [...counts.keys()])).length };
+    const counts = index.visibleCounts(); // as the cloud and the results: archived items only while shown
+    return { tags: index.ranked(), counts, countMatches: (expr) => this.host.matchPaths(fx.resolveTags(expr, [...index.counts().keys()])).length };
   }
 
   /**
@@ -296,7 +297,7 @@ export class PanelGroups {
    */
   renderGroup(el: HTMLElement, group: gr.TagGroup, inSelection = false): void {
     const host = this.host;
-    const counts = host.plugin.index.counts();
+    const counts = host.plugin.index.visibleCounts(); // what a click on the group finds
     const active = host.activeGroup() === group.id;
     const collapsed = group.collapsed && !inSelection;
     const box = el.createDiv({ cls: "tag-everything-group", attr: { "data-group": group.id } });
@@ -406,7 +407,7 @@ export class PanelGroups {
         menu.addItem((i) => i.setTitle("Remove from the group").setIcon("x").onClick(remove));
         menu.showAtMouseEvent(evt);
       });
-      if (!c) chip.setAttr("aria-label", "No file or folder carries this tag");
+      if (!c) chip.setAttr("aria-label", missingTagLabel(host.plugin.index.counts().has(tag)));
       else {
         clickable(chip, () => host.toggle(tag));
         if (active) chip.setAttr("aria-label", on ? "Click to leave it out of the search" : "Click to search with it");
