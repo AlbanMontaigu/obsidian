@@ -1936,9 +1936,29 @@ check(
     ![...inhExplorer.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag")].find((r) => r.dataset.tag === "acme")?.classList.contains("tag-everything-inherited"),
   inhBranch?.outerHTML.slice(0, 200),
 );
-// live: a folder renamed changes what is inside it inherits
+// a folder keeping its name (right-click): it still carries it, what is inside no longer inherits it; listed in the settings
+const keepMenu = fakeMenu();
+app.workspace.trigger("file-menu", keepMenu, file(inhSub), "file-explorer");
+keepMenu.sub("TagEverything")?.click("Don't pass its name down (client, work)");
+check(
+  "inherit: keep name: by right-click, the folder keeps its name, its contents lose it, the folders above still pass theirs; saved",
+  (await waitFor(() => inh(inhMemo.path) === "inherit,acme")) && inh(inhSub) === "client,work,inherit,acme" && (await plugin.loadData())?.keptFolderNames?.join() === inhSub,
+  `${keepMenu.sub("TagEverything")?.titles().join(" | ")} / ${inh(inhMemo.path)} / ${inh(inhSub)}`,
+);
+const keptDefs = settingTab?.getSettingDefinitions().find((d) => d.heading === "Folders keeping their name");
+check("inherit: keep name: listed in the settings, with delete", keptDefs?.type === "list" && keptDefs.items?.map((i) => i.name).join() === inhSub && !!keptDefs.onDelete, keptDefs?.items?.map((i) => i.name).join());
+// live: a folder renamed changes what is inside it inherits; a kept name follows its folder
 await app.fileManager.renameFile(vault.getAbstractFileByPath(inhSub), "Inherit/3. Archive");
+check(
+  "inherit: keep name: follows its folder's rename, the contents still without the new name",
+  (await waitFor(() => plugin.settings.keptFolderNames.join() === "Inherit/3. Archive")) && (await waitFor(() => inh("Inherit/3. Archive/memo.md") === "inherit,acme")) && inh("Inherit/3. Archive") === "archive,inherit,acme",
+  `${plugin.settings.keptFolderNames.join()} / ${inh("Inherit/3. Archive/memo.md")}`,
+);
+const passMenu = fakeMenu();
+app.workspace.trigger("file-menu", passMenu, file("Inherit/3. Archive"), "file-explorer");
+passMenu.sub("TagEverything")?.click("Pass its name down again (archive)");
 check("inherit: a folder renamed: its contents inherit its new name at once", await waitFor(() => inh("Inherit/3. Archive/memo.md") === "archive,inherit,acme"), inh("Inherit/3. Archive/memo.md"));
+check("inherit: keep name: passed down again, the list empty", !plugin.settings.keptFolderNames.length, plugin.settings.keptFolderNames.join());
 plugin.settings.inheritFolderTags = false;
 plugin.settings.folderNameTags = false;
 await plugin.saveSettings();

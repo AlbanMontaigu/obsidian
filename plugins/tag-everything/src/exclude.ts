@@ -9,6 +9,7 @@
 import { type RuleConditions, cleanFolder, hasCondition, inFolder, ruleMatches, wordList } from "./inbox.ts";
 import { foldTag } from "./taxonomy.ts";
 import { cleanTagList, nextId } from "./groups.ts";
+import { isUnder } from "./format.ts";
 
 export interface ExcludeRule extends RuleConditions {
   /** "x1", "x2"... */
@@ -130,11 +131,6 @@ export function normalizeExcludeRules(raw: unknown): ExcludeRule[] {
   return out;
 }
 
-/** `path` is `excluded` or inside it (vault paths are exact: no case folding). */
-function under(path: string, excluded: string): boolean {
-  return path === excluded || path.startsWith(`${excluded}/`);
-}
-
 /**
  * Does the exclusion rule cover the item? A file: when it matches the rule (src/inbox.ts `ruleMatches`). A folder:
  * only through a rule with a folder alone, for that folder and the folders inside it (words and extensions are
@@ -155,7 +151,7 @@ export function exclusionOf(
   rules: readonly ExcludeRule[],
   names: ExcludedNames = NO_NAMES,
 ): Exclusion | null {
-  const excluded = paths.find((p) => under(path, p));
+  const excluded = paths.find((p) => isUnder(path, p));
   if (excluded) return { by: "path", path: excluded };
   const byName = nameExclusion(path, isFolder, names);
   if (byName) return byName;
@@ -166,10 +162,5 @@ export function exclusionOf(
 /** Excludes (`on`) or includes again a path. Excluding a folder drops the paths under it: it covers them now. */
 export function setExcluded(paths: readonly string[], path: string, on: boolean): string[] {
   if (!on) return paths.filter((p) => p !== path);
-  return [...paths.filter((p) => !under(p, path)), path];
-}
-
-/** An excluded path stays excluded when it (or a folder above it) is renamed or moved. */
-export function renameExcluded(paths: readonly string[], oldPath: string, newPath: string): string[] {
-  return paths.map((p) => (under(p, oldPath) ? newPath + p.slice(oldPath.length) : p));
+  return [...paths.filter((p) => !isUnder(p, path)), path];
 }

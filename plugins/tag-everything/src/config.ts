@@ -26,6 +26,8 @@ export interface TagEverythingSettings {
   inheritFolderTags: boolean;
   /** A folder's name, split like a tag, is a tag of the folder and of what is in it (src/inherit.ts): never written. On by default. */
   folderNameTags: boolean;
+  /** Folders keeping their name tags to themselves (src/inherit.ts): what is inside them doesn't get them. Set by right-click. */
+  keptFolderNames: string[];
   showBadges: boolean;
   /** Tags without a sidecar colour get a stable colour picked from their name. */
   autoColors: boolean;
@@ -99,6 +101,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   extensionTags: true,
   inheritFolderTags: true,
   folderNameTags: true,
+  keptFolderNames: [],
   showBadges: true,
   autoColors: true,
   badgeScope: "all",
@@ -152,6 +155,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     extensionTags: bool("extensionTags"),
     inheritFolderTags: bool("inheritFolderTags"),
     folderNameTags: bool("folderNameTags"),
+    keptFolderNames: normalizeExcludedPaths(r.keptFolderNames), // a list of folder paths, like the excluded ones
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),
     badgeScope: r.badgeScope === "all" || r.badgeScope === "sidecar" ? r.badgeScope : d.badgeScope,

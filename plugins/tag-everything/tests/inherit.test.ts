@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Inheritance, folderNameTags, inheriting } from "../src/inherit.ts";
+import { Inheritance, folderNameTags, inheriting, setKeptName } from "../src/inherit.ts";
 import { makeRule } from "../src/naming.ts";
 
 const rule = makeRule();
@@ -16,12 +16,13 @@ test("folder name tags: plain words, lower-cased, ordering prefix and liaison wo
   assert.deepEqual(folderNameTags("de", rule), []);
 });
 
-/** A tiny tree: folder paths → stored tags. */
-function tree(stored: Record<string, string[]>, excluded: string[] = []) {
+/** A tiny tree: folder paths → stored tags; `kept`: folders keeping their name to themselves. */
+function tree(stored: Record<string, string[]>, excluded: string[] = [], kept: string[] = []) {
   return {
     ownOf: (p: string) => stored[p] ?? [],
     nameTagsOf: (name: string) => folderNameTags(name, rule),
     excluded: (p: string) => excluded.some((e) => p === e || p.startsWith(e + "/")),
+    keepsName: (p: string) => kept.includes(p),
   };
 }
 
@@ -62,6 +63,23 @@ test("sourceOf: the nearest folder giving the tag", () => {
   assert.equal(inh.sourceOf("Work/Sub/x.pdf", false, "work"), "Work");
   assert.equal(inh.sourceOf("Work/Sub", true, "sub"), "Work/Sub");
   assert.equal(inh.sourceOf("Work/Sub/x.pdf", false, "nope"), null);
+});
+
+test("kept name: the folder still carries its name, what is inside doesn't; its stored tags and the folders above still pass", () => {
+  const inh = new Inheritance({ inherit: true, folderNames: true }, tree({ "1. Projects": ["work"] }, [], ["1. Projects"]));
+  assert.deepEqual(inh.tagsOf("1. Projects", true), ["projects"]);
+  assert.deepEqual(inh.tagsOf("1. Projects/Acme", true), ["acme", "work"]);
+  assert.deepEqual(inh.tagsOf("1. Projects/Acme/report.pdf", false), ["acme", "work"]);
+  assert.deepEqual(inh.tagsOf("1. Projects/x.pdf", false), ["work"]);
+  const nested = new Inheritance({ inherit: false, folderNames: true }, tree({}, [], ["Clients/Acme"]));
+  assert.deepEqual(nested.tagsOf("Clients/Acme/x.pdf", false), ["clients"], "only that folder's name stops");
+});
+
+test("setKeptName: adds once, removes exactly", () => {
+  let kept = setKeptName([], "A", true);
+  kept = setKeptName(kept, "A/B", true);
+  assert.deepEqual(setKeptName(kept, "A", true), ["A/B", "A"], "twice: once");
+  assert.deepEqual(setKeptName(kept, "A", false), ["A/B"], "a folder inside is its own choice");
 });
 
 test("excluded: an excluded folder passes nothing and an excluded item gets nothing", () => {

@@ -108,6 +108,13 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         control: { type: "toggle", key: "folderNameTags" },
       },
       {
+        type: "list",
+        heading: "Folders keeping their name",
+        emptyState: "None. Right-click a folder → TagEverything → Don't pass its name down: the folder keeps its name as a tag, what is inside it no longer gets it (its own tags still pass down).",
+        onDelete: (i: number) => void this.passNameAgain(i),
+        items: this.plugin.settings.keptFolderNames.map((path) => ({ name: path, aliases: ["inherit", "folder name", "keep"] })),
+      },
+      {
         name: "Colour tags automatically",
         desc: "Each tag gets a theme colour picked from its name; a colour stored in a .ts sidecar wins.",
         aliases: ["color"],
@@ -358,6 +365,13 @@ export class TagEverythingSettingTab extends PluginSettingTab {
     const path = this.plugin.settings.excluded[i];
     if (path === undefined) return;
     await this.plugin.setExcluded([path], false);
+    this.update();
+  }
+
+  private async passNameAgain(i: number): Promise<void> {
+    const path = this.plugin.settings.keptFolderNames[i];
+    if (path === undefined) return;
+    await this.plugin.setKeptName(path, false);
     this.update();
   }
 

@@ -33,7 +33,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Put away (where a tagged file belongs), bring in (outside folders) | `putaway.ts` / `bring-in.ts` (pure), `putaway-modal.ts`, `bring-in-watcher.ts`, `bring-in-modal.ts`, `main.ts` `moveFiles` / `renameOwn`; menu entry in `menu.ts`, *To put away* in `inbox-pane.ts` `renderPutAway`, *Suggest better places* in `tools-pane.ts`, the list in `settings.ts` | user guide §13 |
 | Date criteria (created / modified: panel search, inbox, date terms `created:30d` in formulas, groups, explorer box, query blocks) | `dates.ts` (pure), `formula.ts` (`DateExpr`: parse, format, evaluate), `index.ts` `matches` / `dated`, `dialogs.ts` `dateMenu`, `view.ts` `setDates` / `searchExpr`, `explorer.ts` `setDates`, `inbox.ts` `inboxPaths`, `inbox-pane.ts` | user guide §5, §6, §10, §11, §13 |
 | Tag count range (panel All tab, explorer root) | `cloud.ts` (`inCountRange`, `parseBound`), `ui.ts` `countRangeControl`, `view.ts` `countRangeOf` / `setCountRange`, `renderTags`; `explorer.ts` `render` (`keep`) | user guide §5, §10, §14 |
-| Inherited tags (folder tags passed down, folder names as tags) and how they are drawn | `inherit.ts` (pure), `index.ts` `computeView` / `setInheritance`, `items.ts` `markInherited`, `styles.css` `.tag-everything-inherited` | user guide §1 |
+| Inherited tags (folder tags passed down, folder names as tags, folders keeping their name) and how they are drawn | `inherit.ts` (pure), `index.ts` `computeView` / `setInheritance`, `items.ts` `markInherited`, `styles.css` `.tag-everything-inherited`; kept names: `menu.ts` `keptNameEntry`, `main.ts` `setKeptName` / `onRename`, the list in `settings.ts` | user guide §1 |
 | A setting | `config.ts` (shape, default, `normalizeSettings`), `settings.ts` (row) | user guide §14 |
 | The AI assistant guide (`CLAUDE.md` written into a folder) | `guide.ts` (pure), `main.ts` `writeGuide` | user guide §9 |
 | Claude Code suggestions (prompt, flags, answer) | `suggest.ts` (pure), `claude.ts` (process), `suggest-modal.ts`, `main.ts` `suggestTags` / `runClaude` / `addTagsEach` | user guide §9; check a real run by hand (smoke fakes it) |
@@ -56,7 +56,7 @@ and `docs/user-guide.md` when users see it.
 1. A file's tags = name tags ∪ frontmatter tags (`.md` only) ∪ sidecar tags, whatever the settings. A folder's
    tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
    `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, on by
-   default; src/inherit.ts) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
+   default; src/inherit.ts; a folder in `keptFolderNames` keeps its name tags, they don't pass down) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
    (`markInherited`); the TagEverything explorer leaves them out unless its toggle `explorerInheritedTags` (off by
    default) is on. What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
    rules, inbox, consistency, put away) uses `ownTagsOf` / `counts(paths, true)`.

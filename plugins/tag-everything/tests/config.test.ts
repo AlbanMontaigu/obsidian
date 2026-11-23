@@ -47,6 +47,12 @@ test("normalizeSettings: ignored names default to the lists, an emptied box stay
   assert.equal(normalizeSettings({ excludedExtensions: 3 }).excludedExtensions, DEFAULT_SETTINGS.excludedExtensions);
 });
 
+test("normalizeSettings: kept folder names empty by default, cleaned like paths", () => {
+  assert.deepEqual(normalizeSettings({ tagRule: true }).keptFolderNames, []);
+  assert.deepEqual(normalizeSettings({ keptFolderNames: ["/1. Projects/", "1. Projects", 3, " "] }).keptFolderNames, ["1. Projects"]);
+  assert.deepEqual(normalizeSettings({ keptFolderNames: "junk" }).keptFolderNames, []);
+});
+
 test("normalizeSettings: archives hidden by default, tagged archive or archives; an emptied list stays empty", () => {
   const old = normalizeSettings({ tagRule: true }); // a data.json from before the setting
   assert.equal(old.showArchived, false);

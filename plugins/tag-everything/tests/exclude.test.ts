@@ -12,7 +12,6 @@ import {
   parseNames,
   normalizeExcludeRules,
   normalizeExcludedPaths,
-  renameExcluded,
   setExcluded,
 } from "../src/exclude.ts";
 import { saveRule } from "../src/inbox.ts";
@@ -56,13 +55,6 @@ test("setExcluded: adds once, a folder replaces the paths under it; includes aga
   assert.deepEqual(setExcluded(paths, "A", true), ["B", "A"], "twice: once");
   assert.deepEqual(setExcluded(paths, "A", false), ["B"]);
   assert.deepEqual(setExcluded(paths, "A/x.pdf", false), ["B", "A"], "a path covered by a folder stays covered");
-});
-
-test("renameExcluded: follows the item and a folder above it", () => {
-  const paths = ["Old", "Docs/a.pdf", "Oldest"];
-  assert.deepEqual(renameExcluded(paths, "Old", "New"), ["New", "Docs/a.pdf", "Oldest"]);
-  assert.deepEqual(renameExcluded(paths, "Docs", "Papers"), ["Old", "Papers/a.pdf", "Oldest"]);
-  assert.deepEqual(renameExcluded(paths, "Docs/a.pdf", "Docs/b.pdf"), ["Old", "Docs/b.pdf", "Oldest"]);
 });
 
 const defaults = parseNames(DEFAULT_EXCLUDED_FOLDERS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_EXTENSIONS);

@@ -19,7 +19,21 @@ import {
   frontmatterTags,
   setFrontmatterTags,
   withSidecarTags,
+  isUnder,
+  renamePaths,
 } from "../src/format.ts";
+
+test("isUnder: the folder itself or a path inside it, a whole segment, exact case", () => {
+  assert.ok(isUnder("Docs", "Docs") && isUnder("Docs/a/b.pdf", "Docs"));
+  assert.ok(!isUnder("Docs2/a.pdf", "Docs") && !isUnder("docs/a.pdf", "Docs"));
+});
+
+test("renamePaths: each path follows its item and a folder above it", () => {
+  const paths = ["Old", "Docs/a.pdf", "Oldest"];
+  assert.deepEqual(renamePaths(paths, "Old", "New"), ["New", "Docs/a.pdf", "Oldest"]);
+  assert.deepEqual(renamePaths(paths, "Docs", "Papers"), ["Old", "Papers/a.pdf", "Oldest"]);
+  assert.deepEqual(renamePaths(paths, "Docs/a.pdf", "Docs/b.pdf"), ["Old", "Docs/b.pdf", "Oldest"]);
+});
 
 test("parseNameTags reads the first bracket group", () => {
   assert.deepEqual(parseNameTags("report[tax-2024 receipt].pdf"), ["tax-2024", "receipt"]);

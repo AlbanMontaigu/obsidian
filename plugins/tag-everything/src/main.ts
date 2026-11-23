@@ -21,7 +21,8 @@ import { QUERY_HOVER_SOURCE, TagQueryBlock } from "./query-block.ts";
 import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
 import { rulesTags } from "./inbox.ts";
 import { ConsistencyModal, openConsistency } from "./consistency-modal.ts";
-import { type Exclusion, type ExcludedNames, exclusionOf, parseNames, renameExcluded, setExcluded } from "./exclude.ts";
+import { type Exclusion, type ExcludedNames, exclusionOf, parseNames, setExcluded } from "./exclude.ts";
+import { setKeptName } from "./inherit.ts";
 import { BringInWatcher } from "./bring-in-watcher.ts";
 import { archiveTagSet } from "./archive.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
@@ -198,8 +199,8 @@ export default class TagEverythingPlugin extends Plugin {
   }
 
   private syncIndexOptions(): void {
-    const { inheritFolderTags, folderNameTags, stopWords, archiveTags, showArchived } = this.settings;
-    this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags }, stopWords);
+    const { inheritFolderTags, folderNameTags, stopWords, keptFolderNames, archiveTags, showArchived } = this.settings;
+    this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags }, stopWords, keptFolderNames);
     this.index.setArchive(archiveTagSet(archiveTags), showArchived);
   }
 
@@ -215,6 +216,22 @@ export default class TagEverythingPlugin extends Plugin {
       console.error("[tag-everything] saving the archived items option failed", err);
       new Notice(`${PLUGIN_NAME}: the option could not be saved.`);
     }
+  }
+
+  /**
+   * Keeps (`on`) a folder's name tags to the folder itself, or passes them down again (setting `keptFolderNames`,
+   * src/inherit.ts); saving recomputes the inherited tags and redraws.
+   */
+  async setKeptName(folder: string, on: boolean): Promise<void> {
+    this.settings.keptFolderNames = setKeptName(this.settings.keptFolderNames, folder, on);
+    try {
+      await this.saveSettings();
+    } catch (err) {
+      console.error("[tag-everything] saving the kept folder names failed", err);
+      new Notice(`${PLUGIN_NAME}: the option could not be saved.`);
+      return;
+    }
+    new Notice(on ? `${PLUGIN_NAME}: what is inside "${folder}" no longer inherits its name; the folder keeps it.` : `${PLUGIN_NAME}: "${folder}" passes its name down again.`);
   }
 
   /**
@@ -333,13 +350,20 @@ export default class TagEverythingPlugin extends Plugin {
     const own = this.ownRenames.has(item.path);
     const folder = item instanceof TFolder;
     const wasExcluded = !!this.exclusion(oldPath, folder);
-    // An excluded path follows its item (or a folder above it).
-    const excluded = renameExcluded(this.settings.excluded, oldPath, item.path);
-    if (excluded.some((p, i) => p !== this.settings.excluded[i])) {
+    // An excluded path, and a folder keeping its name, follow their item (or a folder above it).
+    const excluded = ts.renamePaths(this.settings.excluded, oldPath, item.path);
+    const kept = ts.renamePaths(this.settings.keptFolderNames, oldPath, item.path);
+    const movedExcluded = excluded.some((p, i) => p !== this.settings.excluded[i]);
+    const movedKept = kept.some((p, i) => p !== this.settings.keptFolderNames[i]);
+    if (movedExcluded) {
       this.settings.excluded = excluded;
       this.exclusionCache.clear();
-      this.saveData(this.settings).catch((err) => console.error("[tag-everything] saving the moved exclusion failed", err));
     }
+    if (movedKept) {
+      this.settings.keptFolderNames = kept;
+      this.syncIndexOptions();
+    }
+    if (movedExcluded || movedKept) this.saveData(this.settings).catch((err) => console.error("[tag-everything] saving the moved paths failed", err));
     this.index.onRename(item, oldPath);
     if (this.hasExclusions()) {
       this.index.prune(item.path, folder); // moved into an excluded folder, or now matching an excluded name or rule

@@ -3,7 +3,8 @@
 //
 // - `inheritFolderTags`: a folder's stored tags (`tsm.json`) pass to every file and folder below it.
 // - `folderNameTags`: a folder's name, split like a tag (naming rule words), is a tag of the folder and of everything
-//   below it.
+//   below it, unless the folder keeps its name to itself (setting `keptFolderNames`, set by right-click): then the
+//   folder still carries it, what is inside doesn't. Its stored tags still pass down.
 
 import { baseOf, parentOf } from "./format.ts";
 import { type NamingRule, suggestFix } from "./naming.ts";
@@ -39,6 +40,14 @@ export interface InheritSource {
   nameTagsOf(folderName: string): readonly string[];
   /** Excluded from the tag engine: passes nothing, gets nothing. */
   excluded(path: string, isFolder: boolean): boolean;
+  /** The folder keeps its name's tags to itself (`keptFolderNames`): they don't pass to what is inside it. */
+  keepsName?(folderPath: string): boolean;
+}
+
+/** Keeps (`on`) a folder's name to itself, or passes it down again: the new `keptFolderNames`, each path once. */
+export function setKeptName(paths: readonly string[], folder: string, on: boolean): string[] {
+  const others = paths.filter((p) => p !== folder);
+  return on ? [...others, folder] : others;
 }
 
 /** One folder's contribution, with the folder it comes from (for "inherited from …"). */
@@ -63,10 +72,11 @@ export class Inheritance {
     this.src = src;
   }
 
-  /** What the folder itself gives (its stored tags with `inherit`, its name's with `folderNames`). */
+  /** What the folder gives to what is inside it (its stored tags with `inherit`, its name's with `folderNames` unless it keeps them). */
   private gives(folder: string): Given[] {
     if (!folder || this.src.excluded(folder, true)) return [];
-    const tags = [...(this.opts.folderNames ? this.src.nameTagsOf(baseOf(folder)) : []), ...(this.opts.inherit ? this.src.ownOf(folder) : [])];
+    const names = this.opts.folderNames && !this.src.keepsName?.(folder);
+    const tags = [...(names ? this.src.nameTagsOf(baseOf(folder)) : []), ...(this.opts.inherit ? this.src.ownOf(folder) : [])];
     return tags.map((tag) => ({ tag, from: folder }));
   }
 

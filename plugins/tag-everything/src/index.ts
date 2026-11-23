@@ -131,6 +131,8 @@ export class TagIndex extends Events {
   private extensionTags: boolean;
   /** Mirrors the settings `inheritFolderTags` / `folderNameTags`: change them with `setInheritance`. */
   private inherit: InheritOptions = { inherit: false, folderNames: false };
+  /** Mirrors the setting `keptFolderNames`: folders whose name tags don't pass down. */
+  private keptNames = new Set<string>();
   private nameRule: NamingRule = makeRule();
   /**
    * While inheritance is on: `entries` plus, for every item of the vault, the tags it inherits; computed on first use
@@ -186,18 +188,28 @@ export class TagIndex extends Events {
     return this.inheritance?.sourceOf(path, this.app.vault.getAbstractFileByPath(path) instanceof TFolder, tag) ?? null;
   }
 
+  /** The tags a folder's name gives (with the settings' liaison words), whether or not `folderNameTags` is on. */
+  nameTagsOf(folderPath: string): string[] {
+    return folderNameTags(ts.baseOf(folderPath), this.nameRule);
+  }
+
   /** Is the tag only inherited (some item inherits it, none stores it)? Tag lists draw it as inherited. */
   onlyInherited(tag: string): boolean {
     this.view();
     return this.inheritedOnly.has(tag);
   }
 
-  /** Turns inheritance on or off, or changes the liaison words that split folder names (settings). */
-  setInheritance(opts: InheritOptions, stopWords: string): void {
+  /**
+   * Turns inheritance on or off, changes the liaison words that split folder names, or the folders keeping their name
+   * to themselves (settings).
+   */
+  setInheritance(opts: InheritOptions, stopWords: string, keptNames: readonly string[] = []): void {
     const rule = makeRule(stopWords);
-    const sameWords = rule.stopWords.size === this.nameRule.stopWords.size && [...rule.stopWords].every((w) => this.nameRule.stopWords.has(w));
-    if (opts.inherit === this.inherit.inherit && opts.folderNames === this.inherit.folderNames && sameWords) return;
+    const same = <T>(a: ReadonlySet<T>, b: ReadonlySet<T>) => a.size === b.size && [...a].every((x) => b.has(x));
+    const kept = new Set(keptNames);
+    if (opts.inherit === this.inherit.inherit && opts.folderNames === this.inherit.folderNames && same(rule.stopWords, this.nameRule.stopWords) && same(kept, this.keptNames)) return;
     this.inherit = { inherit: opts.inherit, folderNames: opts.folderNames };
+    this.keptNames = kept;
     this.nameRule = rule;
     this.inheritedOnly = new Set();
     this.changed();
@@ -219,6 +231,7 @@ export class TagIndex extends Events {
         return tags;
       },
       excluded: (p, isFolder) => this.excluded(p, isFolder),
+      keepsName: (p) => this.keptNames.has(p),
     });
     const out = new Map<string, Stored>();
     const inherited = new Set<string>();

@@ -44,6 +44,11 @@ Other fields of a sidecar or `tsm.json` (id, description, colours…) and other 
 - *Folder names as tags*: a folder's name is a tag of the folder and of everything inside it, split like a new tag
   (lower-case words, liaison words and a leading ordering number left out): `1. Projects/B27 Board/memo.pdf` carries
   `projects`, `b27` and `board`.
+  A folder whose name is only noise for what is inside it (a PARA top folder, `Resources`, `Inbox`) can keep its name
+  to itself: right-click it → *TagEverything → Don't pass its name down (projects)*. The folder still carries its name
+  as a tag; the files and folders inside it no longer get it, but they still get the folder's own tags and the names
+  and tags of the folders above. *Pass its name down again* undoes it; *Settings → Folders keeping their name* lists
+  these folders (delete a row to pass the name down again). The choice follows the folder when it is renamed or moved.
 
 Inherited tags are **computed, never written**: no file is renamed, no sidecar or frontmatter changes, and turning the
 settings off removes them. They are drawn apart everywhere they show: *in italics, with a dotted outline and a ↳
@@ -74,7 +79,8 @@ inherited tags only gets no pill (its folder shows them).
 ### Archived items
 
 An item carrying the tag **archive** or **archives** (*Settings → Archives → Archive tags*) is archived: its own tag
-or one it inherits, so a folder tagged `archive`, or named `4. Archives`, archives everything in it. Archived items
+or one it inherits, so a folder tagged `archive`, or named `4. Archives`, archives everything in it (by its name only
+while it passes its name down, Section 1). Archived items
 are **hidden by default** from the panel (tag counts, groups, results), the TagEverything explorer, its inbox and
 query blocks. Their tags stay as they are, and renaming or reviewing tags still reaches them.
 
@@ -596,6 +602,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
 | Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written; the TagEverything explorer uses inherited tags only with its folder-tree icon on (Section 10, off by default) |
 | Folder names as tags | On | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written; listed in the panel's *Inherited* section (Section 5) |
+| Folders keeping their name | None | Section 1: folders whose name stays on the folder and doesn't pass to what is inside; set by right-click (*Don't pass its name down*), a row deleted passes it down again |
 | Colour tags automatically | On | Section 8 |
 | Archives: *Archive tags* / *Show archived items* | `archive, archives` / Off | Section 2: items carrying one of these tags (own or inherited) are hidden from the panel, the explorer, the inbox and query blocks; the archive icon in each of them is the same switch. Empty list: nothing archived |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |

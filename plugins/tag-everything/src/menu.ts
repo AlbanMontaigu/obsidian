@@ -66,6 +66,8 @@ export function fileMenuEntries(plugin: TagEverythingPlugin, file: TAbstractFile
     entries.push({ title: "Show the inbox of this folder", icon: "inbox", run: () => void plugin.focusInbox(file.isRoot() ? "" : file.path) });
     entries.push({ title: "Check tag consistency", icon: "list-checks", run: () => void plugin.checkConsistency(file) });
     entries.push({ title: "Write a guide for AI assistants (CLAUDE.md)", icon: "bot", run: () => void plugin.writeGuide(file) });
+    const kept = keptNameEntry(plugin, file);
+    if (kept) entries.push(kept);
   }
   if (taggable) entries.push({ title: "Exclude from the tag engine", icon: "eye-off", run: () => void plugin.setExcluded([file.path], true) });
   return entries;
@@ -104,6 +106,20 @@ function putAwayEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile
   const n = putAwayPlan(plugin, items).size;
   if (!n) return null;
   return { title: `Put away in the usual folder (${plural(n, "file")})`, icon: "folder-input", run: () => void openPutAway(plugin, items) };
+}
+
+/**
+ * "Don't pass its name down" / "Pass its name down again" (setting `keptFolderNames`, src/inherit.ts): only while
+ * folder names are tags, on a folder whose name gives some.
+ */
+function keptNameEntry(plugin: TagEverythingPlugin, folder: TFolder): MenuEntry | null {
+  if (folder.isRoot() || !plugin.settings.folderNameTags) return null;
+  const tags = plugin.index.nameTagsOf(folder.path);
+  if (!tags.length) return null;
+  const on = plugin.settings.keptFolderNames.includes(folder.path);
+  return on
+    ? { title: `Pass its name down again (${tags.join(", ")})`, icon: "link", run: () => void plugin.setKeptName(folder.path, false) }
+    : { title: `Don't pass its name down (${tags.join(", ")})`, icon: "unlink", run: () => void plugin.setKeptName(folder.path, true) };
 }
 
 /** The entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */

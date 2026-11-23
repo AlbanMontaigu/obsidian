@@ -89,5 +89,8 @@ entry of the area you change; add one when you leave a limit behind (users' side
   always follow the naming rule's split (even with the rule off) and can't be renamed (rename the folder); a group or
   query block naming one keeps it after the folder is renamed (faded). The core explorer's pill counts stored tags only
   (no pill for inherited-only files, to keep thousands of rows quiet). The tag editor doesn't show inherited tags.
+  A folder keeping its name (`keptFolderNames`) is set one folder at a time (no multi-selection entry, no
+  "every folder named X" rule) and has no mark in the explorers: its right-click menu and the settings list say it. A
+  kept folder that is deleted stays in the list until its row is removed (harmless).
 - Ideas: colours editable in settings; tag search in the quick switcher; a command to move a note's name tags into
   its frontmatter (renames the note, so opt-in); a rename / merge that also rewrites query blocks.

@@ -204,6 +204,16 @@ export function joinPath(dir: string, name: string): string {
   return dir && dir !== "/" ? `${dir}/${name}` : name;
 }
 
+/** `path` is `folder` or inside it (vault paths are exact: no case folding). */
+export function isUnder(path: string, folder: string): boolean {
+  return path === folder || path.startsWith(`${folder}/`);
+}
+
+/** A list of saved paths after `oldPath` was renamed or moved: each path follows its item or a folder above it. */
+export function renamePaths(paths: readonly string[], oldPath: string, newPath: string): string[] {
+  return paths.map((p) => (isUnder(p, oldPath) ? newPath + p.slice(oldPath.length) : p));
+}
+
 /** `.ts` folder that holds the metadata of the entries inside `folderPath` (vault root = "" or "/"). */
 export function metaDirOf(folderPath: string): string {
   return joinPath(folderPath, META_DIR);
