@@ -222,7 +222,8 @@
 /* Date criteria (src/dates.ts): the calendar icon of the panel's bar and the inbox's Dates button turn to the accent
    colour while a criterion is set; in the search, a criterion is a chip with a calendar icon. */
 .tag-everything-dates-button.is-active,
-.tag-everything-ext-toggle.is-active {
+.tag-everything-ext-toggle.is-active,
+.tag-everything-inherited-toggle.is-active {
   color: var(--interactive-accent);
 }
 

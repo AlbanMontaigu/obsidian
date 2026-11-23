@@ -92,6 +92,13 @@ test("normalizeSettings: the All tab's count range, off by default with 10–100
   assert.equal(normalizeSettings({ tagRangeMax: -1 }).tagRangeMax, 100);
 });
 
+test("explorerInheritedTags: off by default, a boolean kept, anything else back to off", () => {
+  assert.equal(DEFAULT_SETTINGS.explorerInheritedTags, false);
+  assert.equal(normalizeSettings({}).explorerInheritedTags, false);
+  assert.equal(normalizeSettings({ explorerInheritedTags: true }).explorerInheritedTags, true);
+  assert.equal(normalizeSettings({ explorerInheritedTags: 1 }).explorerInheritedTags, false);
+});
+
 test("panelExtensionTags: off by default, a boolean kept, anything else back to off", () => {
   assert.equal(normalizeSettings({}).panelExtensionTags, false);
   assert.equal(normalizeSettings({ panelExtensionTags: true }).panelExtensionTags, true);

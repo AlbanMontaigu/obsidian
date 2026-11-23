@@ -108,6 +108,7 @@ export class TagIndex extends Events {
    */
   private scanLog: ((sides: Map<string, string[]>) => void)[] | null = null;
   private countsCache: Map<string, number> | null = null;
+  private storedCountsCache: Map<string, number> | null = null;
   private rankedCache: string[] | null = null;
   /** False until the first scan is done: until then, an empty index does not mean "no tags". */
   ready = false;
@@ -154,6 +155,11 @@ export class TagIndex extends Events {
   /** The tags an edit can change (name, frontmatter, sidecar): no extension tag, no inherited one. Do not mutate. */
   ownTagsOf(path: string): readonly string[] {
     return (this.entries.get(path) ?? EMPTY).own;
+  }
+
+  /** The extension tag, then the item's own tags: `tagsOf` without the inherited ones. Do not mutate. */
+  storedTagsOf(path: string): readonly string[] {
+    return (this.entries.get(path) ?? EMPTY).all;
   }
 
   /** The item's own tags, then the ones it inherits: what the explorers show (no extension tag). Do not mutate. */
@@ -233,13 +239,17 @@ export class TagIndex extends Events {
     return f instanceof TFile && inRange(field === "created" ? f.stat.ctime : f.stat.mtime, range, now);
   }
 
-  /** Does the item match the formula: its tags, and its file's dates for the date terms (looked up only for those). */
-  matches(expr: Expr, path: string, now = Date.now()): boolean {
-    return evaluate(expr, (t) => this.hasTag(path, t), (field, range) => this.dated(path, field, range, now));
+  /**
+   * Does the item match the formula: its tags, and its file's dates for the date terms (looked up only for those).
+   * `inherited` false: its stored tags only (`storedTagsOf`), as the explorer with its inherited tags hidden.
+   */
+  matches(expr: Expr, path: string, now = Date.now(), inherited = true): boolean {
+    return evaluate(expr, (t) => this.hasTag(path, t, inherited), (field, range) => this.dated(path, field, range, now));
   }
 
-  hasTag(path: string, tag: string): boolean {
-    return (this.view().get(path) ?? EMPTY).set.has(tag);
+  /** Does the item carry the tag; `inherited` false: among its stored tags (and its extension tag) only. */
+  hasTag(path: string, tag: string, inherited = true): boolean {
+    return ((inherited ? this.view() : this.entries).get(path) ?? EMPTY).set.has(tag);
   }
 
   /** Colour stored for the tag in a `.ts` sidecar, if any. */
@@ -252,9 +262,9 @@ export class TagIndex extends Events {
     return this.colorMap.get(tag) ?? (this.autoColors ? autoColor(tag) : undefined);
   }
 
-  /** Every item with a tag (stored, extension or inherited). */
-  paths(): string[] {
-    return [...this.view().keys()];
+  /** Every item with a tag (stored, extension or inherited); `inherited` false: with a stored or an extension tag. */
+  paths(inherited = true): string[] {
+    return [...(inherited ? this.view() : this.entries).keys()];
   }
 
   get size(): number {
@@ -274,6 +284,14 @@ export class TagIndex extends Events {
     return out;
   }
 
+  /** Tag -> number of items over `storedTagsOf` (extension and stored tags, no inherited one), cached until the next change. */
+  storedCounts(): ReadonlyMap<string, number> {
+    if (this.storedCountsCache) return this.storedCountsCache;
+    const out = new Map<string, number>();
+    for (const e of this.entries.values()) for (const t of e.all) out.set(t, (out.get(t) ?? 0) + 1);
+    return (this.storedCountsCache = out);
+  }
+
   /** Tags sorted by use, most used first (cached until the next change). Do not mutate. */
   ranked(): readonly string[] {
     this.rankedCache ??= [...this.counts()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
@@ -282,6 +300,7 @@ export class TagIndex extends Events {
 
   private changed(): void {
     this.countsCache = null;
+    this.storedCountsCache = null;
     this.rankedCache = null;
     this.viewCache = null;
     this.notify();

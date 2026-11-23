@@ -1819,10 +1819,22 @@ check(
 check("inherit: a file with inherited tags only gets no pill", !rowOf(inhMemo.path)?.querySelector(":scope > .tag-everything-count"));
 await snap("inherit"); // the panel's results and the badge list, inherited tags drawn apart
 inhPill?.dispatchEvent(new MouseEvent("mouseleave"));
-// the TagEverything explorer: a tag only folders give is a branch drawn apart, with no rename menu
+// the TagEverything explorer: inherited tags hidden by default; its toggle shows them, a tag only folders give then a
+// branch drawn apart, with no rename menu
 const inhExplorer = await plugin.openExplorer();
 await sleep(300);
-const inhBranch = [...(inhExplorer?.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag") ?? [])].find((r) => r.dataset.tag === "work");
+const inhRow = (t) => [...(inhExplorer?.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag") ?? [])].find((r) => r.dataset.tag === t);
+const inhToggle = () => inhExplorer?.contentEl.querySelector(".tag-everything-inherited-toggle");
+check(
+  "inherit: explorer: inherited tags hidden by default (no folder-only branch, the memo nowhere), the toggle shown, not active",
+  plugin.settings.explorerInheritedTags === false && !inhRow("work") && !!inhRow("acme") && !inhRow("acme").classList.contains("tag-everything-inherited") &&
+    inhToggle()?.isShown() && !inhToggle().classList.contains("is-active"),
+  [...(inhExplorer?.contentEl.querySelectorAll(".tag-everything-explorer-row.is-tag") ?? [])].map((r) => r.dataset.tag).join(),
+);
+inhToggle()?.click();
+await sleep(300);
+const inhBranch = inhRow("work");
+check("inherit: explorer: the toggle shows them, saved", !!inhBranch && inhToggle()?.classList.contains("is-active") && (await plugin.loadData())?.explorerInheritedTags === true);
 check(
   "inherit: explorer: a tag only folders give is a branch drawn apart; a stored one is not",
   inhBranch?.classList.contains("tag-everything-inherited") && getComputedStyle(inhBranch.querySelector(".tag-everything-explorer-name")).fontStyle === "italic" &&
@@ -1837,6 +1849,9 @@ plugin.settings.folderNameTags = false;
 await plugin.saveSettings();
 await sleep(300);
 check("inherit: both off: nothing inherited, the note back out of the index's tags", inh("Inherit/3. Archive/memo.md") === "" && !plugin.index.onlyInherited("archive") && !plugin.index.hasTag("Inherit/3. Archive/memo.md", "acme"));
+check("inherit: explorer: both off: its toggle hidden (nothing to show)", await waitFor(() => !inhToggle()?.isShown()));
+plugin.settings.explorerInheritedTags = false;
+await plugin.saveSettings();
 view.showAll();
 await sleep(300);
 check("inherit: section: hidden when no tag is only inherited", !inhHead().isShown() && !inhSection().isShown());

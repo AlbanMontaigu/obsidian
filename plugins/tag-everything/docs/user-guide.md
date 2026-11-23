@@ -47,9 +47,10 @@ Other fields of a sidecar or `tsm.json` (id, description, colours…) and other 
 
 Inherited tags are **computed, never written**: no file is renamed, no sidecar or frontmatter changes, and turning the
 settings off removes them. They are drawn apart everywhere they show: *in italics, with a dotted outline and a ↳
-before them* (panel chips and results, query blocks, the badges' list, the TagEverything explorer, where a tag given
-only by folders is a branch in italics with a folder-tree icon). Hover one: it says which folder it comes from. They
-count in every search, formula, group, query block and tag count, but not in what edits or checks the tags you wrote:
+before them* (panel chips and results, query blocks, the badges' list, and the TagEverything explorer once you show
+them there, where a tag given only by folders is a branch in italics with a folder-tree icon). Hover one: it says which
+folder it comes from. They count in every search, formula, group, query block and tag count (the TagEverything
+explorer leaves them out until you turn them on with its folder-tree icon, Section 10), but not in what edits or checks the tags you wrote:
 the tag editor, *Check tag names*, rename / merge, the review, tag consistency, auto-tag rules and the inbox (a file
 with inherited tags only is still untagged there). To change one, edit the folder's tags or rename the folder. In the
 file explorer, a pill counts the item's own tags; hovering it lists them, then the inherited ones; a file with
@@ -296,6 +297,12 @@ the inbox of Section 13 (rule tags, the ⋮ menu of actions), so you can empty i
   one with the **calendar** icon next to the box (the same menu as the panel's; it replaces the box's dates); each is
   a chip with a × (*created in the last 30 days*), and the icon turns to the accent colour. Enter also opens the tags every match carries (`tax receipt` → *tax › receipt*); Escape
   clears the box. The search is not remembered across restarts.
+- Next to the calendar, the **folder-tree** icon shows or hides the **inherited tags** (Section 1: folder tags passed
+  down, folder names). **Off by default**: the tree and the search box use only the tags you wrote, so a folder's
+  name or tags don't repeat as branches over everything inside it, and a file with inherited tags only isn't in the
+  tree. Click it (it turns to the accent colour) to branch on them too: a tag only folders give is then a branch in
+  italics with a folder-tree icon, and the search box finds items by them. Remembered; hidden while both inheritance
+  settings are off.
 - Under the box, **used [10] to [100] times  See all**: the same numbers as the panel's All tab (Section 5); once the
   range is on, the root holds only the tags used that many times (the line under it reads *12 of 180 tags*, and says
   so when none is in the range). Type other numbers (an empty second
@@ -561,7 +568,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Lower-case new tags | Off | Only used while the naming rule is off (the rule implies it) |
 | Move .ts metadata with renamed files | On | A file renamed or moved in Obsidian takes its sidecar and thumbnail along. Off: they stay under the old name, so the file loses its sidecar tags; the files of a renamed folder keep theirs (the folder's `.ts` moves with it) |
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
-| Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written |
+| Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written; the TagEverything explorer uses inherited tags only with its folder-tree icon on (Section 10, off by default) |
 | Folder names as tags | On | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written; listed in the panel's *Inherited* section (Section 5) |
 | Colour tags automatically | On | Section 8 |
 | Tags panel: *Only tags used a number of times* / *Used at least* / *Used at most* | Off / 10 / 100 | Sections 5 and 10: the panel's All tab and the explorer's root show only the tags used that many times (*at most* 0: no limit); their boxes and *See all* change the same values |

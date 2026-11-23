@@ -65,6 +65,11 @@ export interface TagEverythingSettings {
   panelExtensionTags: boolean;
   /** The panel's Inherited section (the tags only folders give) is folded: only its heading shows. */
   panelInheritedCollapsed: boolean;
+  /**
+   * The TagEverything explorer's tree and search use the inherited tags too (src/inherit.ts). Off by default: the tree
+   * holds the stored tags only, so the folders don't repeat themselves as tags.
+   */
+  explorerInheritedTags: boolean;
   /** Tag groups of the TagEverything panel (src/groups.ts). Edited in the panel, not in the settings tab. */
   groups: TagGroup[];
   /** Sections of the panel's All tab (src/sections.ts; bookmark tabs before 0.37, same key). Edited in the panel. */
@@ -99,6 +104,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   tagRangeMax: 100,
   panelExtensionTags: false,
   panelInheritedCollapsed: false,
+  explorerInheritedTags: false,
   groups: [],
   tabs: [],
 };
@@ -146,6 +152,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     tagRangeMax: int("tagRangeMax", 0, 1_000_000),
     panelExtensionTags: bool("panelExtensionTags"),
     panelInheritedCollapsed: bool("panelInheritedCollapsed"),
+    explorerInheritedTags: bool("explorerInheritedTags"),
     groups,
     tabs: normalizeSections(r.tabs, groups.map((g) => g.id)),
   };

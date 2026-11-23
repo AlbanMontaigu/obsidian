@@ -56,7 +56,8 @@ and `docs/user-guide.md` when users see it.
    tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
    `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, on by
    default; src/inherit.ts) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
-   (`markInherited`). What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
+   (`markInherited`); the TagEverything explorer leaves them out unless its toggle `explorerInheritedTags` (off by
+   default) is on. What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
    rules, inbox, consistency, put away) uses `ownTagsOf` / `counts(paths, true)`.
 2. The format stays compatible with `docs/format.md`. Never write `tsi.json` / `tsl.json`.
 3. Never lose a tag: rename, then frontmatter, then sidecar. Kept tags never move between name and frontmatter; tags

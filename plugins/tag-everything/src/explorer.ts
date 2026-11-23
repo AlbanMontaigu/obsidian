@@ -1,4 +1,4 @@
-import { HoverParent, HoverPopover, ItemView, Menu, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
+import { HoverParent, HoverPopover, ItemView, Menu, Notice, TAbstractFile, TFile, TFolder, ViewStateResult, WorkspaceLeaf, debounce, setIcon, setTooltip } from "obsidian";
 import { compareItems, joinFormula, tagNode, treeSearch } from "./explore.ts";
 import { FormulaTagSuggest } from "./dialogs.ts";
 import { type DateExpr, type Expr, formatFormula, formulaTags, prune, requiredTags, resolveTags, topDates, tryParseFormula, withTopDates } from "./formula.ts";
@@ -77,6 +77,10 @@ export class TagExplorerView extends ItemView implements HoverParent {
   private inputEl!: HTMLInputElement;
   /** The calendar icon of the search bar: marked while the formula has dates. */
   private datesEl!: HTMLElement;
+  /** The search bar's inherited tags toggle (setting `explorerInheritedTags`): marked while they are shown. */
+  private inheritedEl!: HTMLElement;
+  /** Tag -> items, over the tags the tree uses (inherited ones only while shown); refreshed by each render. */
+  private known: ReadonlyMap<string, number> = new Map();
   private statusEl!: HTMLElement;
   private treeEl!: HTMLElement;
   /** Under the search box: the tag count range, shared with the panel's All tab (src/ui.ts `countRangeControl`). */
@@ -131,7 +135,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
       if (evt.target === box) search.focus();
     });
     const index = this.plugin.index;
-    new FormulaTagSuggest(this.app, search, () => index.ranked(), (t) => index.counts().get(t) ?? 0, () => this.commit());
+    new FormulaTagSuggest(this.app, search, () => index.ranked().filter((t) => this.known.has(t)), (t) => this.known.get(t) ?? 0, () => this.commit());
     search.addEventListener("input", () => {
       this.query = search.value;
       this.render();
@@ -162,6 +166,17 @@ export class TagExplorerView extends ItemView implements HoverParent {
       this.commit();
       const r = dates.getBoundingClientRect();
       dateMenu(topDates(this.chips), (f) => this.setDates(f)).showAtPosition({ x: r.left, y: r.bottom });
+    });
+    // Inherited tags (folder tags passed down, folder names) in the tree and the search: off by default.
+    const inherited = (this.inheritedEl = bar.createDiv({ cls: "clickable-icon tag-everything-inherited-toggle" }));
+    setIcon(inherited, "folder-tree");
+    clickable(inherited, () => {
+      this.plugin.settings.explorerInheritedTags = !this.plugin.settings.explorerInheritedTags;
+      this.render();
+      this.plugin.saveSettings().catch((err) => {
+        console.error("[tag-everything] saving the inherited tags option failed", err);
+        new Notice(`${PLUGIN_NAME}: the option could not be saved.`);
+      });
     });
     const collapse = bar.createDiv({ cls: "clickable-icon tag-everything-explorer-collapse", attr: { "aria-label": "Close every tag" } });
     setIcon(collapse, "chevrons-down-up");
@@ -237,7 +252,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     if (!this.query.trim()) return;
     const r = tryParseFormula(joinFormula(this.chips, this.query));
     if ("error" in r) return;
-    this.chips = resolveTags(r.expr, [...this.plugin.index.counts().keys()]);
+    this.chips = resolveTags(r.expr, [...this.known.keys()]);
     this.parsed = null;
     this.inputEl.value = this.query = "";
     this.render();
@@ -297,12 +312,16 @@ export class TagExplorerView extends ItemView implements HoverParent {
       this.contentEl.scrollTop = scroll;
       return;
     }
+    const inherited = this.showsInherited();
+    this.known = inherited ? index.counts() : index.storedCounts();
+    this.renderInheritedToggle(inherited);
     this.renderChips();
-    const search = treeSearch(joinFormula(this.chips, this.query), [...index.counts().keys()], this.parsed ?? this.chips);
+    const search = treeSearch(joinFormula(this.chips, this.query), [...this.known.keys()], this.parsed ?? this.chips);
     this.parsed = search.parsed;
     const expr = (this.applied = search.expr);
     const now = Date.now();
-    const paths = expr ? index.paths().filter((p) => index.matches(expr, p, now)) : index.paths();
+    const all = index.paths(inherited);
+    const paths = expr ? all.filter((p) => index.matches(expr, p, now, inherited)) : all;
     this.datesEl.toggleClass("is-active", hasDates(topDates(this.chips)));
     // The count range keeps the root to the tags that matter, as in the panel's All tab; not while a formula filters
     // the tree (its counts are within what it finds), and an open tag stays.
@@ -310,7 +329,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.range.update(range);
     const keep = range.on && !expr ? (tag: string, n: number): boolean => inCountRange(n, range) || this.expanded.has(keyOf([tag])) : undefined;
     const root = this.renderNode(this.treeEl, [], paths, keep);
-    const tagged = root.paths.filter((p) => index.shownTagsOf(p).length).length;
+    const tagged = root.paths.filter((p) => this.treeTagsOf(p).length).length;
     const found = expr ? `${plural(tagged, "item")} ${tagged === 1 ? "matches" : "match"} ${formatFormula(expr)}` : null;
     const shown = keep ? root.tags.filter(([t, n]) => keep(t, n)).length : root.tags.length;
     const tagsText = shown < root.tags.length ? `${shown} of ${plural(root.tags.length, "tag")}` : plural(root.tags.length, "tag");
@@ -327,10 +346,33 @@ export class TagExplorerView extends ItemView implements HoverParent {
     this.contentEl.scrollTop = scroll;
   }
 
+  /**
+   * Does the tree use the inherited tags (src/inherit.ts)? Only when the user turned them on here (setting
+   * `explorerInheritedTags`, off by default) and inheritance is on in the settings.
+   */
+  private showsInherited(): boolean {
+    const s = this.plugin.settings;
+    return s.explorerInheritedTags && (s.inheritFolderTags || s.folderNameTags);
+  }
+
+  /** The tags the tree branches on for an item: its own, then its inherited ones while they are shown. No extension tag. */
+  private treeTagsOf(path: string): readonly string[] {
+    return this.showsInherited() ? this.plugin.index.shownTagsOf(path) : this.plugin.index.ownTagsOf(path);
+  }
+
+  /** The inherited tags toggle: hidden while inheritance is off in the settings (nothing to show), marked while on. */
+  private renderInheritedToggle(on: boolean): void {
+    const s = this.plugin.settings;
+    this.inheritedEl.toggle(s.inheritFolderTags || s.folderNameTags);
+    this.inheritedEl.toggleClass("is-active", on);
+    this.inheritedEl.setAttr("aria-label", on ? "Inherited tags shown (from the folders): click to hide them" : "Show the inherited tags (from the folders: their tags, their names)");
+    this.inheritedEl.setAttr("aria-pressed", String(on));
+  }
+
   /** The box's chips, between their AND / OR / NOT, each with a × that removes it; a tag no item carries is faded. */
   private renderChips(): void {
     const index = this.plugin.index;
-    const counts = index.counts();
+    const counts = this.known;
     this.chipsEl.empty();
     this.inputEl.placeholder = this.chips ? "" : "Search: tag1 OR tag2…";
     if (!this.chips) return;
@@ -384,7 +426,7 @@ export class TagExplorerView extends ItemView implements HoverParent {
    */
   private renderNode(parent: HTMLElement, trail: readonly string[], paths: Iterable<string>, keep?: (tag: string, n: number) => boolean): ReturnType<typeof tagNode> {
     const index = this.plugin.index;
-    const node = tagNode(paths, (p) => index.shownTagsOf(p), trail);
+    const node = tagNode(paths, (p) => this.treeTagsOf(p), trail);
     for (const [tag, n] of node.tags) {
       if (keep && !keep(tag, n)) continue;
       const branch = [...trail, tag];
