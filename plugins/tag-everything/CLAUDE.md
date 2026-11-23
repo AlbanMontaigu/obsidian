@@ -44,7 +44,7 @@ file also carries its extension as a derived, never-written tag. UI, per the roo
 | Tag consistency (a folder's usual tags, the files without them, misspelled ones) | `consistency.ts` (pure), `consistency-modal.ts`, `main.ts` `checkConsistency` / `editEach` | user guide §12 |
 | Inbox, auto-tag rules, auto-tag on arrival, inbox folder | `inbox.ts` (pure), `inbox-pane.ts` (`inboxFiles`, the tab count; `InboxPane`, drawn in the explorer's Inbox tab), `rule-modal.ts`, `main.ts` `ruleTagsOf` / `ruleTargets` / `applyRulesTo` / `tagArrivals`; rules list in `settings.ts` | user guide §13 |
 | A new action or view | Targeted: an entry in `menu.ts` `fileMenuEntries` / `filesMenuEntries`. Vault-wide: a row in `tools-pane.ts`. Something to browse: a page of the panel (`view.ts` `PanelPage`). An option: `settings.ts`. Never a new sidebar view, ribbon icon or settings action (root `CLAUDE.md`, *Four UI surfaces*) | user guide §5, §14 |
-| Exclusions (paths, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
+| Exclusions (paths, ignored names with their defaults, rules, what an excluded item is left out of) | `exclude.ts` (pure), `main.ts` `exclusion` / `hasExclusions` / `excludedNamesChanged` / `taggable` / `setExcluded`, `index.ts` `excluded` / `prune`, `badges.ts` (icon) | user guide §13; anything new that lists or writes items without going through the index must check `plugin.isExcluded` |
 | Shared DOM bits (keyboard buttons, chip colour, autocomplete) | `ui.ts`: reuse before writing a new one | |
 
 Every change also updates `docs/architecture.md` (module reference, diagrams) when a module's role or a flow changes,
@@ -76,7 +76,7 @@ and `docs/user-guide.md` when users see it.
    prompt or the schema), the prompt on stdin.
 8. Auto-tagging only adds tags (`addTagsEach`, the usual write path): a rule never removes or renames a tag, and
    runs on a new file only when the user turned `autoApplyRules` on (off by default).
-9. An excluded item (src/exclude.ts) is never in the index and never written (`applyOne` throws); excluding or
+9. An excluded item (src/exclude.ts: by hand, by an ignored name of the settings, or by a rule) is never in the index and never written (`applyOne` throws); excluding or
    including touches only `data.json`, never the item's tags. An excluded path follows its item's renames.
 
 ## Tests
@@ -91,7 +91,7 @@ Unit tests (`node --test plugins/tag-everything/tests/<file>`), one file per pur
 name starts with its area: `file-menu:`, `rebuild:`, `editor:`, `rule:`, `cloud:`, `badges:`, `settings:`,
 `groups:`, `panel:`, `formula:`, `NOT:`, `selection tab:`, `formula button:`, `range:`, `fix:`, `command:`,
 `guide:`, `suggest:`, `query:`, `rename:`, `review:`, `consistency:`, `put away:`, `bring in:`, `sections:`, `inbox:`, `menu:`, `tools:`, `exclude:`, `exclude rule:`,
-`ext:`, `dates:`, `inherit:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
+`ignore:`, `ext:`, `dates:`, `inherit:`, `explorer:`, `explorer range:`. Find what covers your change with `grep -n 'check("<area>' tests/smoke.js`
 and print only those with `--only "<area>"`. Order and state to know: the first part runs the name / sidecar
 engine with `noteTagsInFrontmatter` off, then turns it on; the count range is off by default (the fixture's
 tags are used once or twice; its section turns it on); extension tags are off for the engine sections and checked in their own section (with the panel's extension toggle

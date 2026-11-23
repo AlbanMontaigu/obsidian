@@ -1575,6 +1575,42 @@ document.querySelectorAll(".notice").forEach((n) => n.remove());
   document.querySelectorAll(".notice").forEach((n) => n.remove());
 }
 
+// ---- ignored names (settings, with defaults): folder names, file names, extensions; ignored like any exclusion
+{
+  const group = settingTab.getSettingDefinitions().find((d) => d.heading === "Ignored names");
+  check(
+    "ignore: three boxes in the settings, filled with the defaults",
+    group?.items?.map((i) => i.control?.key).join() === "excludedFolders,excludedFiles,excludedExtensions" && /__pycache__/.test(plugin.settings.excludedFolders) && /^\.\*/.test(plugin.settings.excludedFiles) && /\btmp\b/.test(plugin.settings.excludedExtensions),
+    JSON.stringify([plugin.settings.excludedFolders, plugin.settings.excludedFiles, plugin.settings.excludedExtensions]),
+  );
+  await vault.createFolder("Scratch/tmp");
+  await vault.createFolder("Scratch/__pycache__");
+  await vault.create("Scratch/kept[keep].pdf", "x");
+  await vault.create("Scratch/tmp/b[gone].pdf", "x");
+  await vault.create("Scratch/__pycache__/m[gone].txt", "x");
+  await vault.create("Scratch/c[gone].bak", "x");
+  await vault.create("Scratch/~$d[gone].docx", "x");
+  // dot-folders and dot-files never reach the plugin (the Vault API does not list them): unit-tested only
+  await waitFor(() => plugin.index.paths().includes("Scratch/kept[keep].pdf"));
+  await sleep(300);
+  const scratch = plugin.index.paths().filter((p) => p.startsWith("Scratch/"));
+  check("ignore: tmp and __pycache__ folders, .bak and ~$ files left out of the index", scratch.join() === "Scratch/kept[keep].pdf" && !plugin.index.counts().get("gone"), scratch.join());
+  const igMenu = fakeMenu();
+  app.workspace.trigger("file-menu", igMenu, file("Scratch/tmp/b[gone].pdf"), "file-explorer");
+  check("ignore: an ignored file's menu points to the settings", igMenu.sub("TagEverything")?.titles().join() === 'Excluded by the folder name "tmp": change it in the settings', igMenu.sub("TagEverything")?.titles().join(" | "));
+  plugin.badges.refresh();
+  const tmpEye = app.workspace.getLeavesOfType("file-explorer")[0]?.view.fileItems?.["Scratch/tmp"]?.selfEl?.querySelector(":scope > .tag-everything-excluded");
+  check("ignore: eye-off icon says which name", /by the folder name "tmp"/.test(tmpEye?.getAttribute("aria-label") ?? ""), tmpEye?.getAttribute("aria-label"));
+  // a name taken out of the box: once typing stops, the index is re-read and the folder comes back
+  const folders = plugin.settings.excludedFolders;
+  await settingTab.setControlValue("excludedFolders", folders.replace(/\btmp,\s*/, ""));
+  await waitFor(() => plugin.index.paths().includes("Scratch/tmp/b[gone].pdf"), 6000);
+  check("ignore: a name removed in the settings brings its items back", plugin.index.paths().includes("Scratch/tmp/b[gone].pdf") && !/\btmp,/.test(plugin.settings.excludedFolders), plugin.settings.excludedFolders);
+  await settingTab.setControlValue("excludedFolders", folders);
+  await waitFor(() => !plugin.index.paths().includes("Scratch/tmp/b[gone].pdf"), 6000);
+  await vault.delete(file("Scratch"), true);
+}
+
 // ---- extension tags: read from the name, first in the item's tags, before its name in the explorer, never edited
 plugin.settings.extensionTags = true;
 await plugin.saveSettings();

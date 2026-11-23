@@ -540,6 +540,17 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
   the name, extensions) without tags; the dialog says how many files of the vault the rule excludes. A rule with only
   a folder also excludes that folder and every folder inside it.
 - *Settings → Excluded from the tag engine* lists what you excluded by hand; the bin includes it again.
+- **Ignored names** (*Settings → Ignored names*): three boxes, filled in from the start, that you can add to or empty.
+  Everything they match is excluded as above, wherever it is in the vault:
+  - *Ignored folder names*: a folder with one of these names and everything in it. Default
+    `.*, tmp, temp, __pycache__, node_modules, venv` (`.*`: every folder starting with a dot, like `.vscode`, `.git`).
+  - *Ignored file names*: default `.*, ~$*, Thumbs.db, desktop.ini` (dot-files like `.gitignore`, Office lock files).
+  - *Ignored file extensions*: default `tmp, temp, bak, swp, pyc, pyo, crdownload, part`.
+
+  Names are comma separated (a folder name may hold spaces), `*` stands for any characters, `?` for one; case is
+  ignored. Extensions can be typed with or without the dot. The vault is re-read a second after you stop typing. An
+  ignored item's right-click menu says which name ignores it and opens the settings. Obsidian itself already hides
+  dot-folders and dot-files, so the `.*` entries mostly matter if a future Obsidian lists them.
 
 ## 14. Commands and settings
 
@@ -577,6 +588,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | Model | empty | The model that suggests tags and synonyms (`sonnet`, `haiku`: cheaper for many files). Empty: Claude Code's own default |
 | Inbox | | *Open the inbox*; *Days in the inbox* (30); *Inbox folder* (empty: the whole vault); *Tag new files with the rules automatically* (off); *Show dismissed files again* (Section 13) |
 | Auto-tag rules | none | Section 13: click to edit, **+** to add, the bin to delete |
+| Ignored names: folder names / file names / extensions | `.*, tmp, temp, __pycache__, node_modules, venv` / `.*, ~$*, Thumbs.db, desktop.ini` / `tmp, temp, bak, swp, pyc, pyo, crdownload, part` | Section 13: what matches is excluded from the tag engine everywhere; add to the lists or empty them |
 | Excluded from the tag engine | none | Section 13: the files and folders excluded by right-click; the bin includes one again |
 | Bring in files from outside the vault | none | Section 13: folders of your computer whose new files are moved into a vault folder; click to edit, **+** to add, the bin to stop |
 | Exclusion rules | none | Section 13: click to edit, **+** to add, the bin to delete |

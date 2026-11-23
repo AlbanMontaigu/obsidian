@@ -37,6 +37,16 @@ test("normalizeSettings: naming rule on by default, stop words repaired", () => 
   assert.equal(normalizeSettings({ stopWords: 3 }).stopWords, DEFAULT_SETTINGS.stopWords);
 });
 
+test("normalizeSettings: ignored names default to the lists, an emptied box stays empty, wrong types repaired", () => {
+  const old = normalizeSettings({ tagRule: true }); // a data.json from before the setting
+  assert.match(old.excludedFolders, /\.\*.*__pycache__/);
+  assert.match(old.excludedFiles, /^\.\*/);
+  assert.match(old.excludedExtensions, /tmp/);
+  assert.equal(normalizeSettings({ excludedFolders: "" }).excludedFolders, "", "nothing ignored by folder is a choice");
+  assert.equal(normalizeSettings({ excludedFiles: "x" }).excludedFiles, "x");
+  assert.equal(normalizeSettings({ excludedExtensions: 3 }).excludedExtensions, DEFAULT_SETTINGS.excludedExtensions);
+});
+
 test("normalizeSettings: Claude Code program and model, empty by default, trimmed", () => {
   assert.equal(DEFAULT_SETTINGS.claudeCommand, "");
   assert.equal(normalizeSettings({}).claudeModel, "");

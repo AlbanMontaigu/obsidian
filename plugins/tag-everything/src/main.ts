@@ -21,7 +21,7 @@ import { QUERY_HOVER_SOURCE, TagQueryBlock } from "./query-block.ts";
 import { RenameTagModal, TagPickerModal, TagReviewModal } from "./curator.ts";
 import { rulesTags } from "./inbox.ts";
 import { ConsistencyModal, openConsistency } from "./consistency-modal.ts";
-import { type Exclusion, exclusionOf, renameExcluded, setExcluded } from "./exclude.ts";
+import { type Exclusion, type ExcludedNames, exclusionOf, parseNames, renameExcluded, setExcluded } from "./exclude.ts";
 import { BringInWatcher } from "./bring-in-watcher.ts";
 import { DEFAULT_SETTINGS, TagEverythingSettings, TagEverythingSettingTab, normalizeSettings, targetFor } from "./settings.ts";
 
@@ -52,6 +52,13 @@ export default class TagEverythingPlugin extends Plugin {
   private tagArrivalsSoon = debounce(() => void this.tagArrivals(), 2000, true);
   /** `exclusionOf` per item ("d:" folder / "f:" file + path): it only depends on the settings, cleared when they change. */
   private exclusionCache = new Map<string, Exclusion | null>();
+  /** `parseNames` of the settings' excluded folder names, file names and extensions, with the text it was parsed from. */
+  private namesCache: { text: string; names: ExcludedNames } | null = null;
+  /**
+   * After the excluded names were typed in the settings: the index is re-read once typing stops (a rebuild per key
+   * would re-read the whole vault for every letter).
+   */
+  excludedNamesChanged = debounce(() => void this.exclusionsChanged(), 1000, true);
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -130,6 +137,7 @@ export default class TagEverythingPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("files-menu", (menu: Menu, files: TAbstractFile[]) => addPluginMenu(menu, filesMenuEntries(this, files))));
 
     this.register(() => this.tagArrivalsSoon.cancel());
+    this.register(() => this.excludedNamesChanged.cancel());
     const refreshBadges = debounce(() => this.badges.refresh(), 150, true);
     this.register(() => this.badges.clear());
     this.registerEvent(this.index.on("changed", refreshBadges));
@@ -198,12 +206,30 @@ export default class TagEverythingPlugin extends Plugin {
    * badges look at: cached, the answer only depends on the path and the settings.
    */
   exclusion(path: string, isFolder: boolean): Exclusion | null {
+    if (!this.hasExclusions()) return null;
     const { excluded, excludeRules } = this.settings;
-    if (!excluded.length && !excludeRules.length) return null;
+    const names = this.excludedNames();
     const key = (isFolder ? "d:" : "f:") + path;
     let hit = this.exclusionCache.get(key);
-    if (hit === undefined) this.exclusionCache.set(key, (hit = exclusionOf(path, isFolder, excluded, excludeRules)));
+    if (hit === undefined) this.exclusionCache.set(key, (hit = exclusionOf(path, isFolder, excluded, excludeRules, names)));
     return hit;
+  }
+
+  /** Is anything excluded at all (paths, rules or names)? Lets the rename hook and the badges skip the work. */
+  hasExclusions(): boolean {
+    const { excluded, excludeRules, excludedFolders, excludedFiles, excludedExtensions } = this.settings;
+    return excluded.length > 0 || excludeRules.length > 0 || !!(excludedFolders + excludedFiles + excludedExtensions).trim();
+  }
+
+  /** The settings' excluded folder names, file names and extensions, parsed once per text; a new text clears the cache. */
+  private excludedNames(): ExcludedNames {
+    const { excludedFolders, excludedFiles, excludedExtensions } = this.settings;
+    const text = `${excludedFolders}\u0000${excludedFiles}\u0000${excludedExtensions}`;
+    if (this.namesCache?.text !== text) {
+      this.namesCache = { text, names: parseNames(excludedFolders, excludedFiles, excludedExtensions) };
+      this.exclusionCache.clear();
+    }
+    return this.namesCache.names;
   }
 
   isExcluded(item: TAbstractFile): boolean {
@@ -299,8 +325,8 @@ export default class TagEverythingPlugin extends Plugin {
       this.saveData(this.settings).catch((err) => console.error("[tag-everything] saving the moved exclusion failed", err));
     }
     this.index.onRename(item, oldPath);
-    if (this.settings.excluded.length || this.settings.excludeRules.length) {
-      this.index.prune(item.path, folder); // moved into an excluded folder, or now matching an exclusion rule
+    if (this.hasExclusions()) {
+      this.index.prune(item.path, folder); // moved into an excluded folder, or now matching an excluded name or rule
       if (wasExcluded && !this.isExcluded(item)) void this.index.rebuild(); // moved out: its tags are read back
     }
     if (own || !(item instanceof TFile)) return; // a folder's .ts folder moves with it
@@ -464,6 +490,17 @@ export default class TagEverythingPlugin extends Plugin {
     const view = await this.openView();
     view?.showPage("tools");
     return view;
+  }
+
+  /** Opens Obsidian's settings on this plugin's tab (internal `app.setting`, guarded: docs/obsidian-api.md). */
+  openSettings(): void {
+    try {
+      const setting = (this.app as unknown as { setting?: { open(): void; openTabById(id: string): void } }).setting;
+      setting?.open();
+      setting?.openTabById(this.manifest.id);
+    } catch (err) {
+      console.warn("[tag-everything] opening the settings failed", err);
+    }
   }
 
   /** Focuses the inbox on a folder ("" = the whole vault), then shows it. */

@@ -2,7 +2,7 @@ import { Menu, MenuItem, TAbstractFile, TFolder } from "obsidian";
 import { PLUGIN_NAME, plural } from "./messages.ts";
 import { revealInExplorer } from "./items.ts";
 import { describeConditions } from "./inbox.ts";
-import type { Exclusion } from "./exclude.ts";
+import { type Exclusion, describeNameExclusion } from "./exclude.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { openPutAway, putAwayPlan } from "./putaway-modal.ts";
 import type TagEverythingPlugin from "./main.ts";
@@ -108,6 +108,9 @@ function putAwayEntry(plugin: TagEverythingPlugin, items: readonly TAbstractFile
 
 /** The entry of an excluded item: include it (or the folder that excludes it) again, or edit its rule. */
 function includeEntry(plugin: TagEverythingPlugin, item: TAbstractFile, why: Exclusion): MenuEntry {
+  if (why.by === "name") {
+    return { title: `Excluded by ${describeNameExclusion(why)}: change it in the settings`, icon: "eye-off", run: () => plugin.openSettings() };
+  }
   if (why.by === "rule") {
     const { rule } = why;
     return {

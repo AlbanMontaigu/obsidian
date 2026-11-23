@@ -2,6 +2,7 @@ import { App, PluginSettingTab, SettingDefinitionItem, SettingDefinitionRender, 
 import type { TagTarget } from "./format.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { DEFAULT_SETTINGS, normalizeSettings, type TagEverythingSettings } from "./config.ts";
+import { DEFAULT_EXCLUDED_EXTENSIONS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_FOLDERS } from "./exclude.ts";
 import { deleteRule, describeConditions, describeRule } from "./inbox.ts";
 import { RuleModal } from "./rule-modal.ts";
 import { describeBringIn } from "./bring-in.ts";
@@ -19,6 +20,9 @@ export function targetFor(file: TFile, settings: TagEverythingSettings): TagTarg
 /** Settings edited elsewhere (panel, inbox, rule dialog), never by a control of this tab. */
 const PANEL_KEYS: readonly string[] = ["groups", "tabs", "rules", "inboxDismissed", "excluded", "excludeRules", "bringIn"];
 type ControlKey = Exclude<keyof TagEverythingSettings, "groups" | "tabs" | "rules" | "inboxDismissed" | "excluded" | "excludeRules" | "bringIn">;
+
+/** The ignored names (src/exclude.ts): a change re-reads the index. */
+const NAME_KEYS: readonly string[] = ["excludedFolders", "excludedFiles", "excludedExtensions"];
 
 function setKey<K extends ControlKey>(settings: TagEverythingSettings, key: K, value: TagEverythingSettings[K]): void {
   settings[key] = value;
@@ -43,7 +47,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
   ) {
     super(app, plugin);
     this.icon = "tags";
-    // Declarative rows take no class: styles.css finds the liaison words row (the tab's only textarea) through this one.
+    // Declarative rows take no class: styles.css finds the text box rows (liaison words, ignored names) through this one.
     this.containerEl.addClass("tag-everything-settings");
   }
 
@@ -238,6 +242,30 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         })),
       },
       {
+        type: "group",
+        heading: "Ignored names",
+        items: [
+          {
+            name: "Ignored folder names",
+            desc: `Folders with one of these names, wherever they are, are ignored with everything in them: no tags, not in the panel, the explorers, query blocks or the inbox. Comma separated, * for any characters (.* = every folder starting with a dot). Default: ${DEFAULT_EXCLUDED_FOLDERS}`,
+            aliases: ["exclude", "ignore", "tmp", "cache", "pycache", "node_modules", "hidden", "dot"],
+            control: { type: "textarea", key: "excludedFolders", rows: 2, placeholder: "Nothing ignored by folder name" },
+          },
+          {
+            name: "Ignored file names",
+            desc: `Files with one of these names are ignored. Comma separated, * for any characters (.* = every file starting with a dot, like .gitignore). Default: ${DEFAULT_EXCLUDED_FILES}`,
+            aliases: ["exclude", "ignore", "hidden", "dot", "gitignore", "lock"],
+            control: { type: "textarea", key: "excludedFiles", rows: 2, placeholder: "Nothing ignored by file name" },
+          },
+          {
+            name: "Ignored file extensions",
+            desc: `Files with one of these extensions are ignored. Comma or space separated, with or without the dot. Default: ${DEFAULT_EXCLUDED_EXTENSIONS}`,
+            aliases: ["exclude", "ignore", "extension", "tmp", "temporary", "backup"],
+            control: { type: "textarea", key: "excludedExtensions", rows: 2, placeholder: "Nothing ignored by extension" },
+          },
+        ],
+      },
+      {
         type: "list",
         heading: "Excluded from the tag engine",
         emptyState: "Nothing excluded. Right-click a file or folder → TagEverything → Exclude from the tag engine: it is ignored everywhere, its tags stay in place.",
@@ -287,6 +315,7 @@ export class TagEverythingSettingTab extends PluginSettingTab {
     setKey(settings, k, normalizeSettings({ ...settings, [k]: value })[k]);
     this.refreshDomState(); // the badge options are disabled while badges are off
     await this.save();
+    if (NAME_KEYS.includes(k)) this.plugin.excludedNamesChanged(); // the index is re-read once typing stops
   }
 
   private async removeRule(i: number): Promise<void> {

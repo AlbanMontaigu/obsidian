@@ -6,7 +6,7 @@ import { type TagGroup, cleanTagList, normalizeGroups } from "./groups.ts";
 import { type Section, normalizeSections } from "./sections.ts";
 import { DEFAULT_STOP_WORDS } from "./naming.ts";
 import { type AutoTagRule, cleanFolder, normalizeRules } from "./inbox.ts";
-import { type ExcludeRule, normalizeExcludeRules, normalizeExcludedPaths } from "./exclude.ts";
+import { DEFAULT_EXCLUDED_EXTENSIONS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_FOLDERS, type ExcludeRule, normalizeExcludeRules, normalizeExcludedPaths } from "./exclude.ts";
 import { type BringInFolder, normalizeBringIn } from "./bring-in.ts";
 
 export interface TagEverythingSettings {
@@ -52,6 +52,12 @@ export interface TagEverythingSettings {
   excluded: string[];
   /** Exclusion rules (src/exclude.ts): the items they cover are excluded from TagEverything. */
   excludeRules: ExcludeRule[];
+  /** Folder names excluded wherever they are, with what is in them (comma separated, `*` wildcard; src/exclude.ts). */
+  excludedFolders: string;
+  /** File names excluded everywhere (comma separated, `*` wildcard: `.*` = dot-files; src/exclude.ts). */
+  excludedFiles: string;
+  /** File extensions excluded everywhere (comma or space separated; src/exclude.ts). */
+  excludedExtensions: string;
   /**
    * The panel's All tab shows only the tags used between `tagRangeMin` and `tagRangeMax` times (src/cloud.ts `inCountRange`).
    * Off by default: a new vault's first tags are used once or twice, and a range would hide them all.
@@ -99,6 +105,9 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   bringIn: [],
   excluded: [],
   excludeRules: [],
+  excludedFolders: DEFAULT_EXCLUDED_FOLDERS,
+  excludedFiles: DEFAULT_EXCLUDED_FILES,
+  excludedExtensions: DEFAULT_EXCLUDED_EXTENSIONS,
   tagRangeOn: false,
   tagRangeMin: 10,
   tagRangeMax: 100,
@@ -147,6 +156,10 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     bringIn: normalizeBringIn(r.bringIn),
     excluded: normalizeExcludedPaths(r.excluded),
     excludeRules: normalizeExcludeRules(r.excludeRules),
+    // an empty box is a choice (nothing excluded by name), kept: unlike the liaison words, not refilled
+    excludedFolders: typeof r.excludedFolders === "string" ? r.excludedFolders : d.excludedFolders,
+    excludedFiles: typeof r.excludedFiles === "string" ? r.excludedFiles : d.excludedFiles,
+    excludedExtensions: typeof r.excludedExtensions === "string" ? r.excludedExtensions : d.excludedExtensions,
     tagRangeOn: bool("tagRangeOn"),
     tagRangeMin: int("tagRangeMin", 1, 1_000_000),
     tagRangeMax: int("tagRangeMax", 0, 1_000_000),

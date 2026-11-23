@@ -939,7 +939,7 @@
   flex-wrap: wrap;
 }
 
-/* ---- settings tab: the liaison words box (its only textarea) under its label, full width */
+/* ---- settings tab: the text boxes (liaison words, ignored names) under their label, full width */
 .tag-everything-settings .setting-item:has(textarea) {
   flex-wrap: wrap;
   gap: var(--size-4-2);

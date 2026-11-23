@@ -68,6 +68,10 @@ entry of the area you change; add one when you leave a limit behind (users' side
   row of the file explorer while there are exclusions (cached per path). An item can't be included alone inside an
   excluded folder (no allow-list): include the folder, exclude the others. Like any tag no item carries any more, a
   tag carried only by excluded items leaves the panel's search (it is not put back on inclusion).
+- Ignored names are on by default, so a vault upgraded to 0.42 loses from the index whatever sat in a `tmp` / `temp`
+  / `venv` folder or carried an ignored extension; their tags stay on disk and come back when the name is taken out
+  of the box. Dot-folders and dot-files are already invisible to the Vault API, so their `.*` defaults only matter
+  if Obsidian starts listing them (the smoke test cannot create one: unit-tested only).
 - Date criteria (src/dates.ts; date terms of src/formula.ts): the menus offer presets only (1, 7, 30, 90, 365 days;
   older than 30, 90, 365 days); any number can be typed in a formula (`created:45d`). "Created" is `stat.ctime`: a
   copy or a sync can make an old document new. A folder has no date, so a date term never matches one (`NOT

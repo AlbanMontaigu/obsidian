@@ -3,6 +3,7 @@ import type TagEverythingPlugin from "./main.ts";
 import { paintTag } from "./ui.ts";
 import { markInherited } from "./items.ts";
 import { PLUGIN_NAME } from "./messages.ts";
+import { type Exclusion, describeNameExclusion } from "./exclude.ts";
 
 /**
  * Explorer badges: the extension chip before a name, a pill with the number of tags after it (hover: the list), and
@@ -44,6 +45,12 @@ interface RowBadges {
   path?: string;
 }
 
+/** Why the item at `path` is excluded, for the icon's tooltip ("" = the item itself, excluded by hand). */
+function excludedBy(why: Exclusion, path: string): string {
+  if (why.by === "path") return why.path === path ? "" : `folder ${why.path}`;
+  return why.by === "name" ? describeNameExclusion(why) : "a rule";
+}
+
 export class ExplorerBadges {
   /** Explorer rows we decorated -> what their badges show, so a refresh only touches rows that changed. */
   private decorated = new Map<HTMLElement, string>();
@@ -73,7 +80,7 @@ export class ExplorerBadges {
   refresh(): void {
     try {
       const { settings, index } = this.plugin;
-      const excludes = settings.excluded.length > 0 || settings.excludeRules.length > 0;
+      const excludes = this.plugin.hasExclusions();
       if (!settings.showBadges && !excludes) return this.clear();
       const wanted = new Map<HTMLElement, RowBadges>();
       for (const view of this.explorers()) {
@@ -83,7 +90,7 @@ export class ExplorerBadges {
         if (excludes) {
           for (const [path, item] of Object.entries(items)) {
             const why = item.selfEl && this.plugin.exclusion(path, item.file instanceof TFolder);
-            if (why) wanted.set(item.selfEl!, { ext: null, tags: [], excluded: why.by === "path" ? (why.path === path ? "" : `folder ${why.path}`) : "a rule" });
+            if (why) wanted.set(item.selfEl!, { ext: null, tags: [], excluded: excludedBy(why, path) });
           }
         }
         if (!settings.showBadges) continue;
