@@ -16,6 +16,16 @@ test("folder name tags: plain words, lower-cased, ordering prefix and liaison wo
   assert.deepEqual(folderNameTags("de", rule), []);
 });
 
+test("folder name tags: short numbers (1 to 3 digits) left out only when asked; a year always kept", () => {
+  assert.deepEqual(folderNameTags("12", rule), ["12"]);
+  assert.deepEqual(folderNameTags("12", rule, true), []);
+  assert.deepEqual(folderNameTags("007", rule, true), []);
+  assert.deepEqual(folderNameTags("Project 42", rule, true), ["project"]);
+  assert.deepEqual(folderNameTags("2025", rule, true), ["2025"]);
+  assert.deepEqual(folderNameTags("Budget 2025 v2", rule, true), ["budget", "2025", "v2"]);
+  assert.deepEqual(folderNameTags("B27 Board", rule, true), ["b27", "board"]);
+});
+
 /** A tiny tree: folder paths → stored tags; `kept`: folders keeping their name to themselves. */
 function tree(stored: Record<string, string[]>, excluded: string[] = [], kept: string[] = []) {
   return {

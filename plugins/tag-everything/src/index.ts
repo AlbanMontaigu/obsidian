@@ -129,8 +129,8 @@ export class TagIndex extends Events {
   excluded: (path: string, isFolder: boolean) => boolean = () => false;
   /** Mirrors the `extensionTags` setting: change it with `setExtensionTags`. */
   private extensionTags: boolean;
-  /** Mirrors the settings `inheritFolderTags` / `folderNameTags`: change them with `setInheritance`. */
-  private inherit: InheritOptions = { inherit: false, folderNames: false };
+  /** Mirrors the settings `inheritFolderTags` / `folderNameTags` / `skipShortNumbers`: change them with `setInheritance`. */
+  private inherit: InheritOptions = { inherit: false, folderNames: false, skipShortNumbers: false };
   /** Mirrors the setting `keptFolderNames`: folders whose name tags don't pass down. */
   private keptNames = new Set<string>();
   private nameRule: NamingRule = makeRule();
@@ -190,7 +190,7 @@ export class TagIndex extends Events {
 
   /** The tags a folder's name gives (with the settings' liaison words), whether or not `folderNameTags` is on. */
   nameTagsOf(folderPath: string): string[] {
-    return folderNameTags(ts.baseOf(folderPath), this.nameRule);
+    return folderNameTags(ts.baseOf(folderPath), this.nameRule, this.inherit.skipShortNumbers);
   }
 
   /** Is the tag only inherited (some item inherits it, none stores it)? Tag lists draw it as inherited. */
@@ -207,8 +207,16 @@ export class TagIndex extends Events {
     const rule = makeRule(stopWords);
     const same = <T>(a: ReadonlySet<T>, b: ReadonlySet<T>) => a.size === b.size && [...a].every((x) => b.has(x));
     const kept = new Set(keptNames);
-    if (opts.inherit === this.inherit.inherit && opts.folderNames === this.inherit.folderNames && same(rule.stopWords, this.nameRule.stopWords) && same(kept, this.keptNames)) return;
-    this.inherit = { inherit: opts.inherit, folderNames: opts.folderNames };
+    const skipShortNumbers = !!opts.skipShortNumbers;
+    if (
+      opts.inherit === this.inherit.inherit &&
+      opts.folderNames === this.inherit.folderNames &&
+      skipShortNumbers === this.inherit.skipShortNumbers &&
+      same(rule.stopWords, this.nameRule.stopWords) &&
+      same(kept, this.keptNames)
+    )
+      return;
+    this.inherit = { inherit: opts.inherit, folderNames: opts.folderNames, skipShortNumbers };
     this.keptNames = kept;
     this.nameRule = rule;
     this.inheritedOnly = new Set();
@@ -227,7 +235,7 @@ export class TagIndex extends Events {
       ownOf: (p) => (this.entries.get(p) ?? EMPTY).own,
       nameTagsOf: (name) => {
         let tags = names.get(name);
-        if (!tags) names.set(name, (tags = folderNameTags(name, this.nameRule)));
+        if (!tags) names.set(name, (tags = folderNameTags(name, this.nameRule, this.inherit.skipShortNumbers)));
         return tags;
       },
       excluded: (p, isFolder) => this.excluded(p, isFolder),

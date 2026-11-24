@@ -14,6 +14,8 @@ export interface InheritOptions {
   inherit: boolean;
   /** A folder's name gives tags to the folder and to everything below it. */
   folderNames: boolean;
+  /** Folder names: a word of 1 to 3 digits alone gives no tag (`folderNameTags`, read by the index's `nameTagsOf`). */
+  skipShortNumbers?: boolean;
 }
 
 /** Is any inheritance on? Off: no item has inherited tags, nothing is computed. */
@@ -24,12 +26,17 @@ export function inheriting(opts: InheritOptions): boolean {
 /** An ordering prefix in front of a folder name: `1. `, `02 - `, `3_`, `10) `. A year alone (`2025`) is kept. */
 const ORDER_PREFIX = /^\d+\s*[.)_-]\s*(?=\S)/u;
 
+/** A number too short to be a year: `7`, `12`, `007`. */
+const SHORT_NUMBER = /^\d{1,3}$/u;
+
 /**
  * The tags a folder name gives: its plain words, lower-cased, liaison words left out, after an ordering prefix.
  * `1. Projects` → `projects`; `B27 Board` → `b27 board`; `Plan de charge` → `plan charge`; `2025` → `2025`.
+ * With `skipShortNumbers`, a word of 1 to 3 digits alone is left out (`Project 42` → `project`), a year kept.
  */
-export function folderNameTags(name: string, rule: NamingRule): string[] {
-  return suggestFix(name.replace(ORDER_PREFIX, "").trim(), rule);
+export function folderNameTags(name: string, rule: NamingRule, skipShortNumbers = false): string[] {
+  const tags = suggestFix(name.replace(ORDER_PREFIX, "").trim(), rule);
+  return skipShortNumbers ? tags.filter((t) => !SHORT_NUMBER.test(t)) : tags;
 }
 
 /** What the computation reads about the vault (the index gives it). */

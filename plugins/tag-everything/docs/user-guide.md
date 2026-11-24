@@ -44,6 +44,8 @@ Other fields of a sidecar or `tsm.json` (id, description, colours…) and other 
 - *Folder names as tags*: a folder's name is a tag of the folder and of everything inside it, split like a new tag
   (lower-case words, liaison words and a leading ordering number left out): `1. Projects/B27 Board/memo.pdf` carries
   `projects`, `b27` and `board`.
+  A word that is only a short number (1 to 3 digits: `12`, `007`, the `42` of `Project 42`) gives no tag, while a year
+  (`2025`) still does; turn *Leave short numbers out of folder names* off to get them back.
   A folder whose name is only noise for what is inside it (a PARA top folder, `Resources`, `Inbox`) can keep its name
   to itself: right-click it → *TagEverything → Don't pass its name down (projects)*. The folder still carries its name
   as a tag; the files and folders inside it no longer get it, but they still get the folder's own tags and the names
@@ -602,6 +604,7 @@ sidecar) and come back as soon as it is included again. A folder takes everythin
 | File extension as a tag | On | Section 1: every file carries its extension as a tag, shown before its name in the explorer; the panel's tag lists show them only with its file type icon on (Section 5, off by default) |
 | Inherit folder tags | On | Section 1: files and folders also carry the tags of the folders they are in, drawn apart, never written; the TagEverything explorer uses inherited tags only with its folder-tree icon on (Section 10, off by default) |
 | Folder names as tags | On | Section 1: a folder's name is a tag of the folder and of everything in it, drawn apart, never written; listed in the panel's *Inherited* section (Section 5) |
+| Leave short numbers out of folder names | On | Section 1: a word of a folder name that is only 1 to 3 digits gives no tag, a year (4 digits) still does; greyed out while *Folder names as tags* is off |
 | Folders keeping their name | None | Section 1: folders whose name stays on the folder and doesn't pass to what is inside; set by right-click (*Don't pass its name down*), a row deleted passes it down again |
 | Colour tags automatically | On | Section 8 |
 | Archives: *Archive tags* / *Show archived items* | `archive, archives` / Off | Section 2: items carrying one of these tags (own or inherited) are hidden from the panel, the explorer, the inbox and query blocks; the archive icon in each of them is the same switch. Empty list: nothing archived |

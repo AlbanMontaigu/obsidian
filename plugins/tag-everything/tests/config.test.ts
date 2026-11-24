@@ -125,6 +125,13 @@ test("explorerInheritedTags: off by default, a boolean kept, anything else back 
   assert.equal(normalizeSettings({ explorerInheritedTags: 1 }).explorerInheritedTags, false);
 });
 
+test("skipShortNumbers: on by default (older data.json too), a boolean kept, anything else back to on", () => {
+  assert.equal(DEFAULT_SETTINGS.skipShortNumbers, true);
+  assert.equal(normalizeSettings({}).skipShortNumbers, true);
+  assert.equal(normalizeSettings({ skipShortNumbers: false }).skipShortNumbers, false);
+  assert.equal(normalizeSettings({ skipShortNumbers: "no" }).skipShortNumbers, true);
+});
+
 test("panelExtensionTags: off by default, a boolean kept, anything else back to off", () => {
   assert.equal(normalizeSettings({}).panelExtensionTags, false);
   assert.equal(normalizeSettings({ panelExtensionTags: true }).panelExtensionTags, true);

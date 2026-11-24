@@ -342,9 +342,10 @@ if (settingTab) {
   const disabledCount = () => el.querySelectorAll(".setting-item.is-disabled").length;
   const toggle = row("Show tag badges")?.querySelector(".checkbox-container");
   // The naming rule is on by default: "Lower-case new tags" is implied, so disabled; the count range is off here
-  // (turned off at the start), so its two numbers are disabled too (3 rows).
+  // (turned off at the start), so its two numbers are disabled too; folder names as tags are off here (turned off at
+  // the start), so their short-numbers option is disabled (4 rows).
   const isDisabled = (name) => !!row(name)?.classList.contains("is-disabled");
-  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 3 && isDisabled("Lower-case new tags"), String(disabledCount()));
+  check("settings: rendered in the settings dialog", !!toggle && !!row("Store file tags in") && disabledCount() === 4 && isDisabled("Lower-case new tags") && isDisabled("Leave short numbers out of folder names"), String(disabledCount()));
   check("settings: the count range's numbers disabled while it is off", isDisabled("Used at least") && isDisabled("Used at most") && !isDisabled("Only tags used a number of times"));
   const ruleToggle = row("Tag naming rule")?.querySelector(".checkbox-container");
   check("settings: naming rule on by default, liaison words editable", plugin.settings.tagRule === true && !!row("Liaison words")?.querySelector("textarea") && !isDisabled("Liaison words"));
@@ -361,8 +362,8 @@ if (settingTab) {
   const saved = (await plugin.loadData())?.showBadges;
   toggle?.click();
   await sleep(300);
-  check("settings: badge option disabled while badges are off", off === 4 && saved === false, `disabled=${off} saved=${saved}`);
-  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 3 && (await plugin.loadData())?.showBadges === true);
+  check("settings: badge option disabled while badges are off", off === 5 && saved === false, `disabled=${off} saved=${saved}`);
+  check("settings: enabled again, setting saved", plugin.settings.showBadges === true && disabledCount() === 4 && (await plugin.loadData())?.showBadges === true);
   // Tag maintenance: settings hold options only; one row leads to the panel's Tools tab, where the actions are.
   check("settings: no maintenance action, one row leading to the Tools tab", names.includes("Tag tools") && !names.includes("Re-read all tags") && !names.includes("Check and fix tag names"), JSON.stringify(names));
   row("Tag tools")?.querySelector("button")?.click();
@@ -1849,6 +1850,25 @@ check(
   plugin.index.inheritedFrom(inhMemo.path, "acme") === "Inherit" && plugin.index.inheritedFrom(inhMemo.path, "work") === inhSub && plugin.index.inheritedFrom(inhSub, "work") === inhSub,
 );
 check("inherit: a tag only folders give is only inherited, a stored one is not", plugin.index.onlyInherited("work") && !plugin.index.onlyInherited("acme") && !plugin.index.onlyInherited("urgent"));
+// short numbers (1 to 3 digits) in folder names: no tag by default, a year still one; the setting turns them back on
+await vault.createFolder("Inherit/42");
+await vault.createFolder("Inherit/42/2025");
+const inhNum = await vault.create("Inherit/42/2025/n.md", "plain");
+await sleep(300);
+const numDefs = settingTab?.getSettingDefinitions().find((d) => d.name === "Leave short numbers out of folder names");
+check(
+  "inherit: short numbers: a folder named 42 gives no tag by default, a year does; the setting is listed",
+  plugin.settings.skipShortNumbers === true && (await waitFor(() => inh(inhNum.path) === "2025,inherit,acme")) && !plugin.index.nameTagsOf("Inherit/42").length && numDefs?.control?.key === "skipShortNumbers",
+  `${inh(inhNum.path)} / ${numDefs?.name}`,
+);
+plugin.settings.skipShortNumbers = false;
+await plugin.saveSettings();
+await sleep(300);
+check("inherit: short numbers: turned off, 42 is a tag again", inh(inhNum.path) === "2025,42,inherit,acme" && (await plugin.loadData())?.skipShortNumbers === false, inh(inhNum.path));
+plugin.settings.skipShortNumbers = true;
+await plugin.saveSettings();
+await vault.delete(vault.getAbstractFileByPath("Inherit/42"), true);
+await sleep(300);
 // panel All: the tags only folders give in an Inherited section of their own, under the others, open by default
 view.showAll();
 await sleep(300);

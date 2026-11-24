@@ -199,8 +199,8 @@ export default class TagEverythingPlugin extends Plugin {
   }
 
   private syncIndexOptions(): void {
-    const { inheritFolderTags, folderNameTags, stopWords, keptFolderNames, archiveTags, showArchived } = this.settings;
-    this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags }, stopWords, keptFolderNames);
+    const { inheritFolderTags, folderNameTags, skipShortNumbers, stopWords, keptFolderNames, archiveTags, showArchived } = this.settings;
+    this.index.setInheritance({ inherit: inheritFolderTags, folderNames: folderNameTags, skipShortNumbers }, stopWords, keptFolderNames);
     this.index.setArchive(archiveTagSet(archiveTags), showArchived);
   }
 

@@ -26,6 +26,8 @@ export interface TagEverythingSettings {
   inheritFolderTags: boolean;
   /** A folder's name, split like a tag, is a tag of the folder and of what is in it (src/inherit.ts): never written. On by default. */
   folderNameTags: boolean;
+  /** Folder names: a word of 1 to 3 digits alone (`12`, `007`) gives no tag; a year (`2025`) still does. On by default. */
+  skipShortNumbers: boolean;
   /** Folders keeping their name tags to themselves (src/inherit.ts): what is inside them doesn't get them. Set by right-click. */
   keptFolderNames: string[];
   showBadges: boolean;
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: TagEverythingSettings = {
   extensionTags: true,
   inheritFolderTags: true,
   folderNameTags: true,
+  skipShortNumbers: true,
   keptFolderNames: [],
   showBadges: true,
   autoColors: true,
@@ -155,6 +158,7 @@ export function normalizeSettings(raw: unknown): TagEverythingSettings {
     extensionTags: bool("extensionTags"),
     inheritFolderTags: bool("inheritFolderTags"),
     folderNameTags: bool("folderNameTags"),
+    skipShortNumbers: bool("skipShortNumbers"),
     keptFolderNames: normalizeExcludedPaths(r.keptFolderNames), // a list of folder paths, like the excluded ones
     showBadges: bool("showBadges"),
     autoColors: bool("autoColors"),

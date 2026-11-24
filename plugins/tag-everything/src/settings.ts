@@ -108,6 +108,12 @@ export class TagEverythingSettingTab extends PluginSettingTab {
         control: { type: "toggle", key: "folderNameTags" },
       },
       {
+        name: "Leave short numbers out of folder names",
+        desc: "A word of a folder name that is only 1 to 3 digits (12, 007, the 42 of Project 42) gives no tag. A year (2025) still does.",
+        aliases: ["folder name", "number", "digits", "year"],
+        control: { type: "toggle", key: "skipShortNumbers", disabled: () => !s().folderNameTags },
+      },
+      {
         type: "list",
         heading: "Folders keeping their name",
         emptyState: "None. Right-click a folder → TagEverything → Don't pass its name down: the folder keeps its name as a tag, what is inside it no longer gets it (its own tags still pass down).",

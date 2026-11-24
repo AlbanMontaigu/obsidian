@@ -56,7 +56,8 @@ and `docs/user-guide.md` when users see it.
 1. A file's tags = name tags ∪ frontmatter tags (`.md` only) ∪ sidecar tags, whatever the settings. A folder's
    tags = `tsm.json` tags only. With `extensionTags` (on by default) the file's extension tag comes first in
    `tagsOf`: derived from the name, **never written**. Inherited tags (`inheritFolderTags`, `folderNameTags`, on by
-   default; src/inherit.ts; a folder in `keptFolderNames` keeps its name tags, they don't pass down) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
+   default; src/inherit.ts; a folder in `keptFolderNames` keeps its name tags, they don't pass down; with
+   `skipShortNumbers`, on by default, a name word of 1 to 3 digits gives no tag, a year does) come last in `tagsOf`: computed from the folders, **never written**, always drawn apart
    (`markInherited`); the TagEverything explorer leaves them out unless its toggle `explorerInheritedTags` (off by
    default) is on. What edits or lists stored tags (editor, `replaceTags`, *Check tag names*, the guide's lists,
    rules, inbox, consistency, put away) uses `ownTagsOf` / `counts(paths, true)`.

@@ -311,7 +311,8 @@ themselves: nothing is computed. A folder in `keptFolderNames` (right-click, `me
 `main.ts` `setKeptName`) keeps its name tags to itself: `Inheritance.gives` leaves them out of what it passes down
 (`InheritSource.keepsName`), while `given` still puts them on the folder; the list reaches the index with
 `setInheritance` and follows renames in `main.ts` `onRename` (`format.ts` `renamePaths`, shared with the excluded
-paths). Drawing: `items.ts` `markInherited` adds `tag-everything-inherited` (styles.css:
+paths). The setting `skipShortNumbers` (on by default) reaches the index the same way (`InheritOptions.skipShortNumbers`)
+and makes `folderNameTags` drop a word of 1 to 3 digits (a year stays a tag). Drawing: `items.ts` `markInherited` adds `tag-everything-inherited` (styles.css:
 italic, dotted, ↳) to a chip of an item's inherited tag (its tooltip says from where), or, without an item, of a tag
 only folders give. The panel's All tab lists those (`onlyInherited`) in an *Inherited* section of their own under the
 tags (`view.ts` `renderInherited`, folded state in `panelInheritedCollapsed`). The TagEverything explorer leaves the
